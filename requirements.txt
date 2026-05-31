@@ -1,7 +1,4 @@
 flask==3.0.3
-pandas==2.0.3
-numpy==1.24.4
 requests==2.32.3
-pybaseball==2.2.7
 gunicorn==22.0.0
 apscheduler==3.10.4
