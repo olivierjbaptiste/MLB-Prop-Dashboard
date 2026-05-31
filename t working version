@@ -1,0 +1,10 @@
+[33m8fd7076[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m Fix lineup fetch for in-progress games
+[33md62ece0[m Expand health endpoint for debugging
+[33mbdc9cf4[m Add MLB player headshots to pick cards, lineups, and batters
+[33me61abcb[m Add fair odds, edge %, auto-refresh 4:30pm and 7pm ET
+[33m52692e8[m Fix internal server error on route
+[33m6b37293[m Add Results tracker with win/loss record
+[33m70f0d5c[m Add odds_free debug test to startup
+[33m21fede1[m Always fall back to free odds when paid API returns nothing
+[33m6232538[m Debug DraftKings odds endpoint
+[33m0f6c398[m Add free DraftKings odds - no API key needed
