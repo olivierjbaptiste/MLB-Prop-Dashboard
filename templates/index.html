@@ -620,14 +620,12 @@ var YESTERDAY= RAW.yesterday_results || [];
 
 // ── INIT HEADER STATS ─────────────────────────────────────────────
 document.getElementById('stat-picks').textContent    = PICKS.length;
-// Show freshness indicator
-(function(){
-  var updStr = '{{ updated }}';
-  if(updStr){
-    var el = document.getElementById('picks-freshness');
-    if(el) el.textContent = 'Data from ' + updStr;
-  }
-})();
+// Show freshness indicator safely
+try {
+  var updEl = document.getElementById('picks-freshness');
+  var legendTime = document.querySelector('.legend div:last-child');
+  if(updEl && legendTime) updEl.textContent = legendTime.textContent;
+} catch(e){}
 document.getElementById('stat-games').textContent    = GAMES.length;
 document.getElementById('stat-batters').textContent  = BATTERS.length;
 var updTime = '{{ updated }}';
@@ -1536,13 +1534,13 @@ function refreshData(){
   });
 }
 
-// Init on load
-buildPicks();
-buildSlate();
-buildProps();
-buildBatters();
-buildPitchers();
-buildResults();
+// Init on load — wrapped in try-catch so one error doesn't break the page
+try { buildPicks();   } catch(e){ console.error('buildPicks error:', e); }
+try { buildSlate();   } catch(e){ console.error('buildSlate error:', e); }
+try { buildProps();   } catch(e){ console.error('buildProps error:', e); }
+try { buildBatters(); } catch(e){ console.error('buildBatters error:', e); }
+try { buildPitchers();} catch(e){ console.error('buildPitchers error:', e); }
+try { buildResults(); } catch(e){ console.error('buildResults error:', e); }
 </script>
 </body>
 </html>
