@@ -882,10 +882,13 @@ def build_pitchers():
 
 def build_all_data(odds_api_key=""):
     games    = get_games()
-    # Use free DraftKings/FanDuel props if no paid API key
+    # Try paid API first, fall back to free DraftKings endpoint
+    props = []
     if odds_api_key and odds_api_key != "YOUR_ODDS_API_KEY_HERE":
         props = get_props(odds_api_key)
-    else:
+        if not props:
+            print("  Paid API returned 0 props — trying free endpoint...")
+    if not props:
         props = get_free_props()
     batters  = build_batters()
     pitchers = build_pitchers()
