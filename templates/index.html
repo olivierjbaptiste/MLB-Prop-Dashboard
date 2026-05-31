@@ -164,9 +164,34 @@ tr:last-child td{border-bottom:none}
   .two{grid-template-columns:1fr}
   .lineup-grid{grid-template-columns:1fr}
   .picks-grid{grid-template-columns:1fr}
-  .main{padding:12px}
+  .main{padding:10px}
+  .hdr{padding:10px 14px}
+  .logo-text{font-size:14px}
+  .logo-sub{display:none}
+  .hdr-stat{padding:4px 8px}
+  .hdr-stat-val{font-size:14px}
+  .nav{padding:0 10px}
+  .nb{padding:8px 10px;font-size:10px}
+  .pick-card{padding:12px}
+  .pick-name{font-size:13px}
+  .pick-stats{grid-template-columns:repeat(2,1fr)}
+  .pick-stat-val{font-size:13px}
+  table{font-size:11px}
+  th,td{padding:6px 8px}
+  .ticker-wrap{height:28px}
+  .tick-item{font-size:10px;padding:0 12px}
+  .hdr-right .hdr-stat:nth-child(n+3){display:none}
+}
+@media(max-width:480px){
+  .hdr-right .hdr-stat{display:none}
+  .hdr-right .refresh-btn{display:block}
+  .picks-grid{grid-template-columns:1fr}
+  .pick-stats{grid-template-columns:repeat(4,1fr)}
 }
 
+.filter-btn{background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase;font-family:inherit;transition:all 0.15s}
+.filter-btn:hover{border-color:var(--border2);color:var(--white)}
+.filter-btn.on{background:rgba(34,197,94,0.15);border-color:var(--green2);color:var(--green)}
 @media print{
   .nav,.hdr,.ticker-wrap,.legend,.refresh-btn,.print-btn{display:none}
   body{background:#fff;color:#000}
@@ -208,6 +233,10 @@ tr:last-child td{border-bottom:none}
       <div class="hdr-stat-val" id="stat-batters">—</div>
       <div class="hdr-stat-lbl">Batters</div>
     </div>
+    <div class="hdr-stat" onclick="go('results')" style="cursor:pointer" title="View Results">
+      <div class="hdr-stat-val" id="stat-record" style="color:var(--green)">0-0</div>
+      <div class="hdr-stat-lbl">Record</div>
+    </div>
     <div class="hdr-stat">
       <div class="hdr-stat-val" id="stat-updated">—</div>
       <div class="hdr-stat-lbl">Updated</div>
@@ -237,6 +266,7 @@ tr:last-child td{border-bottom:none}
   <button class="nb"    id="btn-framework"  onclick="go('framework')">&#128203; Framework</button>
   <button class="nb"    id="btn-parks"      onclick="go('parks')">&#127967; Parks</button>
   <button class="nb"    id="btn-cheatsheet" onclick="go('cheatsheet')">&#128196; Cheat Sheet</button>
+  <button class="nb"    id="btn-results"    onclick="go('results')">&#128200; Results</button>
 </div>
 
 <div class="main">
@@ -245,6 +275,18 @@ tr:last-child td{border-bottom:none}
 <div id="tc-picks" class="tc on">
   <div class="section-hdr"><h2>Daily HR Prop Picks</h2><span class="badge" id="picks-count">0</span></div>
   <div class="section-sub">Ranked by confidence — based on tonight's actual lineups, matchup scores, park factors, and velocity data</div>
+  <!-- FILTER BAR -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+    <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:700">Filter:</span>
+    <button class="filter-btn on" onclick="setFilter('all',this)">All</button>
+    <button class="filter-btn" onclick="setFilter('STRONG',this)">Strong Only</button>
+    <button class="filter-btn" onclick="setFilter('GOOD',this)">Good+</button>
+    <button class="filter-btn" onclick="setFilter('vs_lhp',this)">vs LHP</button>
+    <button class="filter-btn" onclick="setFilter('vs_rhp',this)">vs RHP</button>
+    <button class="filter-btn" onclick="setFilter('park',this)">HR Park</button>
+    <button class="filter-btn" onclick="setFilter('hot',this)">&#128293; Hot Batters</button>
+    <button class="filter-btn" onclick="setFilter('wind',this)">&#127787; Wind Out</button>
+  </div>
   <div class="picks-grid" id="picks-content">
     <div class="empty-state"><div class="icon">&#128197;</div><h3>Loading picks...</h3></div>
   </div>
@@ -376,6 +418,57 @@ tr:last-child td{border-bottom:none}
   <div id="cheatsheet-content"></div>
 </div>
 
+<!-- RESULTS TRACKER -->
+<div id="tc-results" class="tc">
+  <div class="section-hdr"><h2>&#128200; Results Tracker</h2><span class="badge" id="results-record">0-0</span></div>
+  <div class="section-sub">Track your picks — builds over time to show which signals actually work</div>
+
+  <!-- Summary cards -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px" id="results-summary"></div>
+
+  <!-- Add manual pick -->
+  <div class="alert-box" style="margin-bottom:16px">
+    <div class="alert-title">&#10133; Log a Pick Result</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin-top:10px;align-items:end;flex-wrap:wrap">
+      <div>
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Player</div>
+        <input id="res-player" placeholder="e.g. Aaron Judge" style="background:var(--surface2);border:1px solid var(--border);color:var(--white);padding:7px 10px;border-radius:4px;font-size:11px;width:100%;font-family:inherit">
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Confidence</div>
+        <select id="res-conf" style="background:var(--surface2);border:1px solid var(--border);color:var(--white);padding:7px 10px;border-radius:4px;font-size:11px;width:100%;font-family:inherit">
+          <option>STRONG</option><option>GOOD</option><option>MODERATE</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Units</div>
+        <select id="res-units" style="background:var(--surface2);border:1px solid var(--border);color:var(--white);padding:7px 10px;border-radius:4px;font-size:11px;width:100%;font-family:inherit">
+          <option value="3">3u (Strong)</option>
+          <option value="2">2u (Good)</option>
+          <option value="1">1u (Moderate)</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button onclick="logResult('WIN')"  style="background:rgba(34,197,94,0.2);border:1px solid var(--green2);color:var(--green);padding:7px 14px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:800;font-family:inherit">&#9989; WIN</button>
+        <button onclick="logResult('LOSS')" style="background:rgba(239,68,68,0.2);border:1px solid #991b1b;color:var(--red);padding:7px 14px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:800;font-family:inherit">&#10060; LOSS</button>
+        <button onclick="logResult('PUSH')" style="background:rgba(234,179,8,0.1);border:1px solid #a16207;color:var(--gold);padding:7px 14px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:800;font-family:inherit">&#8592; PUSH</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results table -->
+  <div class="tw">
+    <table>
+      <thead><tr><th>Date</th><th>Player</th><th>Confidence</th><th>Units</th><th>Result</th><th>P&L</th><th></th></tr></thead>
+      <tbody id="results-body"></tbody>
+    </table>
+  </div>
+
+  <div style="text-align:right;margin-top:8px">
+    <button onclick="clearResults()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:4px;cursor:pointer;font-size:10px;font-family:inherit">Clear All Results</button>
+  </div>
+</div>
+
 </div>
 
 <script>
@@ -457,7 +550,7 @@ function rcFn(v){ return v>=1.5?'var(--red)':v<1.0?'var(--green)':'var(--gold)';
 
 // ── TAB NAV ───────────────────────────────────────────────────────
 function go(name){
-  var all=['picks','lineups','slate','props','batters','pitchers','daynight','framework','parks','cheatsheet'];
+  var all=['picks','lineups','slate','props','batters','pitchers','daynight','framework','parks','cheatsheet','results'];
   for(var i=0;i<all.length;i++){
     var tc=document.getElementById('tc-'+all[i]);
     var nb=document.getElementById('btn-'+all[i]);
@@ -472,24 +565,61 @@ function go(name){
   if(name==='pitchers')    buildPitchers();
   if(name==='daynight')    buildDN();
   if(name==='parks')       buildParks();
+  if(name==='results')     buildResults();
   if(name==='cheatsheet')  buildCheatSheet();
 }
 
 // ── DAILY PICKS ───────────────────────────────────────────────────
+var currentFilter = 'all';
+function setFilter(f, btn){
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(function(b){ b.classList.remove('on'); });
+  if(btn) btn.classList.add('on');
+  buildPicks();
+}
+
+function applyFilter(picks){
+  if(currentFilter === 'all')    return picks;
+  if(currentFilter === 'STRONG') return picks.filter(function(p){ return p.confidence==='STRONG'; });
+  if(currentFilter === 'GOOD')   return picks.filter(function(p){ return p.confidence==='STRONG'||p.confidence==='GOOD'; });
+  if(currentFilter === 'vs_lhp') return picks.filter(function(p){ return p.pitcher_hand==='L'; });
+  if(currentFilter === 'vs_rhp') return picks.filter(function(p){ return p.pitcher_hand==='R'; });
+  if(currentFilter === 'park')   return picks.filter(function(p){ return p.park_friendly===true&&p.park_factor>=1.10; });
+  if(currentFilter === 'hot')    return picks.filter(function(p){ return p.form_adj&&p.form_adj>=8; });
+  if(currentFilter === 'wind')   return picks.filter(function(p){ return p.weather&&p.weather.wind_score>=1&&!p.weather.dome; });
+  return picks;
+}
+
 function buildPicks(){
   var el=document.getElementById('picks-content');
   if(!PICKS||PICKS.length===0){
     el.innerHTML='<div class="empty-state"><div class="icon">&#128197;</div><h3>No picks yet today</h3><p>Lineups post 2-3 hours before first pitch. Click Refresh after 1pm ET.</p></div>';
     return;
   }
+  var filtered = applyFilter(PICKS);
+  if(filtered.length===0){
+    el.innerHTML='<div class="empty-state"><div class="icon">&#127919;</div><h3>No picks match this filter</h3><p>Try a different filter or check back after lineups post</p></div>';
+    return;
+  }
   var html='';
-  PICKS.forEach(function(pick){
+  filtered.forEach(function(pick){
     var conf=pick.confidence||'MODERATE';
     var cls =conf==='STRONG'?'strong':conf==='GOOD'?'good':'moderate';
     var ccls=conf==='STRONG'?'conf-strong':conf==='GOOD'?'conf-good':'conf-moderate';
     var ms  =pick.matchup_score||0;
     var msCol=ms>=70?'var(--green)':ms>=55?'var(--blue)':'var(--gold)';
     var sigs=(pick.signals||[]).filter(function(s){return s.good===true;}).slice(0,4).map(sigPill).join('');
+    // Don't bet yet flag
+    var dontBet = '';
+    var dontBetReasons = [];
+    if(!pick.game || pick.matchup_score < 55) dontBetReasons.push('Low matchup score');
+    if(pick.weather && pick.weather.wind_score <= -1 && !pick.weather.dome) dontBetReasons.push('Wind suppressing HRs');
+    if(pick.form_adj && pick.form_adj <= -8) dontBetReasons.push('Batter in cold streak');
+    if(dontBetReasons.length > 0 && pick.confidence === 'MODERATE'){
+      dontBet = '<div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:4px;padding:5px 8px;margin-top:6px;font-size:9px;color:var(--red);font-weight:700">'
+        +'&#9888; WAIT &mdash; '+dontBetReasons.join(' &bull; ')+'</div>';
+    }
+
     var propHtml='';
     if(pick.prop_line!=null&&pick.prop_odds!=null){
       var oc=pick.prop_odds>0?'var(--green)':pick.prop_odds<-150?'var(--red)':'var(--gold)';
@@ -505,12 +635,20 @@ function buildPicks(){
     }
     var formHtml='';
     if(pick.form_label&&pick.form_adj&&pick.form_adj!==0){
-      formHtml='<span style="font-size:9px;color:'+(pick.form_col||'var(--muted)')+'"> '+(pick.form_emoji||'')+' '+(pick.form_label||'')+' (L14)</span>';
+      var formDesc = pick.form_adj>=15?'elite streak':pick.form_adj>=8?'hot last 14d':pick.form_adj>=4?'warming up':pick.form_adj<=-8?'cold last 14d':'cooling off';
+      formHtml=(pick.form_emoji||'')+' '+(pick.form_label||'')+' ('+formDesc+(pick.hr_14d!=null?' &bull; '+pick.hr_14d+' HR L14':'')+')';
     }
     html+='<div class="pick-card '+cls+'">'
       +'<div class="pick-header">'
       +'<div><div class="pick-name">'+pick.name+'</div>'
-      +'<div class="pick-meta">'+pick.team+' vs '+pick.pitcher+' ('+pick.pitcher_hand+'HP) &bull; '+pick.game+formHtml+wxHtml+'</div></div>'
+      +'<div class="pick-meta" style="margin-top:3px">'
+      +'<span style="color:var(--white);font-weight:700">'+pick.team+'</span>'
+      +' <span style="color:var(--muted)">vs</span> '
+      +'<span style="color:var(--white);font-weight:700">'+pick.pitcher+'</span>'
+      +' <span style="color:var(--muted)">('+pick.pitcher_hand+'HP)</span>'
+      +' <span style="color:var(--muted)">&bull; '+pick.game+'</span>'
+      +(formHtml?' <span style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);padding:1px 5px;border-radius:3px;font-size:9px">'+formHtml+'</span>':'')
+      +wxHtml+'</div></div>'
       +'<span class="conf-badge '+ccls+'">'+conf+'</span></div>'
       +'<div class="pick-stats">'
       +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+msCol+'">'+ms+'</div><div class="pick-stat-lbl">Match</div></div>'
@@ -519,7 +657,7 @@ function buildPicks(){
       +'<div class="pick-stat"><div class="pick-stat-val">'+parkBadge(pick.park_factor||1.0,pick.park_friendly)+'</div><div class="pick-stat-lbl">Park</div></div>'
       +'</div>'
       +'<div class="sigs">'+sigs+'</div>'
-      +propHtml+'</div>';
+      +propHtml+dontBet+'</div>';
   });
   el.innerHTML=html;
 }
@@ -909,6 +1047,115 @@ function buildCheatSheet(){
   document.getElementById('cheatsheet-content').innerHTML=html;
 }
 
+// ── RESULTS TRACKER ──────────────────────────────────────────────
+// Uses localStorage to persist results across sessions
+var STORAGE_KEY = 'diamond_analytics_results';
+
+function getResults(){
+  try{
+    var raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch(e){ return []; }
+}
+
+function saveResults(results){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(results)); }
+  catch(e){ console.error('Save error:', e); }
+}
+
+function logResult(outcome){
+  var player = document.getElementById('res-player').value.trim();
+  var conf   = document.getElementById('res-conf').value;
+  var units  = parseFloat(document.getElementById('res-units').value);
+  if(!player){ alert('Enter a player name'); return; }
+
+  var today  = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  var pl = 0;
+  if(outcome==='WIN')  pl = units * 0.85; // approximate avg -118 payout
+  if(outcome==='LOSS') pl = -units;
+  if(outcome==='PUSH') pl = 0;
+
+  var entry = {
+    id:         Date.now(),
+    date:       today,
+    player:     player,
+    confidence: conf,
+    units:      units,
+    outcome:    outcome,
+    pl:         Math.round(pl * 100) / 100,
+  };
+
+  var results = getResults();
+  results.unshift(entry);
+  saveResults(results);
+  document.getElementById('res-player').value = '';
+  buildResults();
+}
+
+function deleteResult(id){
+  var results = getResults().filter(function(r){ return r.id !== id; });
+  saveResults(results);
+  buildResults();
+}
+
+function clearResults(){
+  if(confirm('Clear all results? This cannot be undone.')){{
+    localStorage.removeItem(STORAGE_KEY);
+    buildResults();
+  }}
+}
+
+function buildResults(){
+  var results = getResults();
+  var wins   = results.filter(function(r){ return r.outcome==='WIN'; });
+  var losses = results.filter(function(r){ return r.outcome==='LOSS'; });
+  var pushes = results.filter(function(r){ return r.outcome==='PUSH'; });
+  var totalPL = results.reduce(function(a,r){ return a + (r.pl||0); }, 0);
+  var totalUnits = results.reduce(function(a,r){ return a + (r.units||0); }, 0);
+  var winRate = results.length > 0 ? Math.round(wins.length / (wins.length+losses.length) * 100) : 0;
+
+  // Update header badge
+  var recStr = wins.length+'-'+losses.length+(pushes.length>0?' ('+pushes.length+'P)':'');
+  document.getElementById('results-record').textContent = recStr;
+  var hdrRec = document.getElementById('stat-record');
+  if(hdrRec) hdrRec.textContent = recStr;
+
+  // Summary cards
+  var plCol = totalPL >= 0 ? 'var(--green)' : 'var(--red)';
+  var plSign = totalPL >= 0 ? '+' : '';
+  document.getElementById('results-summary').innerHTML =
+    '<div class="alert-box" style="text-align:center"><div class="pick-stat-val" style="color:var(--green);font-size:22px">'+wins.length+'</div><div class="pick-stat-lbl">Wins</div></div>'
+    +'<div class="alert-box" style="text-align:center"><div class="pick-stat-val" style="color:var(--red);font-size:22px">'+losses.length+'</div><div class="pick-stat-lbl">Losses</div></div>'
+    +'<div class="alert-box" style="text-align:center"><div class="pick-stat-val" style="color:var(--gold);font-size:22px">'+winRate+'%</div><div class="pick-stat-lbl">Win Rate</div></div>'
+    +'<div class="alert-box" style="text-align:center"><div class="pick-stat-val" style="color:'+plCol+';font-size:22px">'+plSign+totalPL.toFixed(1)+'u</div><div class="pick-stat-lbl">Total P&L</div></div>'
+    +'<div class="alert-box" style="text-align:center"><div class="pick-stat-val" style="color:var(--white);font-size:22px">'+results.length+'</div><div class="pick-stat-lbl">Total Picks</div></div>';
+
+  // Results table
+  if(results.length === 0){
+    document.getElementById('results-body').innerHTML =
+      '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">No results yet — log your first pick above</td></tr>';
+    return;
+  }
+
+  var rows = '';
+  results.forEach(function(r){
+    var oc = r.outcome==='WIN'?'var(--green)':r.outcome==='LOSS'?'var(--red)':'var(--gold)';
+    var plCol2 = r.pl > 0 ? 'var(--green)' : r.pl < 0 ? 'var(--red)' : 'var(--muted)';
+    var plSign2 = r.pl >= 0 ? '+' : '';
+    var cc = r.confidence==='STRONG'?'badge-green':r.confidence==='GOOD'?'badge-blue':'badge-gold';
+    rows += '<tr>'
+      +'<td style="color:var(--muted)">'+r.date+'</td>'
+      +'<td style="font-weight:800;color:var(--white)">'+r.player+'</td>'
+      +'<td><span class="'+cc+'">'+r.confidence+'</span></td>'
+      +'<td style="color:var(--muted)">'+r.units+'u</td>'
+      +'<td style="color:'+oc+';font-weight:800">'+r.outcome+'</td>'
+      +'<td style="color:'+plCol2+';font-weight:700">'+plSign2+r.pl.toFixed(1)+'u</td>'
+      +'<td><button onclick="deleteResult('+r.id+')" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:12px">&#10005;</button></td>'
+      +'</tr>';
+  });
+  document.getElementById('results-body').innerHTML = rows;
+}
+
 function refreshData(){
   fetch('/api/refresh',{method:'POST'}).then(function(){
     setTimeout(function(){window.location.reload();},4000);
@@ -921,6 +1168,7 @@ buildSlate();
 buildProps();
 buildBatters();
 buildPitchers();
+buildResults();
 </script>
 </body>
 </html>
