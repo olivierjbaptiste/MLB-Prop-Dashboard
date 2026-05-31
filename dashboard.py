@@ -42,36 +42,36 @@ TEAM_ABB = {
 }
 
 SAMPLE_BATTERS = [
-    {"name":"Aaron Judge",       "team":"NYY","hand":"R","avg":.311,"slg":.621,"hr":18,"barrel_pct":20.4,"avg_hit_speed":93.2,"iso":.310,"k_pct":22.1,"bb_pct":14.8,"woba":.415,"obp":.412},
-    {"name":"Shohei Ohtani",     "team":"LAD","hand":"L","avg":.298,"slg":.589,"hr":16,"barrel_pct":18.9,"avg_hit_speed":92.8,"iso":.291,"k_pct":19.8,"bb_pct":13.2,"woba":.399,"obp":.385},
-    {"name":"Yordan Alvarez",    "team":"HOU","hand":"L","avg":.301,"slg":.578,"hr":15,"barrel_pct":19.1,"avg_hit_speed":92.4,"iso":.277,"k_pct":18.4,"bb_pct":11.9,"woba":.408,"obp":.388},
-    {"name":"Bryce Harper",      "team":"PHI","hand":"L","avg":.295,"slg":.541,"hr":14,"barrel_pct":16.7,"avg_hit_speed":91.2,"iso":.246,"k_pct":20.1,"bb_pct":13.8,"woba":.395,"obp":.392},
-    {"name":"Freddie Freeman",   "team":"LAD","hand":"L","avg":.308,"slg":.521,"hr":11,"barrel_pct":14.2,"avg_hit_speed":90.1,"iso":.213,"k_pct":15.2,"bb_pct":12.1,"woba":.389,"obp":.395},
-    {"name":"Juan Soto",         "team":"NYM","hand":"L","avg":.289,"slg":.512,"hr":13,"barrel_pct":15.8,"avg_hit_speed":90.8,"iso":.223,"k_pct":17.9,"bb_pct":18.2,"woba":.392,"obp":.405},
-    {"name":"Gunnar Henderson",  "team":"BAL","hand":"L","avg":.278,"slg":.509,"hr":14,"barrel_pct":15.2,"avg_hit_speed":90.4,"iso":.231,"k_pct":24.2,"bb_pct":11.2,"woba":.372,"obp":.362},
-    {"name":"Matt Olson",        "team":"ATL","hand":"L","avg":.258,"slg":.498,"hr":15,"barrel_pct":17.8,"avg_hit_speed":91.9,"iso":.240,"k_pct":25.8,"bb_pct":12.8,"woba":.368,"obp":.352},
-    {"name":"Rafael Devers",     "team":"BOS","hand":"L","avg":.278,"slg":.511,"hr":14,"barrel_pct":15.9,"avg_hit_speed":91.1,"iso":.233,"k_pct":21.4,"bb_pct":9.8, "woba":.368,"obp":.348},
-    {"name":"Kyle Tucker",       "team":"HOU","hand":"L","avg":.274,"slg":.488,"hr":13,"barrel_pct":14.1,"avg_hit_speed":90.2,"iso":.214,"k_pct":19.2,"bb_pct":11.8,"woba":.365,"obp":.358},
-    {"name":"Bobby Witt Jr",     "team":"KC", "hand":"R","avg":.302,"slg":.521,"hr":13,"barrel_pct":14.8,"avg_hit_speed":90.8,"iso":.219,"k_pct":20.1,"bb_pct":7.9, "woba":.375,"obp":.358},
-    {"name":"Jose Ramirez",      "team":"CLE","hand":"S","avg":.282,"slg":.501,"hr":12,"barrel_pct":13.8,"avg_hit_speed":89.9,"iso":.219,"k_pct":14.8,"bb_pct":11.2,"woba":.372,"obp":.365},
-    {"name":"Mookie Betts",      "team":"LAD","hand":"R","avg":.291,"slg":.498,"hr":12,"barrel_pct":13.9,"avg_hit_speed":89.8,"iso":.207,"k_pct":16.8,"bb_pct":11.4,"woba":.378,"obp":.374},
-    {"name":"Ronald Acuna Jr",   "team":"ATL","hand":"R","avg":.294,"slg":.512,"hr":11,"barrel_pct":13.1,"avg_hit_speed":89.4,"iso":.218,"k_pct":20.8,"bb_pct":12.8,"woba":.375,"obp":.378},
-    {"name":"Fernando Tatis Jr", "team":"SD", "hand":"R","avg":.271,"slg":.489,"hr":13,"barrel_pct":14.2,"avg_hit_speed":90.1,"iso":.218,"k_pct":23.8,"bb_pct":9.2, "woba":.358,"obp":.341},
-    {"name":"Adolis Garcia",     "team":"TEX","hand":"R","avg":.261,"slg":.468,"hr":12,"barrel_pct":13.2,"avg_hit_speed":89.8,"iso":.207,"k_pct":26.8,"bb_pct":6.8, "woba":.342,"obp":.318},
-    {"name":"Julio Rodriguez",   "team":"SEA","hand":"R","avg":.269,"slg":.468,"hr":11,"barrel_pct":12.8,"avg_hit_speed":89.1,"iso":.199,"k_pct":23.1,"bb_pct":9.1, "woba":.348,"obp":.338},
-    {"name":"Corbin Carroll",    "team":"ARI","hand":"L","avg":.268,"slg":.442,"hr":8, "barrel_pct":9.8, "avg_hit_speed":87.2,"iso":.174,"k_pct":22.4,"bb_pct":10.9,"woba":.345,"obp":.355},
-    {"name":"Bo Bichette",       "team":"TOR","hand":"R","avg":.285,"slg":.468,"hr":10,"barrel_pct":11.8,"avg_hit_speed":88.4,"iso":.183,"k_pct":21.8,"bb_pct":7.2, "woba":.352,"obp":.341},
-    {"name":"Trea Turner",       "team":"PHI","hand":"R","avg":.281,"slg":.451,"hr":9, "barrel_pct":10.2,"avg_hit_speed":87.8,"iso":.170,"k_pct":18.9,"bb_pct":7.8, "woba":.348,"obp":.345},
-    {"name":"Elly De La Cruz",   "team":"CIN","hand":"S","avg":.258,"slg":.468,"hr":12,"barrel_pct":13.1,"avg_hit_speed":90.2,"iso":.210,"k_pct":28.1,"bb_pct":8.1, "woba":.342,"obp":.312},
-    {"name":"Sal Stewart",       "team":"CIN","hand":"R","avg":.243,"slg":.456,"hr":10,"barrel_pct":11.2,"avg_hit_speed":88.8,"iso":.213,"k_pct":24.8,"bb_pct":11.2,"woba":.338,"obp":.345},
-    {"name":"Tyler Stephenson",  "team":"CIN","hand":"R","avg":.268,"slg":.493,"hr":9, "barrel_pct":12.1,"avg_hit_speed":89.2,"iso":.225,"k_pct":21.4,"bb_pct":12.2,"woba":.355,"obp":.354},
-    {"name":"Pete Alonso",       "team":"NYM","hand":"R","avg":.254,"slg":.498,"hr":14,"barrel_pct":14.8,"avg_hit_speed":91.1,"iso":.244,"k_pct":23.8,"bb_pct":11.2,"woba":.358,"obp":.331},
-    {"name":"Cal Raleigh",       "team":"SEA","hand":"S","avg":.241,"slg":.489,"hr":13,"barrel_pct":13.9,"avg_hit_speed":90.4,"iso":.248,"k_pct":26.1,"bb_pct":9.8, "woba":.345,"obp":.312},
-    {"name":"Willy Adames",      "team":"SF", "hand":"R","avg":.251,"slg":.462,"hr":11,"barrel_pct":11.8,"avg_hit_speed":88.9,"iso":.211,"k_pct":24.8,"bb_pct":9.2, "woba":.338,"obp":.321},
-    {"name":"William Contreras", "team":"MIL","hand":"R","avg":.268,"slg":.478,"hr":10,"barrel_pct":12.1,"avg_hit_speed":89.4,"iso":.210,"k_pct":19.8,"bb_pct":10.1,"woba":.348,"obp":.341},
-    {"name":"Marcell Ozuna",     "team":"ATL","hand":"R","avg":.271,"slg":.501,"hr":12,"barrel_pct":13.4,"avg_hit_speed":90.1,"iso":.230,"k_pct":22.4,"bb_pct":8.8, "woba":.355,"obp":.332},
-    {"name":"Teoscar Hernandez", "team":"LAD","hand":"R","avg":.261,"slg":.471,"hr":11,"barrel_pct":12.8,"avg_hit_speed":89.8,"iso":.210,"k_pct":24.1,"bb_pct":7.2, "woba":.342,"obp":.318},
-    {"name":"Corey Seager",      "team":"TEX","hand":"L","avg":.278,"slg":.511,"hr":12,"barrel_pct":14.1,"avg_hit_speed":90.8,"iso":.233,"k_pct":18.8,"bb_pct":9.8, "woba":.365,"obp":.348},
+    {"name":"Aaron Judge",       "team":"NYY","hand":"R","avg":.311,"slg":.621,"hr":18,"barrel_pct":20.4,"avg_hit_speed":93.2,"iso":.310,"k_pct":22.1,"bb_pct":14.8,"woba":.415,"obp":.412,"avg_14d":.358,"slg_14d":.712,"hr_14d":5,"barrel_14d":24.1},
+    {"name":"Shohei Ohtani",     "team":"LAD","hand":"L","avg":.298,"slg":.589,"hr":16,"barrel_pct":18.9,"avg_hit_speed":92.8,"iso":.291,"k_pct":19.8,"bb_pct":13.2,"woba":.399,"obp":.385,"avg_14d":.241,"slg_14d":.421,"hr_14d":1,"barrel_14d":12.2},
+    {"name":"Yordan Alvarez",    "team":"HOU","hand":"L","avg":.301,"slg":.578,"hr":15,"barrel_pct":19.1,"avg_hit_speed":92.4,"iso":.277,"k_pct":18.4,"bb_pct":11.9,"woba":.408,"obp":.388,"avg_14d":.328,"slg_14d":.621,"hr_14d":4,"barrel_14d":22.8},
+    {"name":"Bryce Harper",      "team":"PHI","hand":"L","avg":.295,"slg":.541,"hr":14,"barrel_pct":16.7,"avg_hit_speed":91.2,"iso":.246,"k_pct":20.1,"bb_pct":13.8,"woba":.395,"obp":.392,"avg_14d":.218,"slg_14d":.381,"hr_14d":1,"barrel_14d":9.8},
+    {"name":"Freddie Freeman",   "team":"LAD","hand":"L","avg":.308,"slg":.521,"hr":11,"barrel_pct":14.2,"avg_hit_speed":90.1,"iso":.213,"k_pct":15.2,"bb_pct":12.1,"woba":.389,"obp":.395,"avg_14d":.312,"slg_14d":.534,"hr_14d":2,"barrel_14d":15.1},
+    {"name":"Juan Soto",         "team":"NYM","hand":"L","avg":.289,"slg":.512,"hr":13,"barrel_pct":15.8,"avg_hit_speed":90.8,"iso":.223,"k_pct":17.9,"bb_pct":18.2,"woba":.392,"obp":.405,"avg_14d":.341,"slg_14d":.598,"hr_14d":4,"barrel_14d":19.2},
+    {"name":"Gunnar Henderson",  "team":"BAL","hand":"L","avg":.278,"slg":.509,"hr":14,"barrel_pct":15.2,"avg_hit_speed":90.4,"iso":.231,"k_pct":24.2,"bb_pct":11.2,"woba":.372,"obp":.362,"avg_14d":.198,"slg_14d":.348,"hr_14d":1,"barrel_14d":8.1},
+    {"name":"Matt Olson",        "team":"ATL","hand":"L","avg":.258,"slg":.498,"hr":15,"barrel_pct":17.8,"avg_hit_speed":91.9,"iso":.240,"k_pct":25.8,"bb_pct":12.8,"woba":.368,"obp":.352,"avg_14d":.289,"slg_14d":.558,"hr_14d":4,"barrel_14d":21.4},
+    {"name":"Rafael Devers",     "team":"BOS","hand":"L","avg":.278,"slg":.511,"hr":14,"barrel_pct":15.9,"avg_hit_speed":91.1,"iso":.233,"k_pct":21.4,"bb_pct":9.8, "woba":.368,"obp":.348,"avg_14d":.301,"slg_14d":.548,"hr_14d":3,"barrel_14d":18.2},
+    {"name":"Kyle Tucker",       "team":"HOU","hand":"L","avg":.274,"slg":.488,"hr":13,"barrel_pct":14.1,"avg_hit_speed":90.2,"iso":.214,"k_pct":19.2,"bb_pct":11.8,"woba":.365,"obp":.358,"avg_14d":.211,"slg_14d":.368,"hr_14d":1,"barrel_14d":8.8},
+    {"name":"Bobby Witt Jr",     "team":"KC", "hand":"R","avg":.302,"slg":.521,"hr":13,"barrel_pct":14.8,"avg_hit_speed":90.8,"iso":.219,"k_pct":20.1,"bb_pct":7.9, "woba":.375,"obp":.358,"avg_14d":.348,"slg_14d":.598,"hr_14d":4,"barrel_14d":18.9},
+    {"name":"Jose Ramirez",      "team":"CLE","hand":"S","avg":.282,"slg":.501,"hr":12,"barrel_pct":13.8,"avg_hit_speed":89.9,"iso":.219,"k_pct":14.8,"bb_pct":11.2,"woba":.372,"obp":.365,"avg_14d":.278,"slg_14d":.492,"hr_14d":2,"barrel_14d":13.2},
+    {"name":"Mookie Betts",      "team":"LAD","hand":"R","avg":.291,"slg":.498,"hr":12,"barrel_pct":13.9,"avg_hit_speed":89.8,"iso":.207,"k_pct":16.8,"bb_pct":11.4,"woba":.378,"obp":.374,"avg_14d":.318,"slg_14d":.541,"hr_14d":3,"barrel_14d":16.8},
+    {"name":"Ronald Acuna Jr",   "team":"ATL","hand":"R","avg":.294,"slg":.512,"hr":11,"barrel_pct":13.1,"avg_hit_speed":89.4,"iso":.218,"k_pct":20.8,"bb_pct":12.8,"woba":.375,"obp":.378,"avg_14d":.188,"slg_14d":.312,"hr_14d":0,"barrel_14d":6.2},
+    {"name":"Fernando Tatis Jr", "team":"SD", "hand":"R","avg":.271,"slg":.489,"hr":13,"barrel_pct":14.2,"avg_hit_speed":90.1,"iso":.218,"k_pct":23.8,"bb_pct":9.2, "woba":.358,"obp":.341,"avg_14d":.298,"slg_14d":.538,"hr_14d":3,"barrel_14d":16.1},
+    {"name":"Adolis Garcia",     "team":"TEX","hand":"R","avg":.261,"slg":.468,"hr":12,"barrel_pct":13.2,"avg_hit_speed":89.8,"iso":.207,"k_pct":26.8,"bb_pct":6.8, "woba":.342,"obp":.318,"avg_14d":.178,"slg_14d":.298,"hr_14d":0,"barrel_14d":5.8},
+    {"name":"Julio Rodriguez",   "team":"SEA","hand":"R","avg":.269,"slg":.468,"hr":11,"barrel_pct":12.8,"avg_hit_speed":89.1,"iso":.199,"k_pct":23.1,"bb_pct":9.1, "woba":.348,"obp":.338,"avg_14d":.271,"slg_14d":.471,"hr_14d":2,"barrel_14d":12.9},
+    {"name":"Corbin Carroll",    "team":"ARI","hand":"L","avg":.268,"slg":.442,"hr":8, "barrel_pct":9.8, "avg_hit_speed":87.2,"iso":.174,"k_pct":22.4,"bb_pct":10.9,"woba":.345,"obp":.355,"avg_14d":.241,"slg_14d":.398,"hr_14d":1,"barrel_14d":8.8},
+    {"name":"Bo Bichette",       "team":"TOR","hand":"R","avg":.285,"slg":.468,"hr":10,"barrel_pct":11.8,"avg_hit_speed":88.4,"iso":.183,"k_pct":21.8,"bb_pct":7.2, "woba":.352,"obp":.341,"avg_14d":.321,"slg_14d":.521,"hr_14d":3,"barrel_14d":14.8},
+    {"name":"Trea Turner",       "team":"PHI","hand":"R","avg":.281,"slg":.451,"hr":9, "barrel_pct":10.2,"avg_hit_speed":87.8,"iso":.170,"k_pct":18.9,"bb_pct":7.8, "woba":.348,"obp":.345,"avg_14d":.278,"slg_14d":.448,"hr_14d":1,"barrel_14d":10.1},
+    {"name":"Elly De La Cruz",   "team":"CIN","hand":"S","avg":.258,"slg":.468,"hr":12,"barrel_pct":13.1,"avg_hit_speed":90.2,"iso":.210,"k_pct":28.1,"bb_pct":8.1, "woba":.342,"obp":.312,"avg_14d":.301,"slg_14d":.548,"hr_14d":4,"barrel_14d":17.2},
+    {"name":"Sal Stewart",       "team":"CIN","hand":"R","avg":.243,"slg":.456,"hr":10,"barrel_pct":11.2,"avg_hit_speed":88.8,"iso":.213,"k_pct":24.8,"bb_pct":11.2,"woba":.338,"obp":.345,"avg_14d":.248,"slg_14d":.461,"hr_14d":2,"barrel_14d":11.8},
+    {"name":"Tyler Stephenson",  "team":"CIN","hand":"R","avg":.268,"slg":.493,"hr":9, "barrel_pct":12.1,"avg_hit_speed":89.2,"iso":.225,"k_pct":21.4,"bb_pct":12.2,"woba":.355,"obp":.354,"avg_14d":.258,"slg_14d":.481,"hr_14d":1,"barrel_14d":11.4},
+    {"name":"Pete Alonso",       "team":"NYM","hand":"R","avg":.254,"slg":.498,"hr":14,"barrel_pct":14.8,"avg_hit_speed":91.1,"iso":.244,"k_pct":23.8,"bb_pct":11.2,"woba":.358,"obp":.331,"avg_14d":.289,"slg_14d":.558,"hr_14d":4,"barrel_14d":18.1},
+    {"name":"Cal Raleigh",       "team":"SEA","hand":"S","avg":.241,"slg":.489,"hr":13,"barrel_pct":13.9,"avg_hit_speed":90.4,"iso":.248,"k_pct":26.1,"bb_pct":9.8, "woba":.345,"obp":.312,"avg_14d":.198,"slg_14d":.368,"hr_14d":1,"barrel_14d":8.4},
+    {"name":"Willy Adames",      "team":"SF", "hand":"R","avg":.251,"slg":.462,"hr":11,"barrel_pct":11.8,"avg_hit_speed":88.9,"iso":.211,"k_pct":24.8,"bb_pct":9.2, "woba":.338,"obp":.321,"avg_14d":.241,"slg_14d":.448,"hr_14d":2,"barrel_14d":11.2},
+    {"name":"William Contreras", "team":"MIL","hand":"R","avg":.268,"slg":.478,"hr":10,"barrel_pct":12.1,"avg_hit_speed":89.4,"iso":.210,"k_pct":19.8,"bb_pct":10.1,"woba":.348,"obp":.341,"avg_14d":.312,"slg_14d":.538,"hr_14d":3,"barrel_14d":15.8},
+    {"name":"Marcell Ozuna",     "team":"ATL","hand":"R","avg":.271,"slg":.501,"hr":12,"barrel_pct":13.4,"avg_hit_speed":90.1,"iso":.230,"k_pct":22.4,"bb_pct":8.8, "woba":.355,"obp":.332,"avg_14d":.158,"slg_14d":.278,"hr_14d":0,"barrel_14d":4.8},
+    {"name":"Teoscar Hernandez", "team":"LAD","hand":"R","avg":.261,"slg":.471,"hr":11,"barrel_pct":12.8,"avg_hit_speed":89.8,"iso":.210,"k_pct":24.1,"bb_pct":7.2, "woba":.342,"obp":.318,"avg_14d":.298,"slg_14d":.528,"hr_14d":3,"barrel_14d":15.4},
+    {"name":"Corey Seager",      "team":"TEX","hand":"L","avg":.278,"slg":.511,"hr":12,"barrel_pct":14.1,"avg_hit_speed":90.8,"iso":.233,"k_pct":18.8,"bb_pct":9.8, "woba":.365,"obp":.348,"avg_14d":.268,"slg_14d":.498,"hr_14d":2,"barrel_14d":13.8},
 ]
 
 SAMPLE_PITCHERS = [
@@ -119,6 +119,13 @@ def batter_score(r):
     return round(min(s, 100), 1)
 
 
+def batter_score_with_form(r):
+    """Batter score including recent form bonus"""
+    base = batter_score(r)
+    _, _, _, form_adj = form_trend(r)
+    return round(min(max(base + form_adj, 0), 100), 1)
+
+
 def velo_drop(r):
     """Returns mph drop (positive = dropped, negative = gained)"""
     vs = r.get('velo_season')
@@ -141,6 +148,65 @@ def velo_status(r):
         return f"&#128994; Up {abs(drop):.1f} mph", "#4ade80", -1
     else:
         return f"&#128309; Holding ({drop:+.1f} mph)", "#facc15", 0
+
+
+def form_trend(r):
+    """
+    Returns trend label, emoji, color, and score adjustment
+    based on last 14 days vs season average
+    """
+    avg_s  = r.get('avg')
+    avg_r  = r.get('avg_14d')
+    slg_s  = r.get('slg')
+    slg_r  = r.get('slg_14d')
+    bp_s   = r.get('barrel_pct')
+    bp_r   = r.get('barrel_14d')
+    hr_r   = r.get('hr_14d', 0)
+
+    if avg_s is None or avg_r is None:
+        return "Neutral", "&#10145;", "#94a3b8", 0
+
+    score = 0
+    # AVG delta
+    avg_delta = avg_r - avg_s
+    if avg_delta >= .040:   score += 2
+    elif avg_delta >= .020: score += 1
+    elif avg_delta <= -.040: score -= 2
+    elif avg_delta <= -.020: score -= 1
+
+    # SLG delta
+    if slg_s and slg_r:
+        slg_delta = slg_r - slg_s
+        if slg_delta >= .060:   score += 2
+        elif slg_delta >= .030: score += 1
+        elif slg_delta <= -.060: score -= 2
+        elif slg_delta <= -.030: score -= 1
+
+    # Barrel% delta
+    if bp_s and bp_r:
+        bp_delta = bp_r - bp_s
+        if bp_delta >= 4:   score += 2
+        elif bp_delta >= 2: score += 1
+        elif bp_delta <= -4: score -= 2
+        elif bp_delta <= -2: score -= 1
+
+    # Recent HRs bonus
+    if hr_r and hr_r >= 4: score += 1
+
+    if score >= 4:
+        return "On Fire",    "&#128293;", "#4ade80",  15
+    elif score >= 2:
+        return "Hot",        "&#128293;", "#86efac",  8
+    elif score == 1:
+        return "Warm",       "&#127777;", "#facc15",  4
+    elif score == 0:
+        return "Neutral",    "&#10145;",  "#94a3b8",  0
+    elif score == -1:
+        return "Cool",       "&#10052;",  "#93c5fd",  -4
+    elif score <= -2:
+        return "Cold",       "&#10052;",  "#60a5fa",  -8
+    else:
+        return "Ice Cold",   "&#10052;",  "#f87171",  -15
 
 
 def pitcher_vuln(r):
@@ -224,6 +290,21 @@ def matchup_score(batter, pitcher):
             signals.append({"label": f"Velo down {drop:.1f} mph vs season avg", "good": True}); score += 6
         elif drop <= -1.0:
             signals.append({"label": f"Velo up {abs(drop):.1f} mph — sharp &#128994;", "good": False}); score -= 4
+
+    # Recent form signal
+    trend_label, trend_emoji, trend_col, form_adj = form_trend(batter)
+    if form_adj >= 8:
+        signals.append({"label": f"{trend_emoji} {trend_label} last 14 days (AVG {batter.get('avg_14d', 0):.3f})", "good": True})
+        score += form_adj
+    elif form_adj >= 4:
+        signals.append({"label": f"{trend_emoji} {trend_label} last 14 days", "good": True})
+        score += form_adj
+    elif form_adj <= -8:
+        signals.append({"label": f"{trend_emoji} {trend_label} last 14 days (AVG {batter.get('avg_14d', 0):.3f})", "good": False})
+        score += form_adj
+    elif form_adj <= -4:
+        signals.append({"label": f"{trend_emoji} {trend_label} last 14 days", "good": False})
+        score += form_adj
 
     return max(0, min(100, round(score))), signals
 
@@ -528,8 +609,14 @@ def build_batters():
     for b in SAMPLE_BATTERS:
         bat = dict(b)
         bat['batter_score'] = batter_score(bat)
+        fl, fe, fc, fa = form_trend(bat)
+        bat['form_label']  = fl
+        bat['form_emoji']  = fe
+        bat['form_col']    = fc
+        bat['form_adj']    = fa
+        bat['batter_score_with_form'] = batter_score_with_form(bat)
         batters.append(bat)
-    return sorted(batters, key=lambda x: x.get('batter_score', 0), reverse=True)
+    return sorted(batters, key=lambda x: x.get('batter_score_with_form', 0), reverse=True)
 
 
 def build_pitchers():

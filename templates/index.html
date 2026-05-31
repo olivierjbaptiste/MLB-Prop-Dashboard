@@ -118,7 +118,7 @@ tr:last-child td{border-bottom:none}
   <div class="st">Batter Power Profiles</div>
   <div class="ss">Green = elite/favorable &mdash; Red = poor &mdash; Sorted by HR prop score</div>
   <div class="tw"><table>
-    <thead><tr><th>Player</th><th>Team</th><th>Hand</th><th>AVG</th><th>SLG</th><th>HR</th><th>Barrel%</th><th>Exit Velo</th><th>ISO</th><th>wOBA</th><th>K%</th><th>Score</th></tr></thead>
+    <thead><tr><th>Player</th><th>Team</th><th>Hand</th><th>Form</th><th>L14 AVG</th><th>L14 SLG</th><th>L14 HR</th><th>Season AVG</th><th>SLG</th><th>HR</th><th>Barrel%</th><th>Exit Velo</th><th>ISO</th><th>K%</th><th>Score</th></tr></thead>
     <tbody id="batters-body"></tbody>
   </table></div>
 </div>
@@ -498,18 +498,28 @@ function buildProps(){
 function buildBatters(){
   var rows='';
   BATTERS.forEach(function(b){
-    var sc=b.batter_score||0;
+    var sc   = b.batter_score_with_form || b.batter_score || 0;
+    var fl   = b.form_label  || 'Neutral';
+    var fe   = b.form_emoji  || '&#10145;';
+    var fc   = b.form_col    || '#94a3b8';
+    var fa   = b.form_adj    || 0;
+    var formHtml = '<span style="color:'+fc+';font-weight:600;font-size:11px">'+fe+' '+fl+'</span>';
+    var avg14col = b.avg_14d > b.avg ? '#4ade80' : b.avg_14d < b.avg - 0.030 ? '#f87171' : '#f1f5f9';
+    var slg14col = b.slg_14d > b.slg ? '#4ade80' : b.slg_14d < b.slg - 0.050 ? '#f87171' : '#f1f5f9';
     rows+='<tr>'
       +'<td style="font-weight:600;color:#f1f5f9">'+b.name+'</td>'
       +'<td><span style="background:#1e293b;color:#94a3b8;padding:1px 5px;border-radius:3px;font-size:10px">'+b.team+'</span></td>'
       +'<td style="color:#94a3b8">'+(b.hand||'—')+'</td>'
+      +'<td>'+formHtml+'</td>'
+      +'<td style="color:'+avg14col+'">'+f(b.avg_14d,3)+'</td>'
+      +'<td style="color:'+slg14col+'">'+f(b.slg_14d,3)+'</td>'
+      +'<td style="color:'+(b.hr_14d>=3?'#4ade80':b.hr_14d===0?'#f87171':'#f1f5f9')+'">'+((b.hr_14d!==null&&b.hr_14d!==undefined)?b.hr_14d:'—')+'</td>'
       +'<td style="color:'+clr(b.avg,0.285,0.250)+'">'+f(b.avg,3)+'</td>'
       +'<td style="color:'+clr(b.slg,0.480,0.400)+'">'+f(b.slg,3)+'</td>'
       +'<td>'+f(b.hr,0)+'</td>'
       +'<td style="color:'+clr(b.barrel_pct,15,8)+'">'+f(b.barrel_pct,1)+'%</td>'
       +'<td style="color:'+clr(b.avg_hit_speed,91,87)+'">'+f(b.avg_hit_speed,1)+' mph</td>'
       +'<td style="color:'+clr(b.iso,0.220,0.150)+'">'+f(b.iso,3)+'</td>'
-      +'<td style="color:'+clr(b.woba,0.370,0.320)+'">'+f(b.woba,3)+'</td>'
       +'<td style="color:'+clr(b.k_pct,17,25,true)+'">'+f(b.k_pct,1)+'%</td>'
       +'<td>'+bar(sc)+'</td>'
       +'</tr>';
@@ -666,6 +676,7 @@ function buildCheatSheet(){
       +'<span style="background:'+cb+';color:'+cc+';border:1px solid '+cc+';padding:3px 12px;border-radius:16px;font-size:11px;font-weight:700">'+conf+'</span>'
       +'<span style="font-size:15px;font-weight:700;color:#f1f5f9">'+pick.name+'</span>'
       +'<span style="font-size:12px;color:#64748b">'+pick.team+'</span>'
+      +(pick.form_label?'<span style="color:'+(pick.form_col||'#94a3b8')+';font-size:11px;font-weight:600">'+(pick.form_emoji||'')+' '+(pick.form_label||'')+' (L14)</span>':'')
       +'<span style="font-size:12px;color:#94a3b8">Match: <strong style="color:'+cc+'">'+ms+'</strong></span>'
       + propHtml + wxHtml
       +'</div>'
@@ -717,7 +728,42 @@ function buildCheatSheet(){
   }
 
   // Alerts section
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:20px">';
+  // Hot/Cold streaks for cheat sheet
+  var hotBatters  = BATTERS.filter(function(b){return b.form_adj>=8;}).slice(0,5);
+  var coldBatters = BATTERS.filter(function(b){return b.form_adj<=-8;}).slice(0,5);
+
+  html += '<div style="background:#0a1628;border:1px solid #1e3a2a;border-radius:12px;padding:16px;margin-top:14px">'
+    +'<div style="font-size:12px;font-weight:700;color:#f1f5f9;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">&#128293; Hot Batters vs &#10052; Cold Batters — Last 14 Days</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
+    +'<div>';
+  if(hotBatters.length>0){
+    hotBatters.forEach(function(b){
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1e293b">'
+        +'<div><span style="font-size:12px;font-weight:600;color:#f1f5f9">'+b.name+'</span> <span style="font-size:10px;color:#64748b">'+b.team+'</span></div>'
+        +'<div style="text-align:right">'
+        +'<span style="color:'+(b.form_col||'#4ade80')+';font-size:11px;font-weight:600">'+(b.form_emoji||'')+' '+(b.form_label||'')+' </span>'
+        +'<span style="font-size:10px;color:#94a3b8">'+f(b.avg_14d,3)+' / '+f(b.slg_14d,3)+'</span>'
+        +'</div></div>';
+    });
+  } else {
+    html += '<div style="font-size:12px;color:#64748b">No batters on hot streaks</div>';
+  }
+  html += '</div><div>';
+  if(coldBatters.length>0){
+    coldBatters.forEach(function(b){
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1e293b">'
+        +'<div><span style="font-size:12px;font-weight:600;color:#f1f5f9">'+b.name+'</span> <span style="font-size:10px;color:#64748b">'+b.team+'</span></div>'
+        +'<div style="text-align:right">'
+        +'<span style="color:'+(b.form_col||'#60a5fa')+';font-size:11px;font-weight:600">'+(b.form_emoji||'')+' '+(b.form_label||'')+' </span>'
+        +'<span style="font-size:10px;color:#94a3b8">'+f(b.avg_14d,3)+' / '+f(b.slg_14d,3)+'</span>'
+        +'</div></div>';
+    });
+  } else {
+    html += '<div style="font-size:12px;color:#64748b">No batters in cold slumps</div>';
+  }
+  html += '</div></div></div>';
+
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:14px">';
 
   // Park alerts
   html += '<div style="background:#0a1628;border:1px solid #1e293b;border-radius:12px;padding:16px">'
