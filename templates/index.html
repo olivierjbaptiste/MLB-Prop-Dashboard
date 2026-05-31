@@ -286,7 +286,7 @@ tr:last-child td{border-bottom:none}
 <!-- DAILY PICKS -->
 <div id="tc-picks" class="tc on">
   <div class="section-hdr"><h2>Daily HR Prop Picks</h2><span class="badge" id="picks-count">0</span></div>
-  <div class="section-sub">Ranked by confidence — based on tonight's actual lineups, matchup scores, park factors, and velocity data</div>
+  <div class="section-sub">Ranked by confidence — based on tonight's actual lineups, matchup scores, park factors, and velocity data &nbsp;&bull;&nbsp; <span id="picks-freshness" style="color:var(--muted)"></span></div>
   <!-- FILTER BAR -->
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
     <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:700">Filter:</span>
@@ -620,6 +620,14 @@ var YESTERDAY= RAW.yesterday_results || [];
 
 // ── INIT HEADER STATS ─────────────────────────────────────────────
 document.getElementById('stat-picks').textContent    = PICKS.length;
+// Show freshness indicator
+(function(){
+  var updStr = '{{ updated }}';
+  if(updStr){
+    var el = document.getElementById('picks-freshness');
+    if(el) el.textContent = 'Data from ' + updStr;
+  }
+})();
 document.getElementById('stat-games').textContent    = GAMES.length;
 document.getElementById('stat-batters').textContent  = BATTERS.length;
 var updTime = '{{ updated }}';
@@ -732,7 +740,12 @@ function applyFilter(picks){
 function buildPicks(){
   var el=document.getElementById('picks-content');
   if(!PICKS||PICKS.length===0){
-    el.innerHTML='<div class="empty-state"><div class="icon">&#128197;</div><h3>No picks yet today</h3><p>Lineups post 2-3 hours before first pitch. Click Refresh after 1pm ET.</p></div>';
+    var now = new Date();
+    var hour = now.getHours();
+    var msg = hour >= 18
+      ? '<div class="empty-state"><div class="icon">&#9917;</div><h3>Games In Progress</h3><p>Today's picks were generated pre-game. Click Refresh to reload, or check back tomorrow morning for tomorrow's picks.</p></div>'
+      : '<div class="empty-state"><div class="icon">&#128197;</div><h3>No picks yet today</h3><p>Lineups post 2-3 hours before first pitch. Click Refresh after 1pm ET.</p></div>';
+    el.innerHTML = msg;
     return;
   }
   var filtered = applyFilter(PICKS);
@@ -745,6 +758,14 @@ function buildPicks(){
     var conf=pick.confidence||'MODERATE';
     var cls =conf==='STRONG'?'strong':conf==='GOOD'?'good':'moderate';
     var ccls=conf==='STRONG'?'conf-strong':conf==='GOOD'?'conf-good':'conf-moderate';
+    // Game status badge
+    var gameStatus = pick.game_status || '';
+    var statusHtml = '';
+    if(gameStatus && gameStatus.toLowerCase().indexOf('progress') >= 0){
+      statusHtml = '<span style="color:var(--red);font-size:9px;font-weight:700;animation:blink 1s infinite"> &#9679; LIVE</span>';
+    } else if(gameStatus && (gameStatus.toLowerCase().indexOf('final') >= 0 || gameStatus.toLowerCase().indexOf('completed') >= 0)){
+      statusHtml = '<span style="color:var(--muted);font-size:9px"> &#9654; FINAL</span>';
+    }
     var ms  =pick.matchup_score||0;
     var msCol=ms>=70?'var(--green)':ms>=55?'var(--blue)':'var(--gold)';
     var sigs=(pick.signals||[]).filter(function(s){return s.good===true;}).slice(0,4).map(sigPill).join('');
@@ -837,7 +858,12 @@ function buildPicks(){
 function buildLineups(){
   var el=document.getElementById('lineups-content');
   if(!MATCHUPS||MATCHUPS.length===0){
-    el.innerHTML='<div class="empty-state"><div class="icon">&#128197;</div><h3>Lineups not yet posted</h3><p>Check back 2-3 hours before first pitch</p></div>';
+    var now2 = new Date();
+    var hour2 = now2.getHours();
+    var msg2 = hour2 >= 18
+      ? '<div class="empty-state"><div class="icon">&#9917;</div><h3>Games In Progress</h3><p>Pre-game lineups were shown earlier. Batting orders are locked in — check your sportsbook app for live updates.</p></div>'
+      : '<div class="empty-state"><div class="icon">&#128197;</div><h3>Lineups not yet posted</h3><p>Check back 2-3 hours before first pitch</p></div>';
+    el.innerHTML = msg2;
     return;
   }
   var html='';

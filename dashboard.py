@@ -7,6 +7,11 @@ Includes lineup fetching from MLB Stats API
 import requests
 import json
 from datetime import date, datetime
+# Lineup cache — persists confirmed lineups through game time
+_lineup_cache = {}  # {game_id: lineups_dict}
+_picks_cache  = []  # Last known picks
+_matchups_cache = [] # Last known matchups
+
 try:
     from odds_free import get_free_props
     FREE_ODDS_AVAILABLE = True
@@ -787,6 +792,7 @@ def get_games():
 
 
 def get_game_matchups(games):
+    global _lineup_cache, _picks_cache, _matchups_cache
     """
     For each game fetch the lineup and calculate matchup scores
     for each batter vs the opposing starting pitcher
@@ -1178,6 +1184,18 @@ def build_all_data(odds_api_key=""):
                 pick['weather'] = g.get('weather')
                 break
 
+    # Cache matchups and picks so they persist through game time
+    if matchups:
+        _matchups_cache.clear()
+        _matchups_cache.extend(matchups)
+    if top_picks:
+        _picks_cache.clear()
+        _picks_cache.extend(top_picks)
+
+    # Use cached data if live fetch returned nothing
+    final_matchups  = matchups  if matchups  else _matchups_cache
+    final_top_picks = top_picks if top_picks else _picks_cache
+
     print("  Loading week schedule...")
     week_schedule = get_week_schedule()
 
@@ -1189,8 +1207,8 @@ def build_all_data(odds_api_key=""):
         "props":             props,
         "batters":           batters,
         "pitchers":          pitchers,
-        "matchups":          matchups,
-        "top_picks":         top_picks,
+        "matchups":          final_matchups,
+        "top_picks":         final_top_picks,
         "weather":           weather,
         "week_schedule":     week_schedule,
         "yesterday_results": yesterday_results,
