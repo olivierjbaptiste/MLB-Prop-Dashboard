@@ -73,6 +73,7 @@ tr:last-child td{border-bottom:none}
   <button class="nb"     id="btn-daynight"  onclick="go('daynight')">&#127769; Day/Night</button>
   <button class="nb"     id="btn-framework" onclick="go('framework')">&#128203; Framework</button>
   <button class="nb"     id="btn-parks"     onclick="go('parks')">&#127967; Parks</button>
+  <button class="nb"     id="btn-cheatsheet" onclick="go('cheatsheet')">&#128196; Cheat Sheet</button>
 </div>
 
 <div class="main">
@@ -189,6 +190,18 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- CHEAT SHEET -->
+<div id="tc-cheatsheet" class="tc">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+    <div>
+      <div class="st">&#128196; Daily HR Prop Cheat Sheet</div>
+      <div class="ss">Screenshot this and reference it all day &mdash; updated with tonight's lineups</div>
+    </div>
+    <button onclick="window.print()" style="background:#1e3a5f;color:#60a5fa;border:1px solid #2563eb;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">&#128438; Print / Save</button>
+  </div>
+  <div id="cheatsheet-content"></div>
+</div>
+
 </div>
 
 <script>
@@ -241,7 +254,7 @@ function parkBadge(factor,friendly){
 }
 
 function go(name){
-  var all=['picks','lineups','slate','props','batters','pitchers','daynight','framework','parks'];
+  var all=['picks','lineups','slate','props','batters','pitchers','daynight','framework','parks','cheatsheet'];
   for(var i=0;i<all.length;i++){
     var tc=document.getElementById('tc-'+all[i]);
     var nb=document.getElementById('btn-'+all[i]);
@@ -255,7 +268,8 @@ function go(name){
   if(name==='batters')  buildBatters();
   if(name==='pitchers') buildPitchers();
   if(name==='daynight') buildDN();
-  if(name==='parks')    buildParks();
+  if(name==='parks')       buildParks();
+  if(name==='cheatsheet')  buildCheatSheet();
 }
 
 // ── DAILY PICKS ───────────────────────────────────────────────────
@@ -589,6 +603,192 @@ function buildParks(){
   });
   document.getElementById('parks-friendly').innerHTML=fHTML;
   document.getElementById('parks-pitcher').innerHTML=pHTML;
+}
+
+function buildCheatSheet(){
+  var el = document.getElementById('cheatsheet-content');
+  var today = RAW.today || new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+  var strong = PICKS.filter(function(p){return p.confidence==='STRONG';});
+  var good   = PICKS.filter(function(p){return p.confidence==='GOOD';});
+  var mod    = PICKS.filter(function(p){return p.confidence==='MODERATE';});
+
+  // Velocity alerts for tonight's pitchers
+  var veloAlerts = [];
+  MATCHUPS.forEach(function(m){
+    [m.home_pitcher, m.away_pitcher].forEach(function(pit){
+      if(pit && pit.velo_drop_val >= 1.0){
+        veloAlerts.push({name: pit.name, team: pit.team, drop: pit.velo_drop_val, label: pit.velo_label, col: pit.velo_col});
+      }
+    });
+  });
+
+  // Park alerts
+  var hrParks = GAMES.filter(function(g){return g.park_friendly===true && g.park_factor>=1.15;});
+  var badParks = GAMES.filter(function(g){return g.park_friendly===false;});
+
+  // Weather alerts
+  var wxAlerts = GAMES.filter(function(g){return g.weather && g.weather.wind_score>=1 && !g.weather.dome;});
+  var wxBad    = GAMES.filter(function(g){return g.weather && g.weather.wind_score<=-1 && !g.weather.dome;});
+
+  function pickCard(pick, size){
+    var conf  = pick.confidence||'MODERATE';
+    var cc    = conf==='STRONG'?'#4ade80':conf==='GOOD'?'#60a5fa':'#facc15';
+    var cb    = conf==='STRONG'?'#1a3a2a':conf==='GOOD'?'#1a2a3a':'#2a2a1a';
+    var ms    = pick.matchup_score||0;
+    var sigs  = (pick.signals||[]).filter(function(s){return s.good===true;}).slice(0,3).map(function(s){
+      return '<span style="background:#1a3a2a;color:#4ade80;border:1px solid #4ade80;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;margin-right:3px;display:inline-block;margin-bottom:2px">'+s.label+'</span>';
+    }).join('');
+    var propHtml = '';
+    if(pick.prop_line!=null && pick.prop_odds!=null){
+      var oc = pick.prop_odds>0?'#4ade80':pick.prop_odds<-150?'#f87171':'#facc15';
+      var os = pick.prop_odds>0?'+'+pick.prop_odds:''+pick.prop_odds;
+      propHtml = '<span style="background:#060d14;color:#facc15;border:1px solid #facc15;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;margin-left:8px">O'+pick.prop_line+' '+os+'</span>';
+    }
+    var wxHtml = '';
+    if(pick.weather && !pick.weather.dome){
+      wxHtml = '<span style="font-size:10px;color:'+(pick.weather.wind_col||'#94a3b8')+'"> &nbsp;&bull;&nbsp; '+pick.weather.wind_label+'</span>';
+    }
+    var summary = pick.name+' vs '+pick.pitcher+' ('+pick.pitcher_hand+'HP) &mdash; '
+      +'Barrel '+f(pick.barrel_pct,1)+'% &middot; EV '+f(pick.avg_hit_speed,1)+' &middot; '
+      +parkBadge(pick.park_factor||1.0, pick.park_friendly);
+    return '<div style="background:#0a1628;border:1px solid '+cc+';border-radius:10px;padding:14px;margin-bottom:10px">'
+      +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">'
+      +'<span style="background:'+cb+';color:'+cc+';border:1px solid '+cc+';padding:3px 12px;border-radius:16px;font-size:11px;font-weight:700">'+conf+'</span>'
+      +'<span style="font-size:15px;font-weight:700;color:#f1f5f9">'+pick.name+'</span>'
+      +'<span style="font-size:12px;color:#64748b">'+pick.team+'</span>'
+      +'<span style="font-size:12px;color:#94a3b8">Match: <strong style="color:'+cc+'">'+ms+'</strong></span>'
+      + propHtml + wxHtml
+      +'</div>'
+      +'<div style="font-size:11px;color:#94a3b8;margin-bottom:6px">'+summary+'</div>'
+      +'<div>'+sigs+'</div>'
+      +'</div>';
+  }
+
+  var html = ''
+    // Header
+    +'<div style="background:#0a1628;border:1px solid #1e293b;border-radius:14px;padding:20px;margin-bottom:20px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">'
+    +'<div>'
+    +'<div style="font-size:22px;font-weight:800;color:#f1f5f9">&#9918; MLB HR Prop Cheat Sheet</div>'
+    +'<div style="font-size:13px;color:#64748b;margin-top:4px">'+today+' &nbsp;&bull;&nbsp; mlb-prop-dashboard.onrender.com</div>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    +'<span style="background:#1a3a2a;color:#4ade80;border:1px solid #4ade80;padding:4px 12px;border-radius:16px;font-size:11px;font-weight:700">'+strong.length+' STRONG</span>'
+    +'<span style="background:#1a2a3a;color:#60a5fa;border:1px solid #60a5fa;padding:4px 12px;border-radius:16px;font-size:11px;font-weight:700">'+good.length+' GOOD</span>'
+    +'<span style="background:#2a2a1a;color:#facc15;border:1px solid #facc15;padding:4px 12px;border-radius:16px;font-size:11px;font-weight:700">'+mod.length+' MODERATE</span>'
+    +'</div>'
+    +'</div>'
+    +'</div>';
+
+  // Strong picks
+  if(strong.length > 0){
+    html += '<div style="font-size:13px;font-weight:700;color:#4ade80;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">&#128293; Strong Picks &mdash; Max Confidence</div>';
+    strong.forEach(function(p){ html += pickCard(p); });
+  }
+
+  // Good picks
+  if(good.length > 0){
+    html += '<div style="font-size:13px;font-weight:700;color:#60a5fa;margin:16px 0 10px;text-transform:uppercase;letter-spacing:0.5px">&#9989; Good Picks</div>';
+    good.forEach(function(p){ html += pickCard(p); });
+  }
+
+  // Moderate picks
+  if(mod.length > 0){
+    html += '<div style="font-size:13px;font-weight:700;color:#facc15;margin:16px 0 10px;text-transform:uppercase;letter-spacing:0.5px">&#9888; Moderate Picks &mdash; 1 Signal Only</div>';
+    mod.slice(0,3).forEach(function(p){ html += pickCard(p); });
+  }
+
+  if(PICKS.length === 0){
+    html += '<div style="background:#0f1923;border:1px solid #1e293b;border-radius:12px;padding:24px;text-align:center;color:#64748b">'
+      +'<div style="font-size:24px;margin-bottom:8px">&#128197;</div>'
+      +'<div style="font-size:14px;font-weight:600;color:#f1f5f9;margin-bottom:4px">No picks yet today</div>'
+      +'<div style="font-size:12px">Lineups post 2-3 hours before first pitch. Click Refresh Data after 1pm ET.</div>'
+      +'</div>';
+  }
+
+  // Alerts section
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:20px">';
+
+  // Park alerts
+  html += '<div style="background:#0a1628;border:1px solid #1e293b;border-radius:12px;padding:16px">'
+    +'<div style="font-size:12px;font-weight:700;color:#f1f5f9;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">&#127967; Park Factor Alerts</div>';
+  if(hrParks.length > 0){
+    hrParks.forEach(function(g){
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1e293b">'
+        +'<span style="font-size:12px;color:#f1f5f9">'+g.away_abb+' @ '+g.home_abb+'</span>'
+        +parkBadge(g.park_factor, g.park_friendly)+'</div>';
+    });
+  } else {
+    html += '<div style="font-size:12px;color:#64748b">No HR-friendly parks tonight</div>';
+  }
+  if(badParks.length > 0){
+    html += '<div style="font-size:11px;color:#f87171;margin-top:8px;font-weight:600">Avoid:</div>';
+    badParks.forEach(function(g){
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0">'
+        +'<span style="font-size:11px;color:#94a3b8">'+g.away_abb+' @ '+g.home_abb+'</span>'
+        +parkBadge(g.park_factor, g.park_friendly)+'</div>';
+    });
+  }
+  html += '</div>';
+
+  // Weather alerts
+  html += '<div style="background:#0a1628;border:1px solid #1e293b;border-radius:12px;padding:16px">'
+    +'<div style="font-size:12px;font-weight:700;color:#f1f5f9;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">&#127777; Weather Alerts</div>';
+  if(wxAlerts.length > 0){
+    html += '<div style="font-size:11px;color:#4ade80;font-weight:600;margin-bottom:4px">HR Boost:</div>';
+    wxAlerts.forEach(function(g){
+      var wx = g.weather;
+      html += '<div style="padding:5px 0;border-bottom:1px solid #1e293b">'
+        +'<span style="font-size:12px;color:#f1f5f9">'+g.away_abb+' @ '+g.home_abb+'</span>'
+        +'<div style="font-size:11px;color:'+(wx.wind_col||'#94a3b8')+'">'+(wx.wind_label||'')+' &middot; '+wx.temp_f+'°F</div>'
+        +'</div>';
+    });
+  }
+  if(wxBad.length > 0){
+    html += '<div style="font-size:11px;color:#f87171;font-weight:600;margin-top:8px;margin-bottom:4px">HR Suppressor:</div>';
+    wxBad.forEach(function(g){
+      var wx = g.weather;
+      html += '<div style="padding:5px 0">'
+        +'<span style="font-size:12px;color:#f1f5f9">'+g.away_abb+' @ '+g.home_abb+'</span>'
+        +'<div style="font-size:11px;color:'+(wx.wind_col||'#94a3b8')+'">'+(wx.wind_label||'')+' &middot; '+wx.temp_f+'°F</div>'
+        +'</div>';
+    });
+  }
+  if(wxAlerts.length===0 && wxBad.length===0){
+    html += '<div style="font-size:12px;color:#64748b">No significant weather factors tonight</div>';
+  }
+  html += '</div>';
+
+  // Velocity alerts
+  html += '<div style="background:#0a1628;border:1px solid #1e293b;border-radius:12px;padding:16px">'
+    +'<div style="font-size:12px;font-weight:700;color:#f1f5f9;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">&#128308; Velocity Alerts</div>';
+  if(veloAlerts.length > 0){
+    veloAlerts.forEach(function(v){
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1e293b">'
+        +'<div><div style="font-size:12px;color:#f1f5f9">'+v.name+'</div>'
+        +'<div style="font-size:10px;color:#64748b">'+v.team+'</div></div>'
+        +'<span style="color:'+(v.col||'#f87171')+';font-size:11px;font-weight:600">'+v.label+'</span>'
+        +'</div>';
+    });
+  } else {
+    html += '<div style="font-size:12px;color:#64748b">No significant velocity drops tonight</div>';
+  }
+  html += '</div>';
+
+  html += '</div>'; // close alerts grid
+
+  // Bet sizing guide
+  html += '<div style="background:#0a1628;border:1px solid #1e293b;border-radius:12px;padding:16px;margin-top:14px">'
+    +'<div style="font-size:12px;font-weight:700;color:#f1f5f9;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">&#127919; Bet Sizing Guide</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">'
+    +'<div style="background:#060d14;border-radius:8px;padding:10px;border:1px solid #1e3a2a"><div style="font-size:11px;color:#4ade80;font-weight:700;margin-bottom:4px">STRONG &#128293;</div><div style="font-size:12px;color:#94a3b8">3 units &mdash; Multiple signals, park boost, velocity drop</div></div>'
+    +'<div style="background:#060d14;border-radius:8px;padding:10px;border:1px solid #1a2a3a"><div style="font-size:11px;color:#60a5fa;font-weight:700;margin-bottom:4px">GOOD &#9989;</div><div style="font-size:12px;color:#94a3b8">2 units &mdash; 2+ clear signals confirmed</div></div>'
+    +'<div style="background:#060d14;border-radius:8px;padding:10px;border:1px solid #2a2a1a"><div style="font-size:11px;color:#facc15;font-weight:700;margin-bottom:4px">MODERATE &#9888;</div><div style="font-size:12px;color:#94a3b8">1 unit &mdash; Single signal, use as parlay leg only</div></div>'
+    +'<div style="background:#060d14;border-radius:8px;padding:10px;border:1px solid #1e293b"><div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:4px">PARLAY RULE</div><div style="font-size:12px;color:#94a3b8">Max 2-3 legs &mdash; never parlay all picks together</div></div>'
+    +'</div></div>';
+
+  el.innerHTML = html;
 }
 
 function refreshData(){
