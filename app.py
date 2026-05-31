@@ -81,10 +81,14 @@ def api_data():
 @app.route("/health")
 def health():
     return jsonify({
-        "status": "ok",
-        "updated": _updated,
-        "batters": len(_data.get("batters", [])) if _data else 0,
-        "pitchers": len(_data.get("pitchers", [])) if _data else 0,
+        "status":    "ok",
+        "updated":   _updated,
+        "batters":   len(_data.get("batters",   [])) if _data else 0,
+        "pitchers":  len(_data.get("pitchers",  [])) if _data else 0,
+        "games":     len(_data.get("games",     [])) if _data else 0,
+        "matchups":  len(_data.get("matchups",  [])) if _data else 0,
+        "top_picks": len(_data.get("top_picks", [])) if _data else 0,
+        "props":     len(_data.get("props",     [])) if _data else 0,
     })
 
 
