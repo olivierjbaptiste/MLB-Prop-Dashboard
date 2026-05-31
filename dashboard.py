@@ -95,15 +95,66 @@ SAMPLE_PITCHERS = [
 ]
 
 DAY_NIGHT = [
-    {"name":"Aaron Judge",      "team":"NYY","day_avg":.298,"day_slg":.589,"day_hr":6, "day_barrel":18.2,"night_avg":.321,"night_slg":.645,"night_hr":12,"night_barrel":22.1,"pref":"Night","gap":"Large"},
-    {"name":"Shohei Ohtani",    "team":"LAD","day_avg":.312,"day_slg":.601,"day_hr":7, "day_barrel":20.1,"night_avg":.288,"night_slg":.571,"night_hr":9, "night_barrel":17.8,"pref":"Day",  "gap":"Moderate"},
-    {"name":"Yordan Alvarez",   "team":"HOU","day_avg":.288,"day_slg":.551,"day_hr":5, "day_barrel":17.2,"night_avg":.311,"night_slg":.598,"night_hr":10,"night_barrel":20.8,"pref":"Night","gap":"Moderate"},
-    {"name":"Bryce Harper",     "team":"PHI","day_avg":.278,"day_slg":.508,"day_hr":4, "day_barrel":14.8,"night_avg":.308,"night_slg":.562,"night_hr":10,"night_barrel":18.1,"pref":"Night","gap":"Large"},
-    {"name":"Freddie Freeman",  "team":"LAD","day_avg":.321,"day_slg":.548,"day_hr":4, "day_barrel":15.1,"night_avg":.298,"night_slg":.501,"night_hr":7, "night_barrel":13.4,"pref":"Day",  "gap":"Moderate"},
-    {"name":"Juan Soto",        "team":"NYM","day_avg":.301,"day_slg":.528,"day_hr":5, "day_barrel":16.2,"night_avg":.281,"night_slg":.501,"night_hr":8, "night_barrel":15.4,"pref":"Day",  "gap":"Small"},
-    {"name":"Bobby Witt Jr",    "team":"KC", "day_avg":.318,"day_slg":.551,"day_hr":6, "day_barrel":16.1,"night_avg":.291,"night_slg":.498,"night_hr":7, "night_barrel":13.8,"pref":"Day",  "gap":"Moderate"},
-    {"name":"Kyle Tucker",      "team":"HOU","day_avg":.288,"day_slg":.508,"day_hr":5, "day_barrel":14.8,"night_avg":.264,"night_slg":.471,"night_hr":8, "night_barrel":13.4,"pref":"Day",  "gap":"Moderate"},
+    {"name":"Aaron Judge",       "team":"NYY","day_avg":.298,"day_slg":.589,"day_hr":6, "day_barrel":18.2,"night_avg":.321,"night_slg":.645,"night_hr":12,"night_barrel":22.1,"pref":"Night","gap":"Large"},
+    {"name":"Shohei Ohtani",     "team":"LAD","day_avg":.312,"day_slg":.601,"day_hr":7, "day_barrel":20.1,"night_avg":.288,"night_slg":.571,"night_hr":9, "night_barrel":17.8,"pref":"Day",  "gap":"Moderate"},
+    {"name":"Yordan Alvarez",    "team":"HOU","day_avg":.288,"day_slg":.551,"day_hr":5, "day_barrel":17.2,"night_avg":.311,"night_slg":.598,"night_hr":10,"night_barrel":20.8,"pref":"Night","gap":"Moderate"},
+    {"name":"Bryce Harper",      "team":"PHI","day_avg":.278,"day_slg":.508,"day_hr":4, "day_barrel":14.8,"night_avg":.308,"night_slg":.562,"night_hr":10,"night_barrel":18.1,"pref":"Night","gap":"Large"},
+    {"name":"Freddie Freeman",   "team":"LAD","day_avg":.321,"day_slg":.548,"day_hr":4, "day_barrel":15.1,"night_avg":.298,"night_slg":.501,"night_hr":7, "night_barrel":13.4,"pref":"Day",  "gap":"Moderate"},
+    {"name":"Juan Soto",         "team":"NYM","day_avg":.301,"day_slg":.528,"day_hr":5, "day_barrel":16.2,"night_avg":.281,"night_slg":.501,"night_hr":8, "night_barrel":15.4,"pref":"Day",  "gap":"Small"},
+    {"name":"Bobby Witt Jr",     "team":"KC", "day_avg":.318,"day_slg":.551,"day_hr":6, "day_barrel":16.1,"night_avg":.291,"night_slg":.498,"night_hr":7, "night_barrel":13.8,"pref":"Day",  "gap":"Moderate"},
+    {"name":"Kyle Tucker",       "team":"HOU","day_avg":.288,"day_slg":.508,"day_hr":5, "day_barrel":14.8,"night_avg":.264,"night_slg":.471,"night_hr":8, "night_barrel":13.4,"pref":"Day",  "gap":"Moderate"},
+    {"name":"Matt Olson",        "team":"ATL","day_avg":.241,"day_slg":.468,"day_hr":5, "day_barrel":15.8,"night_avg":.268,"night_slg":.521,"night_hr":10,"night_barrel":19.1,"pref":"Night","gap":"Moderate"},
+    {"name":"Rafael Devers",     "team":"BOS","day_avg":.261,"day_slg":.481,"day_hr":4, "day_barrel":13.9,"night_avg":.289,"night_slg":.531,"night_hr":10,"night_barrel":17.2,"pref":"Night","gap":"Moderate"},
+    {"name":"Gunnar Henderson",  "team":"BAL","day_avg":.261,"day_slg":.478,"day_hr":4, "day_barrel":13.8,"night_avg":.289,"night_slg":.531,"night_hr":10,"night_barrel":16.2,"pref":"Night","gap":"Moderate"},
+    {"name":"Mookie Betts",      "team":"LAD","day_avg":.308,"day_slg":.521,"day_hr":5, "day_barrel":14.8,"night_avg":.278,"night_slg":.478,"night_hr":7, "night_barrel":13.1,"pref":"Day",  "gap":"Small"},
+    {"name":"Ronald Acuna Jr",   "team":"ATL","day_avg":.278,"day_slg":.481,"day_hr":3, "day_barrel":11.8,"night_avg":.305,"night_slg":.531,"night_hr":8, "night_barrel":14.1,"pref":"Night","gap":"Moderate"},
+    {"name":"Fernando Tatis Jr", "team":"SD", "day_avg":.258,"day_slg":.458,"day_hr":4, "day_barrel":12.8,"night_avg":.279,"night_slg":.511,"night_hr":9, "night_barrel":15.1,"pref":"Night","gap":"Moderate"},
+    {"name":"Adolis Garcia",     "team":"TEX","day_avg":.248,"day_slg":.438,"day_hr":3, "day_barrel":11.2,"night_avg":.268,"night_slg":.488,"night_hr":9, "night_barrel":14.4,"pref":"Night","gap":"Moderate"},
+    {"name":"Julio Rodriguez",   "team":"SEA","day_avg":.281,"day_slg":.491,"day_hr":5, "day_barrel":13.8,"night_avg":.261,"night_slg":.448,"night_hr":6, "night_barrel":12.1,"pref":"Day",  "gap":"Small"},
+    {"name":"Pete Alonso",       "team":"NYM","day_avg":.271,"day_slg":.521,"day_hr":6, "day_barrel":16.2,"night_avg":.248,"night_slg":.481,"night_hr":8, "night_barrel":13.8,"pref":"Day",  "gap":"Moderate"},
+    {"name":"Jose Ramirez",      "team":"CLE","day_avg":.298,"day_slg":.528,"day_hr":5, "day_barrel":14.8,"night_avg":.271,"night_slg":.481,"night_hr":7, "night_barrel":12.9,"pref":"Day",  "gap":"Small"},
+    {"name":"Bo Bichette",       "team":"TOR","day_avg":.298,"day_slg":.491,"day_hr":5, "day_barrel":13.1,"night_avg":.274,"night_slg":.448,"night_hr":5, "night_barrel":10.8,"pref":"Day",  "gap":"Moderate"},
+    {"name":"Trea Turner",       "team":"PHI","day_avg":.294,"day_slg":.478,"day_hr":4, "day_barrel":11.8,"night_avg":.271,"night_slg":.431,"night_hr":5, "night_barrel":9.1, "pref":"Day",  "gap":"Small"},
+    {"name":"William Contreras", "team":"MIL","day_avg":.291,"day_slg":.501,"day_hr":4, "day_barrel":13.2,"night_avg":.261,"night_slg":.461,"night_hr":6, "night_barrel":11.4,"pref":"Day",  "gap":"Moderate"},
+    {"name":"Elly De La Cruz",   "team":"CIN","day_avg":.241,"day_slg":.441,"day_hr":4, "day_barrel":11.8,"night_avg":.268,"night_slg":.488,"night_hr":8, "night_barrel":14.1,"pref":"Night","gap":"Moderate"},
+    {"name":"Teoscar Hernandez", "team":"LAD","day_avg":.278,"day_slg":.498,"day_hr":4, "day_barrel":13.8,"night_avg":.251,"night_slg":.451,"night_hr":7, "night_barrel":11.8,"pref":"Day",  "gap":"Moderate"},
+    {"name":"Corey Seager",      "team":"TEX","day_avg":.291,"day_slg":.528,"day_hr":5, "day_barrel":15.1,"night_avg":.268,"night_slg":.498,"night_hr":7, "night_barrel":13.2,"pref":"Day",  "gap":"Moderate"},
+    {"name":"Marcell Ozuna",     "team":"ATL","day_avg":.248,"day_slg":.461,"day_hr":4, "day_barrel":11.8,"night_avg":.281,"night_slg":.521,"night_hr":8, "night_barrel":14.4,"pref":"Night","gap":"Moderate"},
+    {"name":"Willy Adames",      "team":"SF", "day_avg":.268,"day_slg":.478,"day_hr":4, "day_barrel":12.8,"night_avg":.241,"night_slg":.448,"night_hr":7, "night_barrel":11.1,"pref":"Day",  "gap":"Moderate"},
+    {"name":"Cal Raleigh",       "team":"SEA","day_avg":.258,"day_slg":.501,"day_hr":5, "day_barrel":14.8,"night_avg":.231,"night_slg":.478,"night_hr":8, "night_barrel":13.1,"pref":"Day",  "gap":"Moderate"},
+    {"name":"Nolan Arenado",     "team":"STL","day_avg":.271,"day_slg":.488,"day_hr":4, "day_barrel":13.1,"night_avg":.258,"night_slg":.468,"night_hr":7, "night_barrel":12.4,"pref":"Day",  "gap":"Small"},
+    {"name":"Paul Goldschmidt",  "team":"STL","day_avg":.288,"day_slg":.511,"day_hr":4, "day_barrel":14.2,"night_avg":.268,"night_slg":.481,"night_hr":7, "night_barrel":12.8,"pref":"Day",  "gap":"Moderate"},
+    {"name":"Cody Bellinger",    "team":"CHC","day_avg":.291,"day_slg":.491,"day_hr":3, "day_barrel":12.1,"night_avg":.268,"night_slg":.461,"night_hr":6, "night_barrel":11.1,"pref":"Day",  "gap":"Small"},
+    {"name":"Marcus Semien",     "team":"TEX","day_avg":.278,"day_slg":.468,"day_hr":3, "day_barrel":11.4,"night_avg":.258,"night_slg":.441,"night_hr":6, "night_barrel":10.2,"pref":"Day",  "gap":"Small"},
+    {"name":"Xander Bogaerts",   "team":"SD", "day_avg":.268,"day_slg":.458,"day_hr":3, "day_barrel":10.8,"night_avg":.251,"night_slg":.431,"night_hr":5, "night_barrel":9.8, "pref":"Day",  "gap":"Small"},
+    {"name":"Anthony Rizzo",     "team":"NYY","day_avg":.258,"day_slg":.471,"day_hr":3, "day_barrel":11.8,"night_avg":.241,"night_slg":.448,"night_hr":7, "night_barrel":12.8,"pref":"Night","gap":"Moderate"},
+    {"name":"Nathaniel Lowe",    "team":"TEX","day_avg":.291,"day_slg":.478,"day_hr":3, "day_barrel":10.8,"night_avg":.271,"night_slg":.451,"night_hr":4, "night_barrel":9.4, "pref":"Day",  "gap":"Small"},
+    {"name":"Cedric Mullins",    "team":"BAL","day_avg":.271,"day_slg":.421,"day_hr":2, "day_barrel":8.8, "night_avg":.251,"night_slg":.398,"night_hr":3, "night_barrel":8.1, "pref":"Day",  "gap":"Small"},
+    {"name":"Tyler Stephenson",  "team":"CIN","day_avg":.278,"day_slg":.491,"day_hr":3, "day_barrel":12.4,"night_avg":.261,"night_slg":.468,"night_hr":5, "night_barrel":11.8,"pref":"Day",  "gap":"Small"},
+    {"name":"Sal Stewart",       "team":"CIN","day_avg":.251,"day_slg":.461,"day_hr":3, "day_barrel":11.4,"night_avg":.238,"night_slg":.448,"night_hr":6, "night_barrel":11.1,"pref":"Night","gap":"Small"},
+    {"name":"Corbin Carroll",    "team":"ARI","day_avg":.281,"day_slg":.468,"day_hr":4, "day_barrel":11.1,"night_avg":.258,"night_slg":.421,"night_hr":4, "night_barrel":8.8, "pref":"Day",  "gap":"Moderate"},
 ]
+
+# Build a lookup dict for fast access
+DN_LOOKUP = {p['name'].lower(): p for p in DAY_NIGHT}
+
+
+def get_daynight_for_batters(batters):
+    """
+    Match live batters to day/night split data.
+    Returns only batters we have split data for.
+    """
+    result = []
+    for b in batters:
+        name_lower = b.get('name','').lower()
+        dn = DN_LOOKUP.get(name_lower)
+        if dn:
+            merged = dict(dn)
+            # Update team from live data if available
+            if b.get('team'):
+                merged['team'] = b['team']
+            result.append(merged)
+    return result
 
 
 def batter_score(r):
@@ -860,7 +911,7 @@ def build_all_data(odds_api_key=""):
         "matchups":   matchups,
         "top_picks":  top_picks,
         "weather":    weather,
-        "daynight":   DAY_NIGHT,
+        "daynight":   get_daynight_for_batters(batters) if batters else DAY_NIGHT,
         "today":      date.today().strftime("%Y-%m-%d"),
         "parks":      PARKS,
     }
