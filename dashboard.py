@@ -7,6 +7,12 @@ Includes lineup fetching from MLB Stats API
 import requests
 import json
 from datetime import date, datetime
+try:
+    from weather import get_all_weather
+    WEATHER_AVAILABLE = True
+except Exception:
+    WEATHER_AVAILABLE = False
+    def get_all_weather(games): return {}
 
 PARKS = {
     "COL": {"name": "Coors Field",             "factor": 1.35, "friendly": True},
@@ -500,6 +506,23 @@ def build_all_data(odds_api_key=""):
     top_picks = get_top_picks(matchups, props)
     print(f"  {len(top_picks)} top picks generated")
 
+    print("  Fetching weather data...")
+    weather = get_all_weather(games)
+    print(f"  Weather loaded for {len(weather)} stadiums")
+
+    # Attach weather to each game and matchup
+    for g in games:
+        g['weather'] = weather.get(g.get('home_abb',''), None)
+    for m in matchups:
+        m['weather'] = weather.get(m.get('home_abb',''), None)
+
+    # Add weather boost to top picks
+    for pick in top_picks:
+        for g in games:
+            if g.get('away_abb') == pick.get('team') or g.get('home_abb') == pick.get('team'):
+                pick['weather'] = g.get('weather')
+                break
+
     return {
         "games":      games,
         "props":      props,
@@ -507,6 +530,7 @@ def build_all_data(odds_api_key=""):
         "pitchers":   pitchers,
         "matchups":   matchups,
         "top_picks":  top_picks,
+        "weather":    weather,
         "daynight":   DAY_NIGHT,
         "today":      date.today().strftime("%Y-%m-%d"),
         "parks":      PARKS,

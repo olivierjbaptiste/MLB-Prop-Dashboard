@@ -96,7 +96,7 @@ tr:last-child td{border-bottom:none}
   <div class="st">Tonight's Schedule</div>
   <div class="ss">Probable starters and park factors &mdash; live from MLB Stats API</div>
   <div class="tw"><table>
-    <thead><tr><th>Matchup</th><th>Venue</th><th>Park Factor</th><th>Away Starter</th><th>Home Starter</th><th>Status</th></tr></thead>
+    <thead><tr><th>Matchup</th><th>Venue</th><th>Park Factor</th><th>Weather</th><th>Away Starter</th><th>Home Starter</th><th>Status</th></tr></thead>
     <tbody id="slate-body"><tr><td colspan="6" style="text-align:center;color:#64748b;padding:16px">Loading...</td></tr></tbody>
   </table></div>
 </div>
@@ -279,6 +279,16 @@ function buildPicks(){
     var ms   = pick.matchup_score || 0;
     var sigs = (pick.signals||[]).filter(function(s){return s.good===true;}).slice(0,3);
 
+    var wxPick = pick.weather;
+    var wxPickHtml = '';
+    if(wxPick){
+      wxPickHtml = '<div style="background:#060d14;border-radius:6px;padding:8px 10px;margin-top:6px;display:flex;align-items:center;gap:12px">'
+        +'<span style="font-size:11px;font-weight:600;color:'+(wxPick.rating_col||'#94a3b8')+'">'+wxPick.rating+'</span>'
+        +'<span style="font-size:11px;color:'+(wxPick.wind_col||'#94a3b8')+'">'+wxPick.wind_label+'</span>'
+        +'<span style="font-size:11px;color:#64748b">'+wxPick.temp_f+'°F</span>'
+        +'<span style="font-size:11px;color:#64748b">'+wxPick.conditions+'</span>'
+        +'</div>';
+    }
     var propHtml = '';
     if(pick.prop_line!==null && pick.prop_odds!==null){
       var oc = pick.prop_odds>0?'#4ade80':pick.prop_odds<-150?'#f87171':'#facc15';
@@ -306,6 +316,7 @@ function buildPicks(){
       +'<div style="background:#060d14;border-radius:6px;padding:8px;text-align:center"><div style="font-size:10px;color:#64748b">Park</div><div style="font-size:14px;font-weight:700">'+parkBadge(pick.park_factor||1.0, pick.park_friendly)+'</div></div>'
       +'</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px">'+sigs.map(sigPill).join('')+'</div>'
+      + wxPickHtml
       + propHtml
       +'</div>';
   });
@@ -335,7 +346,7 @@ function buildLineups(){
       +'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">'
       +'<div>'
       +'<div style="font-size:16px;font-weight:700;color:#f1f5f9">'+m.game+'</div>'
-      +'<div style="font-size:12px;color:#64748b;margin-top:2px">'+m.venue+' &nbsp;&bull;&nbsp; '+parkBadge(m.park_factor||1.0, m.park_friendly)+'</div>'
+      +'<div style="font-size:12px;color:#64748b;margin-top:2px">'+m.venue+' &nbsp;&bull;&nbsp; '+parkBadge(m.park_factor||1.0, m.park_friendly)+(m.weather?' &nbsp;&bull;&nbsp; <span style="color:'+(m.weather.rating_col||'#94a3b8')+';font-weight:600">'+m.weather.rating+'</span> <span style="color:'+(m.weather.wind_col||'#94a3b8')+';font-size:11px">'+m.weather.wind_label+'</span> <span style="color:#64748b;font-size:11px">'+m.weather.temp_f+'°F</span>':'')+'</div>'
       +'</div>'
       +'<span style="background:#1e293b;color:#94a3b8;padding:3px 10px;border-radius:16px;font-size:11px">'+m.status+'</span>'
       +'</div>'
@@ -424,10 +435,17 @@ function buildSlate(){
   }
   var rows='';
   GAMES.forEach(function(g){
+    var wx = g.weather;
+    var wxHtml = wx
+      ? '<span style="color:'+(wx.rating_col||'#94a3b8')+';font-weight:600;font-size:11px">'+wx.rating+'</span>'
+        +'<div style="font-size:10px;color:'+(wx.wind_col||'#94a3b8')+'">'+wx.wind_label+'</div>'
+        +'<div style="font-size:10px;color:#64748b">'+wx.temp_f+'°F &middot; '+wx.conditions+'</div>'
+      : '<span style="color:#64748b;font-size:11px">—</span>';
     rows+='<tr>'
       +'<td style="font-weight:600;color:#f1f5f9">'+g.away_abb+' @ '+g.home_abb+'</td>'
       +'<td style="color:#94a3b8;font-size:12px">'+g.venue+'</td>'
       +'<td>'+parkBadge(g.park_factor,g.park_friendly)+'</td>'
+      +'<td>'+wxHtml+'</td>'
       +'<td style="color:#60a5fa">'+(g.away_pitcher||'TBD')+'</td>'
       +'<td style="color:#4ade80">'+(g.home_pitcher||'TBD')+'</td>'
       +'<td><span style="background:#1e293b;color:#94a3b8;padding:2px 6px;border-radius:3px;font-size:10px">'+(g.status||'Scheduled')+'</span></td>'
