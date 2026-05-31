@@ -640,25 +640,66 @@ def load_live_batters():
 
 
 def get_game_lineup(game_id):
-    """Fetch batting lineup for a game from MLB Stats API"""
+    """Fetch batting lineup for a game from MLB Stats API
+    Works for pre-game, in-progress, and completed games"""
     try:
         url  = f"https://statsapi.mlb.com/api/v1/game/{game_id}/boxscore"
         data = requests.get(url, timeout=10).json()
         teams = data.get('teams', {})
         lineups = {}
+
         for side in ['away', 'home']:
-            team_data  = teams.get(side, {})
-            team_name  = team_data.get('team', {}).get('name', '')
-            team_abb   = TEAM_ABB.get(team_name, team_name[:3].upper())
-            bat_order  = team_data.get('batters', [])
-            players    = team_data.get('players', {})
+            team_data = teams.get(side, {})
+            team_name = team_data.get('team', {}).get('name', '')
+            team_abb  = TEAM_ABB.get(team_name, team_name[:3].upper())
+            players   = team_data.get('players', {})
+
+            # Try batting order first
+            bat_order = team_data.get('batters', [])
+
+            # If no batting order yet try battingOrder from team info
+            if not bat_order:
+                bat_order = team_data.get('battingOrder', [])
+
             lineup = []
-            for pid in bat_order[:9]:
-                key    = f'ID{pid}'
-                player = players.get(key, {})
-                pname  = player.get('person', {}).get('fullName', '')
-                pos    = player.get('position', {}).get('abbreviation', '')
-                if pname:
+
+            if bat_order:
+                for pid in bat_order[:9]:
+                    key    = f'ID{pid}'
+                    player = players.get(key, {})
+                    pname  = player.get('person', {}).get('fullName', '')
+                    pos    = player.get('position', {}).get('abbreviation', '')
+                    pid_int = player.get('person', {}).get('id')
+                    if pname:
+                        stats = get_batter_stats(pname) or {
+                            'name': pname, 'team': team_abb,
+                            'hand': '?', 'avg': None, 'slg': None,
+                            'hr': None, 'barrel_pct': None,
+                            'avg_hit_speed': None, 'iso': None,
+                            'k_pct': None, 'woba': None
+                        }
+                        stats = dict(stats)
+                        stats['name']      = pname
+                        stats['position']  = pos
+                        stats['order']     = bat_order.index(pid) + 1
+                        stats['player_id'] = pid_int
+                        stats['headshot']  = get_headshot_url(pname, pid_int)
+                        stats['batter_score'] = batter_score(stats)
+                        lineup.append(stats)
+            else:
+                # Fallback: use all batters listed in players dict
+                # sorted by batting order if available
+                batter_list = []
+                for key, player in players.items():
+                    pos = player.get('position', {}).get('type', '')
+                    if pos in ('Hitter', 'Batter') or player.get('position', {}).get('abbreviation') not in ('P', 'TWP'):
+                        pname   = player.get('person', {}).get('fullName', '')
+                        pid_int = player.get('person', {}).get('id')
+                        bo      = player.get('battingOrder', 999)
+                        if pname and bo != 999:
+                            batter_list.append((bo, pname, pid_int, player.get('position',{}).get('abbreviation','')))
+                batter_list.sort()
+                for bo, pname, pid_int, pos in batter_list[:9]:
                     stats = get_batter_stats(pname) or {
                         'name': pname, 'team': team_abb,
                         'hand': '?', 'avg': None, 'slg': None,
@@ -667,15 +708,21 @@ def get_game_lineup(game_id):
                         'k_pct': None, 'woba': None
                     }
                     stats = dict(stats)
-                    stats['name']     = pname
-                    stats['position'] = pos
-                    stats['order']    = bat_order.index(pid) + 1
+                    stats['name']      = pname
+                    stats['position']  = pos
+                    stats['order']     = int(str(bo)[0]) if bo < 100 else int(bo/100)
+                    stats['player_id'] = pid_int
+                    stats['headshot']  = get_headshot_url(pname, pid_int)
                     stats['batter_score'] = batter_score(stats)
                     lineup.append(stats)
+
             lineups[side] = {'team': team_name, 'abb': team_abb, 'lineup': lineup}
+            print(f"    {side} lineup: {len(lineup)} batters")
+
         return lineups
     except Exception as e:
         print(f"  Lineup error for game {game_id}: {e}")
+        import traceback; traceback.print_exc()
         return {}
 
 
@@ -734,12 +781,14 @@ def get_game_matchups(games):
     for each batter vs the opposing starting pitcher
     """
     matchups = []
+    print(f"  Loading lineups for {len(games)} games...")
     for g in games:
         game_id = g.get('game_id')
         if not game_id:
+            print(f"  Skipping {g.get('away_abb','?')} @ {g.get('home_abb','?')} — no game ID")
             continue
 
-        print(f"  Loading lineup for {g['away_abb']} @ {g['home_abb']}...")
+        print(f"  Loading lineup for {g['away_abb']} @ {g['home_abb']} (ID:{game_id})...")
         lineups = get_game_lineup(game_id)
 
         park_factor  = g.get('park_factor', 1.0)
