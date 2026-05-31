@@ -79,9 +79,6 @@ tr:last-child td{border-bottom:none}
 /* ── PICK CARDS ── */
 .picks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:12px;margin-bottom:18px}
 .pick-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;position:relative;overflow:hidden}
-.player-photo{width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid var(--border2);background:var(--surface2);flex-shrink:0}
-.player-photo-sm{width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid var(--border);background:var(--surface2);flex-shrink:0}
-.photo-fallback{width:52px;height:52px;border-radius:50%;background:var(--surface2);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;color:var(--muted)}
 .pick-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--border)}
 .pick-card.strong::before{background:var(--green)}
 .pick-card.good::before{background:var(--blue)}
@@ -666,9 +663,7 @@ function buildPicks(){
       formHtml=(pick.form_emoji||'')+' '+(pick.form_label||'')+' ('+formDesc+(pick.hr_14d!=null?' &bull; '+pick.hr_14d+' HR L14':'')+')';
     }
     html+='<div class="pick-card '+cls+'">'
-      +'<div class="pick-header" style="display:flex;gap:10px;align-items:flex-start">'
-      +'<div style="display:flex;gap:10px;align-items:center;flex:1">'
-      +photoHtml
+      +'<div class="pick-header">'
       +'<div><div class="pick-name">'+pick.name+'</div>'
       +'<div class="pick-meta" style="margin-top:3px">'
       +'<span style="color:var(--white);font-weight:700">'+pick.team+'</span>'
@@ -677,7 +672,7 @@ function buildPicks(){
       +' <span style="color:var(--muted)">('+pick.pitcher_hand+'HP)</span>'
       +' <span style="color:var(--muted)">&bull; '+pick.game+'</span>'
       +(formHtml?' <span style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);padding:1px 5px;border-radius:3px;font-size:9px">'+formHtml+'</span>':'')
-      +wxHtml+'</div></div></div>'
+      +wxHtml+'</div></div>'
       +'<span class="conf-badge '+ccls+'">'+conf+'</span></div>'
       +'<div class="pick-stats">'
       +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+msCol+'">'+ms+'</div><div class="pick-stat-lbl">Match</div></div>'
@@ -737,12 +732,9 @@ function buildSide(batters, pit, teamAbb, pitLabel){
       var ph=pit.hand||'R', bh=bat.hand||'R';
       var plat=(bh==='L'||bh==='S')&&ph==='R'||(bh==='R'||bh==='S')&&ph==='L';
       var sigs=(bat.signals||[]).slice(0,2).map(sigPill).join('');
-      var batPhoto = bat.headshot
-        ? '<img src="'+bat.headshot+'" class="player-photo-sm" onerror="this.style.display='none'">'
-        : '<div style="width:36px;height:36px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:14px">&#127955;</div>';
       trows+='<tr>'
         +'<td style="color:var(--muted);">'+(bat.order||'')+'</td>'
-        +'<td><div style="display:flex;align-items:center;gap:8px">'+batPhoto+'<span style="font-weight:800;color:var(--white)">'+bat.name+'</span></div></td>'
+        +'<td style="font-weight:800;color:var(--white)">'+bat.name+'</td>'
         +'<td style="color:var(--muted)">'+(bat.position||'')+'</td>'
         +'<td style="color:'+(plat?'var(--green)':'var(--red)')+';font-weight:700">'+bh+'</td>'
         +'<td style="color:'+clr(bat.barrel_pct,15,8)+'">'+f(bat.barrel_pct,1)+'%</td>'
@@ -834,11 +826,8 @@ function buildBatters(){
     var avg14col=b.avg_14d>b.avg?'var(--green)':b.avg_14d<b.avg-0.030?'var(--red)':'var(--white)';
     var slg14col=b.slg_14d>b.slg?'var(--green)':b.slg_14d<b.slg-0.050?'var(--red)':'var(--white)';
     var drop=b.velo_drop_val;
-    var bPhoto = b.headshot
-      ? '<img src="'+b.headshot+'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid var(--border);vertical-align:middle;margin-right:6px" onerror="this.style.display='none'">'
-      : '';
     rows+='<tr>'
-      +'<td style="font-weight:800;color:var(--white)">'+bPhoto+b.name+'</td>'
+      +'<td style="font-weight:800;color:var(--white)">'+b.name+'</td>'
       +'<td><span class="badge-gray">'+b.team+'</span></td>'
       +'<td style="color:var(--muted)">'+b.hand+'</td>'
       +'<td style="color:'+fc+';font-weight:700">'+(b.form_emoji||'')+' '+(b.form_label||'—')+'</td>'

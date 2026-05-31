@@ -402,55 +402,6 @@ def get_pitcher_stats(name):
     return None
 
 
-# MLB player ID lookup for headshots
-# URL: https://img.mlb.com/headshots/current/60x60/{ID}@2x.jpg
-PLAYER_IDS = {
-    "Aaron Judge":        592450,
-    "Shohei Ohtani":      660271,
-    "Yordan Alvarez":     670541,
-    "Bryce Harper":       547180,
-    "Freddie Freeman":    518692,
-    "Juan Soto":          665742,
-    "Gunnar Henderson":   683002,
-    "Matt Olson":         621566,
-    "Rafael Devers":      646240,
-    "Kyle Tucker":        663656,
-    "Bobby Witt Jr":      677951,
-    "Jose Ramirez":       608070,
-    "Mookie Betts":       605141,
-    "Ronald Acuna Jr":    660670,
-    "Fernando Tatis Jr":  665487,
-    "Adolis Garcia":      666969,
-    "Julio Rodriguez":    677594,
-    "Corbin Carroll":     682998,
-    "Bo Bichette":        666182,
-    "Trea Turner":        607208,
-    "Pete Alonso":        624413,
-    "Elly De La Cruz":    682829,
-    "William Contreras":  661388,
-    "Marcell Ozuna":      542303,
-    "Teoscar Hernandez":  606192,
-    "Corey Seager":       608369,
-    "Willy Adames":       642715,
-    "Cal Raleigh":        663728,
-    "Sal Stewart":        694973,
-    "Tyler Stephenson":   663886,
-    "Nolan Arenado":      571448,
-    "Paul Goldschmidt":   502671,
-    "Cody Bellinger":     641355,
-    "Marcus Semien":      543760,
-    "Anthony Rizzo":      519203,
-    "Nathaniel Lowe":     663993,
-    "Josh Bell":          605137,
-    "Cedric Mullins":     656429,
-}
-
-def get_headshot_url(name, player_id=None):
-    pid = player_id or PLAYER_IDS.get(name)
-    if pid:
-        return f"https://img.mlb.com/headshots/current/60x60/{pid}@2x.jpg"
-    return None
-
 # Statcast data for top power hitters — overlaid on live roster data
 STATCAST_OVERLAY = {
     "Aaron Judge":        {"barrel_pct":20.4,"avg_hit_speed":93.2,"iso":.310,"woba":.415},
@@ -610,8 +561,6 @@ def load_live_batters():
                     "k_pct":     k_pct,
                     "bb_pct":    bb_pct,
                     "woba":      None,
-                    "player_id": pid,
-                    "headshot":  get_headshot_url(name, pid),
                     # Statcast overlay for known players
                     "barrel_pct":      STATCAST_OVERLAY.get(name, {}).get("barrel_pct"),
                     "avg_hit_speed":   STATCAST_OVERLAY.get(name, {}).get("avg_hit_speed"),
@@ -640,66 +589,25 @@ def load_live_batters():
 
 
 def get_game_lineup(game_id):
-    """Fetch batting lineup for a game from MLB Stats API
-    Works for pre-game, in-progress, and completed games"""
+    """Fetch batting lineup for a game from MLB Stats API"""
     try:
         url  = f"https://statsapi.mlb.com/api/v1/game/{game_id}/boxscore"
         data = requests.get(url, timeout=10).json()
         teams = data.get('teams', {})
         lineups = {}
-
         for side in ['away', 'home']:
-            team_data = teams.get(side, {})
-            team_name = team_data.get('team', {}).get('name', '')
-            team_abb  = TEAM_ABB.get(team_name, team_name[:3].upper())
-            players   = team_data.get('players', {})
-
-            # Try batting order first
-            bat_order = team_data.get('batters', [])
-
-            # If no batting order yet try battingOrder from team info
-            if not bat_order:
-                bat_order = team_data.get('battingOrder', [])
-
+            team_data  = teams.get(side, {})
+            team_name  = team_data.get('team', {}).get('name', '')
+            team_abb   = TEAM_ABB.get(team_name, team_name[:3].upper())
+            bat_order  = team_data.get('batters', [])
+            players    = team_data.get('players', {})
             lineup = []
-
-            if bat_order:
-                for pid in bat_order[:9]:
-                    key    = f'ID{pid}'
-                    player = players.get(key, {})
-                    pname  = player.get('person', {}).get('fullName', '')
-                    pos    = player.get('position', {}).get('abbreviation', '')
-                    pid_int = player.get('person', {}).get('id')
-                    if pname:
-                        stats = get_batter_stats(pname) or {
-                            'name': pname, 'team': team_abb,
-                            'hand': '?', 'avg': None, 'slg': None,
-                            'hr': None, 'barrel_pct': None,
-                            'avg_hit_speed': None, 'iso': None,
-                            'k_pct': None, 'woba': None
-                        }
-                        stats = dict(stats)
-                        stats['name']      = pname
-                        stats['position']  = pos
-                        stats['order']     = bat_order.index(pid) + 1
-                        stats['player_id'] = pid_int
-                        stats['headshot']  = get_headshot_url(pname, pid_int)
-                        stats['batter_score'] = batter_score(stats)
-                        lineup.append(stats)
-            else:
-                # Fallback: use all batters listed in players dict
-                # sorted by batting order if available
-                batter_list = []
-                for key, player in players.items():
-                    pos = player.get('position', {}).get('type', '')
-                    if pos in ('Hitter', 'Batter') or player.get('position', {}).get('abbreviation') not in ('P', 'TWP'):
-                        pname   = player.get('person', {}).get('fullName', '')
-                        pid_int = player.get('person', {}).get('id')
-                        bo      = player.get('battingOrder', 999)
-                        if pname and bo != 999:
-                            batter_list.append((bo, pname, pid_int, player.get('position',{}).get('abbreviation','')))
-                batter_list.sort()
-                for bo, pname, pid_int, pos in batter_list[:9]:
+            for pid in bat_order[:9]:
+                key    = f'ID{pid}'
+                player = players.get(key, {})
+                pname  = player.get('person', {}).get('fullName', '')
+                pos    = player.get('position', {}).get('abbreviation', '')
+                if pname:
                     stats = get_batter_stats(pname) or {
                         'name': pname, 'team': team_abb,
                         'hand': '?', 'avg': None, 'slg': None,
@@ -708,21 +616,15 @@ def get_game_lineup(game_id):
                         'k_pct': None, 'woba': None
                     }
                     stats = dict(stats)
-                    stats['name']      = pname
-                    stats['position']  = pos
-                    stats['order']     = int(str(bo)[0]) if bo < 100 else int(bo/100)
-                    stats['player_id'] = pid_int
-                    stats['headshot']  = get_headshot_url(pname, pid_int)
+                    stats['name']     = pname
+                    stats['position'] = pos
+                    stats['order']    = bat_order.index(pid) + 1
                     stats['batter_score'] = batter_score(stats)
                     lineup.append(stats)
-
             lineups[side] = {'team': team_name, 'abb': team_abb, 'lineup': lineup}
-            print(f"    {side} lineup: {len(lineup)} batters")
-
         return lineups
     except Exception as e:
         print(f"  Lineup error for game {game_id}: {e}")
-        import traceback; traceback.print_exc()
         return {}
 
 
@@ -781,14 +683,12 @@ def get_game_matchups(games):
     for each batter vs the opposing starting pitcher
     """
     matchups = []
-    print(f"  Loading lineups for {len(games)} games...")
     for g in games:
         game_id = g.get('game_id')
         if not game_id:
-            print(f"  Skipping {g.get('away_abb','?')} @ {g.get('home_abb','?')} — no game ID")
             continue
 
-        print(f"  Loading lineup for {g['away_abb']} @ {g['home_abb']} (ID:{game_id})...")
+        print(f"  Loading lineup for {g['away_abb']} @ {g['home_abb']}...")
         lineups = get_game_lineup(game_id)
 
         park_factor  = g.get('park_factor', 1.0)
@@ -927,7 +827,6 @@ def get_top_picks(matchups, props):
                     "form_adj":    bat.get('form_adj'),
                     "hr_14d":      bat.get('hr_14d'),
                     "weather":     m.get('weather'),
-                    "headshot":    bat.get('headshot') or get_headshot_url(bat.get('name','')),
                 })
 
     picks.sort(key=lambda x: (
@@ -989,9 +888,6 @@ def build_batters():
         bat['form_col']    = fc
         bat['form_adj']    = fa
         bat['batter_score_with_form'] = batter_score_with_form(bat)
-        # Add headshot if not already set
-        if not bat.get('headshot'):
-            bat['headshot'] = get_headshot_url(bat.get('name',''))
         batters.append(bat)
     return sorted(batters, key=lambda x: x.get('batter_score_with_form', 0), reverse=True)
 
