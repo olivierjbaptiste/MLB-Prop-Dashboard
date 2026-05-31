@@ -8,6 +8,13 @@ import requests
 import json
 from datetime import date, datetime
 try:
+    from odds_free import get_free_props
+    FREE_ODDS_AVAILABLE = True
+except Exception:
+    FREE_ODDS_AVAILABLE = False
+    def get_free_props(): return []
+
+try:
     from weather import get_all_weather
     WEATHER_AVAILABLE = True
 except Exception:
@@ -875,7 +882,11 @@ def build_pitchers():
 
 def build_all_data(odds_api_key=""):
     games    = get_games()
-    props    = get_props(odds_api_key)
+    # Use free DraftKings/FanDuel props if no paid API key
+    if odds_api_key and odds_api_key != "YOUR_ODDS_API_KEY_HERE":
+        props = get_props(odds_api_key)
+    else:
+        props = get_free_props()
     batters  = build_batters()
     pitchers = build_pitchers()
 
