@@ -75,23 +75,23 @@ SAMPLE_BATTERS = [
 ]
 
 SAMPLE_PITCHERS = [
-    {"name":"Cody Poteet",     "team":"CIN","hand":"R","role":"SP","era":4.85,"whip":1.45,"k9":7.8, "hr9":2.21,"barrel_pct":13.8,"ev_allowed":92.1,"iso_allowed":.258,"hr_risk_rhb":1.82,"hr_risk_lhb":2.41,"k_pct":18.2,"bb_pct":9.8, "swstr":11.2,"gb_pct":30.2},
-    {"name":"Grant Holmes",    "team":"CIN","hand":"R","role":"SP","era":4.12,"whip":1.30,"k9":8.8, "hr9":1.55,"barrel_pct":10.8,"ev_allowed":90.8,"iso_allowed":.182,"hr_risk_rhb":0.95,"hr_risk_lhb":0.62,"k_pct":21.5,"bb_pct":10.8,"swstr":14.0,"gb_pct":38.4},
-    {"name":"Trevor Megill",   "team":"MIL","hand":"R","role":"RP","era":4.21,"whip":1.38,"k9":9.8, "hr9":1.98,"barrel_pct":12.1,"ev_allowed":91.2,"iso_allowed":.241,"hr_risk_rhb":1.88,"hr_risk_lhb":2.08,"k_pct":22.8,"bb_pct":11.2,"swstr":13.8,"gb_pct":28.1},
-    {"name":"Dean Kremer",     "team":"BAL","hand":"R","role":"SP","era":4.52,"whip":1.35,"k9":7.9, "hr9":1.91,"barrel_pct":11.2,"ev_allowed":91.1,"iso_allowed":.228,"hr_risk_rhb":1.71,"hr_risk_lhb":2.11,"k_pct":19.8,"bb_pct":8.9, "swstr":12.1,"gb_pct":32.1},
-    {"name":"Zach Eflin",      "team":"TB", "hand":"R","role":"SP","era":4.12,"whip":1.28,"k9":8.2, "hr9":1.82,"barrel_pct":10.8,"ev_allowed":90.8,"iso_allowed":.218,"hr_risk_rhb":1.62,"hr_risk_lhb":1.98,"k_pct":20.1,"bb_pct":7.8, "swstr":12.8,"gb_pct":34.8},
-    {"name":"Freddy Peralta",  "team":"MIL","hand":"R","role":"SP","era":3.12,"whip":1.08,"k9":11.8,"hr9":0.98,"barrel_pct":8.1, "ev_allowed":89.1,"iso_allowed":.181,"hr_risk_rhb":0.88,"hr_risk_lhb":1.08,"k_pct":28.4,"bb_pct":9.2, "swstr":17.2,"gb_pct":32.8},
-    {"name":"Dylan Cease",     "team":"SD", "hand":"R","role":"SP","era":3.28,"whip":1.12,"k9":11.2,"hr9":0.82,"barrel_pct":7.8, "ev_allowed":88.8,"iso_allowed":.172,"hr_risk_rhb":0.72,"hr_risk_lhb":0.92,"k_pct":26.8,"bb_pct":11.2,"swstr":16.8,"gb_pct":38.9},
-    {"name":"Blake Snell",     "team":"SF", "hand":"L","role":"SP","era":3.45,"whip":1.18,"k9":11.9,"hr9":0.88,"barrel_pct":7.2, "ev_allowed":88.2,"iso_allowed":.168,"hr_risk_rhb":0.98,"hr_risk_lhb":0.78,"k_pct":27.1,"bb_pct":12.8,"swstr":17.8,"gb_pct":34.1},
-    {"name":"Gerrit Cole",     "team":"NYY","hand":"R","role":"SP","era":2.95,"whip":1.02,"k9":11.4,"hr9":0.92,"barrel_pct":6.8, "ev_allowed":88.1,"iso_allowed":.162,"hr_risk_rhb":0.82,"hr_risk_lhb":1.02,"k_pct":27.8,"bb_pct":7.8, "swstr":16.4,"gb_pct":38.4},
-    {"name":"Spencer Strider", "team":"ATL","hand":"R","role":"SP","era":2.81,"whip":0.99,"k9":13.2,"hr9":0.85,"barrel_pct":6.2, "ev_allowed":87.8,"iso_allowed":.158,"hr_risk_rhb":0.75,"hr_risk_lhb":0.95,"k_pct":31.2,"bb_pct":8.4, "swstr":19.8,"gb_pct":35.2},
-    {"name":"Zack Wheeler",    "team":"PHI","hand":"R","role":"SP","era":2.58,"whip":0.98,"k9":10.8,"hr9":0.71,"barrel_pct":5.8, "ev_allowed":87.1,"iso_allowed":.148,"hr_risk_rhb":0.62,"hr_risk_lhb":0.81,"k_pct":26.4,"bb_pct":6.8, "swstr":15.8,"gb_pct":42.1},
-    {"name":"Corbin Burnes",   "team":"BAL","hand":"R","role":"SP","era":2.78,"whip":0.97,"k9":10.2,"hr9":0.68,"barrel_pct":5.2, "ev_allowed":86.8,"iso_allowed":.138,"hr_risk_rhb":0.58,"hr_risk_lhb":0.78,"k_pct":25.8,"bb_pct":6.2, "swstr":14.8,"gb_pct":48.2},
-    {"name":"Logan Webb",      "team":"SF", "hand":"R","role":"SP","era":3.08,"whip":1.05,"k9":8.4, "hr9":0.58,"barrel_pct":4.8, "ev_allowed":86.2,"iso_allowed":.128,"hr_risk_rhb":0.48,"hr_risk_lhb":0.68,"k_pct":20.8,"bb_pct":7.2, "swstr":12.4,"gb_pct":54.8},
-    {"name":"Framber Valdez",  "team":"HOU","hand":"L","role":"SP","era":3.02,"whip":1.11,"k9":8.8, "hr9":0.51,"barrel_pct":4.4, "ev_allowed":85.8,"iso_allowed":.118,"hr_risk_rhb":0.61,"hr_risk_lhb":0.41,"k_pct":21.8,"bb_pct":9.2, "swstr":13.2,"gb_pct":58.4},
-    {"name":"Josh Hader",      "team":"HOU","hand":"L","role":"RP","era":1.88,"whip":0.88,"k9":14.8,"hr9":0.42,"barrel_pct":5.8, "ev_allowed":87.8,"iso_allowed":.128,"hr_risk_rhb":0.52,"hr_risk_lhb":0.32,"k_pct":34.8,"bb_pct":9.8, "swstr":24.8,"gb_pct":28.4},
-    {"name":"Emmanuel Clase",  "team":"CLE","hand":"R","role":"RP","era":1.42,"whip":0.78,"k9":9.8, "hr9":0.18,"barrel_pct":3.2, "ev_allowed":85.1,"iso_allowed":.098,"hr_risk_rhb":0.08,"hr_risk_lhb":0.28,"k_pct":24.2,"bb_pct":4.8, "swstr":18.2,"gb_pct":62.1},
-    {"name":"Devin Williams",  "team":"MIL","hand":"R","role":"RP","era":1.98,"whip":0.92,"k9":15.2,"hr9":0.28,"barrel_pct":4.2, "ev_allowed":86.2,"iso_allowed":.108,"hr_risk_rhb":0.18,"hr_risk_lhb":0.38,"k_pct":36.8,"bb_pct":10.2,"swstr":26.4,"gb_pct":41.2},
+    {"name":"Cody Poteet",     "team":"CIN","hand":"R","role":"SP","era":4.85,"whip":1.45,"k9":7.8, "hr9":2.21,"barrel_pct":13.8,"ev_allowed":92.1,"iso_allowed":.258,"hr_risk_rhb":1.82,"hr_risk_lhb":2.41,"k_pct":18.2,"bb_pct":9.8, "swstr":11.2,"gb_pct":30.2,"velo_season":93.1,"velo_recent":91.2},
+    {"name":"Grant Holmes",    "team":"CIN","hand":"R","role":"SP","era":4.12,"whip":1.30,"k9":8.8, "hr9":1.55,"barrel_pct":10.8,"ev_allowed":90.8,"iso_allowed":.182,"hr_risk_rhb":0.95,"hr_risk_lhb":0.62,"k_pct":21.5,"bb_pct":10.8,"swstr":14.0,"gb_pct":38.4,"velo_season":93.8,"velo_recent":92.1},
+    {"name":"Trevor Megill",   "team":"MIL","hand":"R","role":"RP","era":4.21,"whip":1.38,"k9":9.8, "hr9":1.98,"barrel_pct":12.1,"ev_allowed":91.2,"iso_allowed":.241,"hr_risk_rhb":1.88,"hr_risk_lhb":2.08,"k_pct":22.8,"bb_pct":11.2,"swstr":13.8,"gb_pct":28.1,"velo_season":95.2,"velo_recent":94.8},
+    {"name":"Dean Kremer",     "team":"BAL","hand":"R","role":"SP","era":4.52,"whip":1.35,"k9":7.9, "hr9":1.91,"barrel_pct":11.2,"ev_allowed":91.1,"iso_allowed":.228,"hr_risk_rhb":1.71,"hr_risk_lhb":2.11,"k_pct":19.8,"bb_pct":8.9, "swstr":12.1,"gb_pct":32.1,"velo_season":92.4,"velo_recent":91.8},
+    {"name":"Zach Eflin",      "team":"TB", "hand":"R","role":"SP","era":4.12,"whip":1.28,"k9":8.2, "hr9":1.82,"barrel_pct":10.8,"ev_allowed":90.8,"iso_allowed":.218,"hr_risk_rhb":1.62,"hr_risk_lhb":1.98,"k_pct":20.1,"bb_pct":7.8, "swstr":12.8,"gb_pct":34.8,"velo_season":91.8,"velo_recent":90.2},
+    {"name":"Freddy Peralta",  "team":"MIL","hand":"R","role":"SP","era":3.12,"whip":1.08,"k9":11.8,"hr9":0.98,"barrel_pct":8.1, "ev_allowed":89.1,"iso_allowed":.181,"hr_risk_rhb":0.88,"hr_risk_lhb":1.08,"k_pct":28.4,"bb_pct":9.2, "swstr":17.2,"gb_pct":32.8,"velo_season":93.4,"velo_recent":93.6},
+    {"name":"Dylan Cease",     "team":"SD", "hand":"R","role":"SP","era":3.28,"whip":1.12,"k9":11.2,"hr9":0.82,"barrel_pct":7.8, "ev_allowed":88.8,"iso_allowed":.172,"hr_risk_rhb":0.72,"hr_risk_lhb":0.92,"k_pct":26.8,"bb_pct":11.2,"swstr":16.8,"gb_pct":38.9,"velo_season":96.1,"velo_recent":95.8},
+    {"name":"Blake Snell",     "team":"SF", "hand":"L","role":"SP","era":3.45,"whip":1.18,"k9":11.9,"hr9":0.88,"barrel_pct":7.2, "ev_allowed":88.2,"iso_allowed":.168,"hr_risk_rhb":0.98,"hr_risk_lhb":0.78,"k_pct":27.1,"bb_pct":12.8,"swstr":17.8,"gb_pct":34.1,"velo_season":93.8,"velo_recent":91.4},
+    {"name":"Gerrit Cole",     "team":"NYY","hand":"R","role":"SP","era":2.95,"whip":1.02,"k9":11.4,"hr9":0.92,"barrel_pct":6.8, "ev_allowed":88.1,"iso_allowed":.162,"hr_risk_rhb":0.82,"hr_risk_lhb":1.02,"k_pct":27.8,"bb_pct":7.8, "swstr":16.4,"gb_pct":38.4,"velo_season":96.8,"velo_recent":96.9},
+    {"name":"Spencer Strider", "team":"ATL","hand":"R","role":"SP","era":2.81,"whip":0.99,"k9":13.2,"hr9":0.85,"barrel_pct":6.2, "ev_allowed":87.8,"iso_allowed":.158,"hr_risk_rhb":0.75,"hr_risk_lhb":0.95,"k_pct":31.2,"bb_pct":8.4, "swstr":19.8,"gb_pct":35.2,"velo_season":98.2,"velo_recent":97.8},
+    {"name":"Zack Wheeler",    "team":"PHI","hand":"R","role":"SP","era":2.58,"whip":0.98,"k9":10.8,"hr9":0.71,"barrel_pct":5.8, "ev_allowed":87.1,"iso_allowed":.148,"hr_risk_rhb":0.62,"hr_risk_lhb":0.81,"k_pct":26.4,"bb_pct":6.8, "swstr":15.8,"gb_pct":42.1,"velo_season":97.4,"velo_recent":97.2},
+    {"name":"Corbin Burnes",   "team":"BAL","hand":"R","role":"SP","era":2.78,"whip":0.97,"k9":10.2,"hr9":0.68,"barrel_pct":5.2, "ev_allowed":86.8,"iso_allowed":.138,"hr_risk_rhb":0.58,"hr_risk_lhb":0.78,"k_pct":25.8,"bb_pct":6.2, "swstr":14.8,"gb_pct":48.2,"velo_season":94.8,"velo_recent":95.1},
+    {"name":"Logan Webb",      "team":"SF", "hand":"R","role":"SP","era":3.08,"whip":1.05,"k9":8.4, "hr9":0.58,"barrel_pct":4.8, "ev_allowed":86.2,"iso_allowed":.128,"hr_risk_rhb":0.48,"hr_risk_lhb":0.68,"k_pct":20.8,"bb_pct":7.2, "swstr":12.4,"gb_pct":54.8,"velo_season":91.2,"velo_recent":91.4},
+    {"name":"Framber Valdez",  "team":"HOU","hand":"L","role":"SP","era":3.02,"whip":1.11,"k9":8.8, "hr9":0.51,"barrel_pct":4.4, "ev_allowed":85.8,"iso_allowed":.118,"hr_risk_rhb":0.61,"hr_risk_lhb":0.41,"k_pct":21.8,"bb_pct":9.2, "swstr":13.2,"gb_pct":58.4,"velo_season":93.1,"velo_recent":92.8},
+    {"name":"Josh Hader",      "team":"HOU","hand":"L","role":"RP","era":1.88,"whip":0.88,"k9":14.8,"hr9":0.42,"barrel_pct":5.8, "ev_allowed":87.8,"iso_allowed":.128,"hr_risk_rhb":0.52,"hr_risk_lhb":0.32,"k_pct":34.8,"bb_pct":9.8, "swstr":24.8,"gb_pct":28.4,"velo_season":95.8,"velo_recent":95.4},
+    {"name":"Emmanuel Clase",  "team":"CLE","hand":"R","role":"RP","era":1.42,"whip":0.78,"k9":9.8, "hr9":0.18,"barrel_pct":3.2, "ev_allowed":85.1,"iso_allowed":.098,"hr_risk_rhb":0.08,"hr_risk_lhb":0.28,"k_pct":24.2,"bb_pct":4.8, "swstr":18.2,"gb_pct":62.1,"velo_season":100.2,"velo_recent":100.4},
+    {"name":"Devin Williams",  "team":"MIL","hand":"R","role":"RP","era":1.98,"whip":0.92,"k9":15.2,"hr9":0.28,"barrel_pct":4.2, "ev_allowed":86.2,"iso_allowed":.108,"hr_risk_rhb":0.18,"hr_risk_lhb":0.38,"k_pct":36.8,"bb_pct":10.2,"swstr":26.4,"gb_pct":41.2,"velo_season":87.4,"velo_recent":87.8},
 ]
 
 DAY_NIGHT = [
@@ -119,6 +119,30 @@ def batter_score(r):
     return round(min(s, 100), 1)
 
 
+def velo_drop(r):
+    """Returns mph drop (positive = dropped, negative = gained)"""
+    vs = r.get('velo_season')
+    vr = r.get('velo_recent')
+    if vs is None or vr is None:
+        return None
+    return round(vs - vr, 1)
+
+
+def velo_status(r):
+    """Returns label, color, and signal strength for velocity change"""
+    drop = velo_drop(r)
+    if drop is None:
+        return "N/A", "#94a3b8", 0
+    if drop >= 2.0:
+        return f"&#128308; Down {drop:.1f} mph (Significant)", "#f87171", 2
+    elif drop >= 1.0:
+        return f"&#128308; Down {drop:.1f} mph", "#fb923c", 1
+    elif drop <= -1.0:
+        return f"&#128994; Up {abs(drop):.1f} mph", "#4ade80", -1
+    else:
+        return f"&#128309; Holding ({drop:+.1f} mph)", "#facc15", 0
+
+
 def pitcher_vuln(r):
     s = 0
     hr9 = r.get('hr9')
@@ -129,6 +153,10 @@ def pitcher_vuln(r):
     if bp  is not None: s += min(bp / 10 * 30, 30)
     if iso is not None: s += min(iso / .200 * 20, 20)
     if ev  is not None: s += min((ev - 85) / 7 * 15, 15)
+    # Velocity drop adds to vulnerability
+    drop = velo_drop(r)
+    if drop is not None and drop >= 1.0:
+        s += min(drop * 5, 10)
     return round(min(s, 100), 1)
 
 
@@ -187,6 +215,16 @@ def matchup_score(batter, pitcher):
         if p_sw >= 18:   signals.append({"label": f"Elite whiff pitcher (SwStr {p_sw:.1f}%)", "good": False}); score -= 8
         elif p_sw <= 11: signals.append({"label": f"Hittable pitcher (SwStr {p_sw:.1f}%)",   "good": True});  score += 6
 
+    # Velocity tracker signal
+    drop = velo_drop(pitcher)
+    if drop is not None:
+        if drop >= 2.0:
+            signals.append({"label": f"Velo drop {drop:.1f} mph below season avg &#128308;", "good": True}); score += 12
+        elif drop >= 1.0:
+            signals.append({"label": f"Velo down {drop:.1f} mph vs season avg", "good": True}); score += 6
+        elif drop <= -1.0:
+            signals.append({"label": f"Velo up {abs(drop):.1f} mph — sharp &#128994;", "good": False}); score -= 4
+
     return max(0, min(100, round(score))), signals
 
 
@@ -208,10 +246,20 @@ def get_pitcher_stats(name):
     name_lower = name.lower()
     for p in SAMPLE_PITCHERS:
         if p['name'].lower() == name_lower:
-            return p
+            result = dict(p)
+            vl, vc, _ = velo_status(result)
+            result['velo_label']    = vl
+            result['velo_col']      = vc
+            result['velo_drop_val'] = velo_drop(result)
+            return result
         last = p['name'].split()[-1].lower()
         if last == name_lower.split()[-1]:
-            return p
+            result = dict(p)
+            vl, vc, _ = velo_status(result)
+            result['velo_label']    = vl
+            result['velo_col']      = vc
+            result['velo_drop_val'] = velo_drop(result)
+            return result
     return None
 
 
@@ -488,7 +536,11 @@ def build_pitchers():
     pitchers = []
     for p in SAMPLE_PITCHERS:
         pit = dict(p)
-        pit['vuln_score'] = pitcher_vuln(pit)
+        pit['vuln_score']   = pitcher_vuln(pit)
+        vl, vc, vs_score    = velo_status(pit)
+        pit['velo_label']   = vl
+        pit['velo_col']     = vc
+        pit['velo_drop_val']= velo_drop(pit)
         pitchers.append(pit)
     return sorted(pitchers, key=lambda x: x.get('vuln_score', 0), reverse=True)
 

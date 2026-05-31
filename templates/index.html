@@ -127,7 +127,7 @@ tr:last-child td{border-bottom:none}
   <div class="st">Pitcher Vulnerability</div>
   <div class="ss">Red = vulnerable &mdash; Green = tough &mdash; HR Risk RHB/LHB splits shown separately</div>
   <div class="tw"><table>
-    <thead><tr><th>Player</th><th>Team</th><th>Hand</th><th>Role</th><th>ERA</th><th>WHIP</th><th>K/9</th><th>HR/9</th><th>HR Risk RHB</th><th>HR Risk LHB</th><th>Barrel%</th><th>SwStr%</th><th>Vuln Score</th></tr></thead>
+    <thead><tr><th>Player</th><th>Team</th><th>Hand</th><th>Role</th><th>ERA</th><th>WHIP</th><th>K/9</th><th>HR/9</th><th>HR Risk RHB</th><th>HR Risk LHB</th><th>Barrel%</th><th>SwStr%</th><th>Velo Season</th><th>Velo Recent</th><th>Velo Trend</th><th>Vuln Score</th></tr></thead>
     <tbody id="pitchers-body"></tbody>
   </table></div>
 </div>
@@ -359,10 +359,11 @@ function buildLineups(){
       +'<div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Home Pitcher</div>'
       +'<div style="font-size:14px;font-weight:700;color:#f1f5f9">'+(hp.name||'TBD')+'</div>'
       +'<div style="font-size:11px;color:#64748b;margin-top:2px">'+(hp.team||'')+'&nbsp;&middot;&nbsp;Throws '+(hp.hand||'R')+'</div>'
-      +'<div style="display:flex;gap:10px;margin-top:8px;font-size:12px">'
+      +'<div style="display:flex;gap:10px;margin-top:8px;font-size:12px;flex-wrap:wrap">'
       +'<span style="color:#94a3b8">ERA: <span style="color:'+clr(hp.era,999,4.0)+'">'+f(hp.era,2)+'</span></span>'
       +'<span style="color:#94a3b8">HR Risk RHB: <span style="color:'+rcFn(hp.hr_risk_rhb)+'">'+f(hp.hr_risk_rhb,2)+'</span></span>'
       +'<span style="color:#94a3b8">HR Risk LHB: <span style="color:'+rcFn(hp.hr_risk_lhb)+'">'+f(hp.hr_risk_lhb,2)+'</span></span>'
+      +(hp.velo_label?'<span style="color:'+(hp.velo_col||'#94a3b8')+';font-weight:600">Velo: '+hp.velo_label+'</span>':'')
       +'</div></div>'
       +'<div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">'+m.away_abb+' Batting Order</div>'
       + buildLineupTable(m.away_batters, hp)
@@ -374,10 +375,11 @@ function buildLineups(){
       +'<div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Away Pitcher</div>'
       +'<div style="font-size:14px;font-weight:700;color:#f1f5f9">'+(ap.name||'TBD')+'</div>'
       +'<div style="font-size:11px;color:#64748b;margin-top:2px">'+(ap.team||'')+'&nbsp;&middot;&nbsp;Throws '+(ap.hand||'R')+'</div>'
-      +'<div style="display:flex;gap:10px;margin-top:8px;font-size:12px">'
+      +'<div style="display:flex;gap:10px;margin-top:8px;font-size:12px;flex-wrap:wrap">'
       +'<span style="color:#94a3b8">ERA: <span style="color:'+clr(ap.era,999,4.0)+'">'+f(ap.era,2)+'</span></span>'
       +'<span style="color:#94a3b8">HR Risk RHB: <span style="color:'+rcFn(ap.hr_risk_rhb)+'">'+f(ap.hr_risk_rhb,2)+'</span></span>'
       +'<span style="color:#94a3b8">HR Risk LHB: <span style="color:'+rcFn(ap.hr_risk_lhb)+'">'+f(ap.hr_risk_lhb,2)+'</span></span>'
+      +(ap.velo_label?'<span style="color:'+(ap.velo_col||'#94a3b8')+';font-weight:600">Velo: '+ap.velo_label+'</span>':'')
       +'</div></div>'
       +'<div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">'+m.home_abb+' Batting Order</div>'
       + buildLineupTable(m.home_batters, ap)
