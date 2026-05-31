@@ -521,11 +521,17 @@ function buildBatters(){
 function buildPitchers(){
   var rows='';
   PITCHERS.forEach(function(p){
-    var vs=p.vuln_score||0;
-    var rc=function(v){return v>=1.5?'#f87171':v<1.0?'#4ade80':'#facc15';};
-    var rcol=p.role==='SP'?'#60a5fa':'#c084fc';
-    var rbg=p.role==='SP'?'#1a2a3a':'#2a1a3a';
-    var ec=p.era>4.0?'#f87171':p.era<3.0?'#4ade80':'#f1f5f9';
+    var vs   = p.vuln_score||0;
+    var rc   = function(v){return v>=1.5?'#f87171':v<1.0?'#4ade80':'#facc15';};
+    var rcol = p.role==='SP'?'#60a5fa':'#c084fc';
+    var rbg  = p.role==='SP'?'#1a2a3a':'#2a1a3a';
+    var ec   = p.era>4.0?'#f87171':p.era<3.0?'#4ade80':'#f1f5f9';
+    var drop = p.velo_drop_val;
+    var vSeasonCol = (p.velo_season>=96)?'#4ade80':(p.velo_season>=92)?'#60a5fa':'#f1f5f9';
+    var vRecentCol = (drop!=null&&drop>=1.0)?'#f87171':(drop!=null&&drop<=-1.0)?'#4ade80':'#f1f5f9';
+    var veloTrendHtml = p.velo_label
+      ? '<span style="color:'+(p.velo_col||'#94a3b8')+';font-size:11px;font-weight:600">'+p.velo_label+'</span>'
+      : '<span style="color:#64748b">—</span>';
     rows+='<tr>'
       +'<td style="font-weight:600;color:#f1f5f9">'+p.name+'</td>'
       +'<td><span style="background:#1e293b;color:#94a3b8;padding:1px 5px;border-radius:3px;font-size:10px">'+p.team+'</span></td>'
@@ -539,6 +545,9 @@ function buildPitchers(){
       +'<td style="color:'+rc(p.hr_risk_lhb)+'">'+f(p.hr_risk_lhb,2)+'</td>'
       +'<td style="color:'+clr(p.barrel_pct,10,5)+'">'+f(p.barrel_pct,1)+'%</td>'
       +'<td style="color:'+clr(p.swstr,18,10)+'">'+f(p.swstr,1)+'%</td>'
+      +'<td style="color:'+vSeasonCol+'">'+f(p.velo_season,1)+' mph</td>'
+      +'<td style="color:'+vRecentCol+'">'+f(p.velo_recent,1)+' mph</td>'
+      +'<td>'+veloTrendHtml+'</td>'
       +'<td>'+bar(vs)+'</td>'
       +'</tr>';
   });
