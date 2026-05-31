@@ -783,6 +783,22 @@ def get_top_picks(matchups, props):
                 if park_neg:
                     confidence = "MODERATE" if confidence == "STRONG" else confidence
 
+                # Calculate fair odds from matchup score
+                # matchup score 70 = ~15% HR probability = roughly +570 fair odds
+                # matchup score 80 = ~18% HR probability = roughly +455 fair odds
+                # matchup score 90 = ~22% HR probability = roughly +355 fair odds
+                hr_prob = max(0.08, min(0.35, (ms - 40) * 0.005 + 0.10))
+                fair_odds = round(-(hr_prob / (1 - hr_prob)) * 100) if hr_prob >= 0.5 else round((1 - hr_prob) / hr_prob * 100)
+                # Edge % vs prop line (positive = value bet)
+                prop_odds_val = best_prop.get('odds') if best_prop else None
+                edge_pct = None
+                if prop_odds_val is not None:
+                    if prop_odds_val > 0:
+                        market_prob = 100 / (prop_odds_val + 100)
+                    else:
+                        market_prob = abs(prop_odds_val) / (abs(prop_odds_val) + 100)
+                    edge_pct = round((hr_prob - market_prob) * 100, 1)
+
                 picks.append({
                     "name":        bat['name'],
                     "team":        bat.get('team',''),
@@ -802,6 +818,15 @@ def get_top_picks(matchups, props):
                     "prop_line":   best_prop.get('line') if best_prop else None,
                     "prop_odds":   best_prop.get('odds') if best_prop else None,
                     "prop_book":   best_prop.get('book') if best_prop else None,
+                    "fair_odds":   fair_odds,
+                    "hr_prob":     round(hr_prob * 100, 1),
+                    "edge_pct":    edge_pct,
+                    "form_label":  bat.get('form_label'),
+                    "form_emoji":  bat.get('form_emoji'),
+                    "form_col":    bat.get('form_col'),
+                    "form_adj":    bat.get('form_adj'),
+                    "hr_14d":      bat.get('hr_14d'),
+                    "weather":     m.get('weather'),
                 })
 
     picks.sort(key=lambda x: (

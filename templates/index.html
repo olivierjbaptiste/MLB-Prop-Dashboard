@@ -620,11 +620,35 @@ function buildPicks(){
         +'&#9888; WAIT &mdash; '+dontBetReasons.join(' &bull; ')+'</div>';
     }
 
+    // Fair odds box — always show model estimate
+    var fairOddsHtml = '';
+    if(pick.fair_odds != null){
+      var fo = pick.fair_odds;
+      var foStr = fo > 0 ? '+'+fo : ''+fo;
+      var probStr = pick.hr_prob ? pick.hr_prob.toFixed(1)+'%' : '';
+      fairOddsHtml = '<div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">'
+        +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:5px 10px;flex:1;min-width:80px">'
+        +'<div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Model Odds</div>'
+        +'<div style="font-size:14px;font-weight:800;color:var(--white)">'+foStr+'</div>'
+        +'<div style="font-size:9px;color:var(--muted)">'+probStr+' HR prob</div>'
+        +'</div>';
+      if(pick.edge_pct != null){
+        var ec = pick.edge_pct > 0 ? 'var(--green)' : 'var(--red)';
+        var es = pick.edge_pct > 0 ? '+' : '';
+        fairOddsHtml += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:5px 10px;flex:1;min-width:80px">'
+          +'<div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Edge vs Market</div>'
+          +'<div style="font-size:14px;font-weight:800;color:'+ec+'">'+es+pick.edge_pct+'%</div>'
+          +'<div style="font-size:9px;color:var(--muted)">'+(pick.edge_pct>0?'Value bet':'Overpriced')+'</div>'
+          +'</div>';
+      }
+      fairOddsHtml += '</div>';
+    }
+
     var propHtml='';
     if(pick.prop_line!=null&&pick.prop_odds!=null){
       var oc=pick.prop_odds>0?'var(--green)':pick.prop_odds<-150?'var(--red)':'var(--gold)';
       var os=pick.prop_odds>0?'+'+pick.prop_odds:''+pick.prop_odds;
-      propHtml='<div class="prop-line"><div><div class="prop-label">HR Prop</div></div>'
+      propHtml='<div class="prop-line" style="margin-top:6px"><div><div class="prop-label">Market Line</div></div>'
         +'<span class="prop-val">O '+pick.prop_line+'</span>'
         +'<span class="prop-odds" style="color:'+oc+'">'+os+'</span>'
         +'<span class="prop-book">'+pick.prop_book+'</span></div>';
@@ -657,7 +681,7 @@ function buildPicks(){
       +'<div class="pick-stat"><div class="pick-stat-val">'+parkBadge(pick.park_factor||1.0,pick.park_friendly)+'</div><div class="pick-stat-lbl">Park</div></div>'
       +'</div>'
       +'<div class="sigs">'+sigs+'</div>'
-      +propHtml+dontBet+'</div>';
+      +fairOddsHtml+propHtml+dontBet+'</div>';
   });
   el.innerHTML=html;
 }
@@ -930,6 +954,12 @@ function buildCheatSheet(){
     var ms=pick.matchup_score||0;
     var msCol=ms>=70?'var(--green)':ms>=55?'var(--blue)':'var(--gold)';
     var sigs=(pick.signals||[]).filter(function(s){return s.good===true;}).slice(0,3).map(sigPill).join('');
+    var csFairHtml='';
+    if(pick.fair_odds!=null){
+      var fo=pick.fair_odds; var foStr=fo>0?'+'+fo:''+fo;
+      csFairHtml='<div style="font-size:10px;color:var(--muted);margin-top:4px">Model: <span style="color:var(--white);font-weight:700">'+foStr+'</span>'
+        +(pick.hr_prob?' ('+pick.hr_prob.toFixed(1)+'% HR prob)':'')+'</div>';
+    }
     var pHtml='';
     if(pick.prop_line!=null&&pick.prop_odds!=null){
       var oc=pick.prop_odds>0?'var(--green)':pick.prop_odds<-150?'var(--red)':'var(--gold)';
