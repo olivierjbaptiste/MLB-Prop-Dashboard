@@ -3,147 +3,314 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>MLB HR Prop Dashboard</title>
+<title>Diamond Analytics — MLB HR Props</title>
 <style>
+:root {
+  --bg:       #070f0a;
+  --surface:  #0c1a10;
+  --surface2: #112118;
+  --border:   #1a3a24;
+  --border2:  #254d33;
+  --green:    #22c55e;
+  --green2:   #16a34a;
+  --green3:   #bbf7d0;
+  --white:    #f0fdf4;
+  --muted:    #6b7280;
+  --muted2:   #4b5563;
+  --gold:     #eab308;
+  --red:      #ef4444;
+  --orange:   #f97316;
+  --blue:     #3b82f6;
+}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#060d14;color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh}
-.hdr{background:#060d14;border-bottom:1px solid #1e293b;padding:16px 26px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px}
-.hdr h1{font-size:20px;font-weight:700}
-.hdr p{font-size:12px;color:#64748b;margin-top:3px}
-.brow{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
-.pill{padding:2px 9px;border-radius:16px;font-size:10px;font-weight:600}
-.nav{display:flex;gap:3px;padding:12px 26px;border-bottom:1px solid #1e293b;overflow-x:auto;flex-wrap:nowrap}
-.nb{padding:7px 16px;border-radius:7px;border:1px solid #1e293b;background:transparent;color:#94a3b8;cursor:pointer;font-size:12px;font-weight:500;white-space:nowrap}
-.nb:hover{background:#1e293b;color:#f1f5f9}
-.nb.on{background:#1e3a5f;color:#60a5fa;border-color:#2563eb}
-.main{padding:20px 26px;max-width:1700px;margin:0 auto}
-.st{font-size:17px;font-weight:700;color:#f1f5f9;margin-bottom:3px}
-.ss{font-size:12px;color:#64748b;margin-bottom:16px}
-.two{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px}
-.tw{overflow-x:auto;border-radius:10px;border:1px solid #1e293b;margin-bottom:22px}
-table{width:100%;border-collapse:collapse;font-size:12px;min-width:600px}
-th{background:#0a1628;padding:8px 10px;text-align:left;color:#64748b;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:1px solid #1e293b;white-space:nowrap}
-td{padding:8px 10px;border-bottom:1px solid #0f1923;color:#cbd5e1;vertical-align:middle}
-tr:hover td{background:#0a1628}
-tr:last-child td{border-bottom:none}
+body{background:var(--bg);color:var(--white);font-family:'SF Mono',SFMono-Regular,Consolas,'Liberation Mono',Menlo,monospace;min-height:100vh;font-size:12px}
+
+/* ── TICKER ── */
+.ticker-wrap{background:var(--surface);border-bottom:1px solid var(--border);overflow:hidden;height:32px;display:flex;align-items:center}
+.ticker-label{background:var(--green);color:#000;font-weight:800;padding:0 12px;height:100%;display:flex;align-items:center;font-size:11px;white-space:nowrap;letter-spacing:0.5px;flex-shrink:0}
+.ticker-track{display:flex;align-items:center;white-space:nowrap;animation:ticker 40s linear infinite;gap:0}
+.ticker-track:hover{animation-play-state:paused}
+@keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.tick-item{padding:0 20px;font-size:11px;color:var(--muted);border-right:1px solid var(--border)}
+.tick-item span{color:var(--green);font-weight:700}
+.tick-item .live{color:var(--red);font-weight:700;animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.4}}
+
+/* ── HEADER ── */
+.hdr{background:var(--surface);border-bottom:2px solid var(--green2);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-icon{width:36px;height:36px;background:var(--green);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#000}
+.logo-text{font-size:16px;font-weight:800;color:var(--white);letter-spacing:0.5px}
+.logo-sub{font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:1px}
+.hdr-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.hdr-stat{text-align:center;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 12px}
+.hdr-stat-val{font-size:16px;font-weight:800;color:var(--green)}
+.hdr-stat-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px}
+.refresh-btn{background:var(--green2);color:#000;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase}
+.refresh-btn:hover{background:var(--green)}
+
+/* ── LEGEND BAR ── */
+.legend{background:var(--surface2);border-bottom:1px solid var(--border);padding:6px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.leg{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px}
+.leg-dot{width:8px;height:8px;border-radius:50%}
+
+/* ── NAV ── */
+.nav{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;gap:0;overflow-x:auto}
+.nb{padding:10px 18px;border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap;letter-spacing:0.5px;text-transform:uppercase;border-bottom:2px solid transparent;font-family:inherit;transition:color 0.15s}
+.nb:hover{color:var(--white)}
+.nb.on{color:var(--green);border-bottom-color:var(--green)}
+
+/* ── MAIN ── */
+.main{padding:18px 24px;max-width:1800px;margin:0 auto}
+.section-hdr{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.section-hdr h2{font-size:13px;font-weight:800;color:var(--white);text-transform:uppercase;letter-spacing:1px}
+.section-hdr .badge{background:var(--green2);color:#000;font-size:9px;font-weight:800;padding:2px 7px;border-radius:3px;letter-spacing:0.5px}
+.section-sub{font-size:10px;color:var(--muted);margin-bottom:14px;letter-spacing:0.3px}
 .tc{display:none}.tc.on{display:block}
-.tip{background:#0f1923;border:1px solid #1e293b;border-radius:10px;padding:14px;margin-bottom:10px}
-.tip.g{border-color:#166534}.tip.y{border-color:#854d0e}.tip.r{border-color:#991b1b}
-.tip h3{font-size:13px;font-weight:700;color:#f1f5f9;margin-bottom:6px}
-.tip p{font-size:12px;color:#94a3b8;line-height:1.55}
-.pg{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-top:8px}
-.pc{background:#0f1923;border-radius:8px;padding:10px;text-align:center}
-.info{background:#0f1923;border:1px solid #1e293b;border-radius:10px;padding:14px;font-size:12px;color:#94a3b8;line-height:1.8;margin-top:14px}
-.pick-card{background:#0a1628;border-radius:12px;padding:16px;margin-bottom:14px}
-.pick-card.strong{border:1px solid #4ade80}
-.pick-card.good{border:1px solid #60a5fa}
-.pick-card.moderate{border:1px solid #facc15}
-.game-block{background:#0a1628;border:1px solid #1e293b;border-radius:14px;padding:18px;margin-bottom:22px}
-.lineup-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-@media(max-width:768px){.two{grid-template-columns:1fr}.main{padding:12px}.lineup-grid{grid-template-columns:1fr}}
+
+/* ── TABLES ── */
+.tw{overflow-x:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:18px}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{background:var(--surface2);padding:7px 10px;text-align:left;color:var(--muted);font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid var(--border);white-space:nowrap;font-family:inherit}
+td{padding:7px 10px;border-bottom:1px solid #0a1a0f;color:#d1fae5;vertical-align:middle;font-family:inherit}
+tr:hover td{background:var(--surface2)}
+tr:last-child td{border-bottom:none}
+
+/* ── PICK CARDS ── */
+.picks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:12px;margin-bottom:18px}
+.pick-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;position:relative;overflow:hidden}
+.pick-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--border)}
+.pick-card.strong::before{background:var(--green)}
+.pick-card.good::before{background:var(--blue)}
+.pick-card.moderate::before{background:var(--gold)}
+.pick-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.pick-name{font-size:14px;font-weight:800;color:var(--white)}
+.pick-meta{font-size:10px;color:var(--muted);margin-top:2px}
+.conf-badge{padding:3px 10px;border-radius:3px;font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase}
+.conf-strong{background:rgba(34,197,94,0.15);color:var(--green);border:1px solid var(--green2)}
+.conf-good{background:rgba(59,130,246,0.15);color:var(--blue);border:1px solid #1d4ed8}
+.conf-moderate{background:rgba(234,179,8,0.15);color:var(--gold);border:1px solid #a16207}
+.pick-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+.pick-stat{background:var(--surface2);border-radius:4px;padding:6px;text-align:center}
+.pick-stat-val{font-size:15px;font-weight:800}
+.pick-stat-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.3px;margin-top:1px}
+.sigs{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:6px}
+.sig{padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:0.3px}
+.sig-good{background:rgba(34,197,94,0.1);color:var(--green);border:1px solid rgba(34,197,94,0.3)}
+.sig-bad{background:rgba(239,68,68,0.1);color:var(--red);border:1px solid rgba(239,68,68,0.3)}
+.sig-neutral{background:rgba(234,179,8,0.1);color:var(--gold);border:1px solid rgba(234,179,8,0.3)}
+.prop-line{display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:6px 10px;margin-top:6px}
+.prop-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px}
+.prop-val{font-size:13px;font-weight:800;color:var(--gold)}
+.prop-odds{font-size:13px;font-weight:800}
+.prop-book{font-size:9px;color:var(--muted)}
+
+/* ── GAME BLOCKS ── */
+.game-block{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px}
+.game-hdr{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.game-title{font-size:15px;font-weight:800;color:var(--white)}
+.game-sub{font-size:10px;color:var(--muted);margin-top:2px}
+.lineup-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.pit-box{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:10px}
+.pit-name{font-size:13px;font-weight:800;color:var(--white)}
+.pit-meta{font-size:10px;color:var(--muted);margin-top:2px;margin-bottom:6px}
+.pit-stats{display:flex;gap:14px;font-size:10px;flex-wrap:wrap}
+.pit-stat span{color:var(--green);font-weight:700}
+
+/* ── ALERTS ── */
+.alert-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-bottom:18px}
+.alert-box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px}
+.alert-title{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.alert-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)}
+.alert-row:last-child{border-bottom:none}
+
+/* ── BADGES ── */
+.badge-green{background:rgba(34,197,94,0.1);color:var(--green);border:1px solid rgba(34,197,94,0.3);padding:2px 7px;border-radius:3px;font-size:9px;font-weight:700}
+.badge-red{background:rgba(239,68,68,0.1);color:var(--red);border:1px solid rgba(239,68,68,0.3);padding:2px 7px;border-radius:3px;font-size:9px;font-weight:700}
+.badge-gold{background:rgba(234,179,8,0.1);color:var(--gold);border:1px solid rgba(234,179,8,0.3);padding:2px 7px;border-radius:3px;font-size:9px;font-weight:700}
+.badge-blue{background:rgba(59,130,246,0.1);color:var(--blue);border:1px solid rgba(59,130,246,0.3);padding:2px 7px;border-radius:3px;font-size:9px;font-weight:700}
+.badge-gray{background:rgba(107,114,128,0.1);color:var(--muted);border:1px solid rgba(107,114,128,0.3);padding:2px 7px;border-radius:3px;font-size:9px;font-weight:700}
+
+/* ── INFO BOX ── */
+.info-box{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;margin-top:12px;font-size:11px;color:var(--muted);line-height:1.8}
+
+/* ── PARKS GRID ── */
+.parks-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.park-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px;text-align:center}
+.park-factor{font-size:20px;font-weight:800}
+.park-name{font-size:11px;font-weight:700;color:var(--white);margin:4px 0}
+.park-abb{font-size:10px;color:var(--muted)}
+
+/* ── CHEAT SHEET ── */
+.cs-header{background:var(--surface);border:1px solid var(--green2);border-radius:8px;padding:18px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.cs-title{font-size:20px;font-weight:900;color:var(--white);letter-spacing:1px}
+.cs-date{font-size:11px;color:var(--muted);margin-top:2px}
+.cs-counts{display:flex;gap:8px;flex-wrap:wrap}
+.print-btn{background:var(--surface2);color:var(--white);border:1px solid var(--border2);padding:8px 16px;border-radius:6px;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;font-family:inherit}
+
+/* ── MISC ── */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+.tip-card{background:var(--surface);border-left:3px solid var(--border2);padding:12px;margin-bottom:10px;border-radius:0 6px 6px 0}
+.tip-card.g{border-color:var(--green2)}
+.tip-card.y{border-color:var(--gold)}
+.tip-card.r{border-color:var(--red)}
+.tip-card h3{font-size:11px;font-weight:800;color:var(--white);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px}
+.tip-card p{font-size:11px;color:var(--muted);line-height:1.6}
+.empty-state{text-align:center;padding:32px;color:var(--muted)}
+.empty-state .icon{font-size:28px;margin-bottom:8px}
+.empty-state h3{font-size:13px;font-weight:700;color:var(--white);margin-bottom:4px}
+
+@media(max-width:768px){
+  .two{grid-template-columns:1fr}
+  .lineup-grid{grid-template-columns:1fr}
+  .picks-grid{grid-template-columns:1fr}
+  .main{padding:12px}
+}
+
+@media print{
+  .nav,.hdr,.ticker-wrap,.legend,.refresh-btn,.print-btn{display:none}
+  body{background:#fff;color:#000}
+  .pick-card{border:1px solid #ccc;break-inside:avoid}
+}
 </style>
 </head>
 <body>
 
-<div class="hdr">
-  <div>
-    <h1>&#9918; MLB HR Prop Dashboard</h1>
-    <p>Tonight's lineups &middot; Batter vs Pitcher matchups &middot; Daily top picks &middot; Live prop lines</p>
-    <div class="brow">
-      <span class="pill" style="background:#1a3a2a;color:#4ade80;border:1px solid #4ade80">&#9679; Green = Batter edge</span>
-      <span class="pill" style="background:#3a1a1a;color:#f87171;border:1px solid #f87171">&#9679; Red = Pitcher edge</span>
-      <span class="pill" style="background:#2a2a1a;color:#facc15;border:1px solid #facc15">&#9679; Yellow = Neutral</span>
+<!-- TICKER -->
+<div class="ticker-wrap">
+  <div class="ticker-label">&#9679; LIVE</div>
+  <div style="overflow:hidden;flex:1">
+    <div class="ticker-track" id="ticker-inner">
+      <span style="color:var(--muted);padding:0 20px;font-size:11px">Loading tonight's games...</span>
     </div>
-  </div>
-  <div style="text-align:right">
-    <div style="font-size:11px;color:#64748b">Updated</div>
-    <div id="updated-time" style="font-size:13px;font-weight:600;color:#94a3b8">{{ updated }}</div>
-    <div style="font-size:10px;color:#4ade80;margin-top:2px">&#9679; MLB Stats API + Baseball Savant</div>
-    <button style="margin-top:6px;background:#1e3a5f;color:#60a5fa;border:1px solid #2563eb;padding:6px 14px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:500" onclick="refreshData()">&#8635; Refresh Data</button>
   </div>
 </div>
 
+<!-- HEADER -->
+<div class="hdr">
+  <div class="logo">
+    <div class="logo-icon">&#9900;</div>
+    <div>
+      <div class="logo-text">DIAMOND ANALYTICS</div>
+      <div class="logo-sub">MLB Home Run Prop Research</div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <div class="hdr-stat">
+      <div class="hdr-stat-val" id="stat-picks">—</div>
+      <div class="hdr-stat-lbl">Top Picks</div>
+    </div>
+    <div class="hdr-stat">
+      <div class="hdr-stat-val" id="stat-games">—</div>
+      <div class="hdr-stat-lbl">Games</div>
+    </div>
+    <div class="hdr-stat">
+      <div class="hdr-stat-val" id="stat-batters">—</div>
+      <div class="hdr-stat-lbl">Batters</div>
+    </div>
+    <div class="hdr-stat">
+      <div class="hdr-stat-val" id="stat-updated">—</div>
+      <div class="hdr-stat-lbl">Updated</div>
+    </div>
+    <button class="refresh-btn" onclick="refreshData()">&#8635; Refresh</button>
+  </div>
+</div>
+
+<!-- LEGEND -->
+<div class="legend">
+  <div class="leg"><div class="leg-dot" style="background:var(--green)"></div> Batter Edge</div>
+  <div class="leg"><div class="leg-dot" style="background:var(--red)"></div> Pitcher Edge</div>
+  <div class="leg"><div class="leg-dot" style="background:var(--gold)"></div> Neutral</div>
+  <div class="leg"><div class="leg-dot" style="background:var(--blue)"></div> Good Pick</div>
+  <div style="margin-left:auto;font-size:10px;color:var(--muted)">{{ updated }}</div>
+</div>
+
+<!-- NAV -->
 <div class="nav">
-  <button class="nb on"  id="btn-picks"     onclick="go('picks')">&#127919; Daily Picks</button>
-  <button class="nb"     id="btn-lineups"   onclick="go('lineups')">&#128200; Tonight's Lineups</button>
-  <button class="nb"     id="btn-slate"     onclick="go('slate')">&#128197; Schedule</button>
-  <button class="nb"     id="btn-props"     onclick="go('props')">&#128176; Live Props</button>
-  <button class="nb"     id="btn-batters"   onclick="go('batters')">&#127955; Batters</button>
-  <button class="nb"     id="btn-pitchers"  onclick="go('pitchers')">&#9918; Pitchers</button>
-  <button class="nb"     id="btn-daynight"  onclick="go('daynight')">&#127769; Day/Night</button>
-  <button class="nb"     id="btn-framework" onclick="go('framework')">&#128203; Framework</button>
-  <button class="nb"     id="btn-parks"     onclick="go('parks')">&#127967; Parks</button>
-  <button class="nb"     id="btn-cheatsheet" onclick="go('cheatsheet')">&#128196; Cheat Sheet</button>
+  <button class="nb on" id="btn-picks"      onclick="go('picks')">&#127919; Daily Picks</button>
+  <button class="nb"    id="btn-lineups"    onclick="go('lineups')">&#128200; Lineups</button>
+  <button class="nb"    id="btn-slate"      onclick="go('slate')">&#128197; Schedule</button>
+  <button class="nb"    id="btn-props"      onclick="go('props')">&#128176; Props</button>
+  <button class="nb"    id="btn-batters"    onclick="go('batters')">&#127955; Batters</button>
+  <button class="nb"    id="btn-pitchers"   onclick="go('pitchers')">&#9918; Pitchers</button>
+  <button class="nb"    id="btn-daynight"   onclick="go('daynight')">&#9728; Day/Night</button>
+  <button class="nb"    id="btn-framework"  onclick="go('framework')">&#128203; Framework</button>
+  <button class="nb"    id="btn-parks"      onclick="go('parks')">&#127967; Parks</button>
+  <button class="nb"    id="btn-cheatsheet" onclick="go('cheatsheet')">&#128196; Cheat Sheet</button>
 </div>
 
 <div class="main">
 
 <!-- DAILY PICKS -->
 <div id="tc-picks" class="tc on">
-  <div class="st">&#127919; Today's Top HR Prop Picks</div>
-  <div class="ss">Based on tonight's actual lineups &middot; Matchup score &middot; Park factor &middot; Live prop lines &mdash; Strong picks first</div>
-  <div id="picks-content"><div style="color:#64748b;padding:20px;text-align:center">Loading picks...</div></div>
+  <div class="section-hdr"><h2>Daily HR Prop Picks</h2><span class="badge" id="picks-count">0</span></div>
+  <div class="section-sub">Ranked by confidence — based on tonight's actual lineups, matchup scores, park factors, and velocity data</div>
+  <div class="picks-grid" id="picks-content">
+    <div class="empty-state"><div class="icon">&#128197;</div><h3>Loading picks...</h3></div>
+  </div>
 </div>
 
-<!-- TONIGHT'S LINEUPS -->
+<!-- LINEUPS -->
 <div id="tc-lineups" class="tc">
-  <div class="st">&#128200; Tonight's Lineups vs Starting Pitchers</div>
-  <div class="ss">Confirmed batting orders with matchup scores vs the opposing starter &mdash; Green = batter edge &middot; Red = pitcher edge</div>
-  <div id="lineups-content"><div style="color:#64748b;padding:20px;text-align:center">Loading lineups...</div></div>
+  <div class="section-hdr"><h2>Tonight's Lineups</h2></div>
+  <div class="section-sub">Confirmed batting orders vs starting pitchers — green stats = batter edge, red = pitcher edge</div>
+  <div id="lineups-content">
+    <div class="empty-state"><div class="icon">&#128197;</div><h3>Lineups not yet posted</h3><p>Check back 2-3 hours before first pitch</p></div>
+  </div>
 </div>
 
 <!-- SCHEDULE -->
 <div id="tc-slate" class="tc">
-  <div class="st">Tonight's Schedule</div>
-  <div class="ss">Probable starters and park factors &mdash; live from MLB Stats API</div>
+  <div class="section-hdr"><h2>Tonight's Schedule</h2></div>
+  <div class="section-sub">Probable starters and park factors — live from MLB Stats API</div>
   <div class="tw"><table>
-    <thead><tr><th>Matchup</th><th>Venue</th><th>Park Factor</th><th>Weather</th><th>Away Starter</th><th>Home Starter</th><th>Status</th></tr></thead>
-    <tbody id="slate-body"><tr><td colspan="6" style="text-align:center;color:#64748b;padding:16px">Loading...</td></tr></tbody>
+    <thead><tr><th>Matchup</th><th>Venue</th><th>Park</th><th>Weather</th><th>Away Starter</th><th>Home Starter</th><th>Status</th></tr></thead>
+    <tbody id="slate-body"></tbody>
   </table></div>
 </div>
 
-<!-- LIVE PROPS -->
+<!-- PROPS -->
 <div id="tc-props" class="tc">
-  <div class="st">Live HR Prop Lines</div>
-  <div class="ss">DraftKings &middot; FanDuel &middot; BetMGM &mdash; auto-refreshes daily</div>
+  <div class="section-hdr"><h2>Live HR Prop Lines</h2></div>
+  <div class="section-sub">DraftKings &middot; FanDuel &middot; BetMGM</div>
   <div class="tw"><table>
-    <thead><tr><th>Player</th><th>Line</th><th>Over/Under</th><th>Odds</th><th>Book</th></tr></thead>
-    <tbody id="props-body"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:16px">Loading...</td></tr></tbody>
+    <thead><tr><th>Player</th><th>Line</th><th>Side</th><th>Odds</th><th>Book</th></tr></thead>
+    <tbody id="props-body"></tbody>
   </table></div>
-  <div class="info"><strong style="color:#f1f5f9">No lines showing?</strong><br>Set ODDS_API_KEY in Render Environment variables. Go to dashboard.render.com &rarr; MLB-Prop-Dashboard &rarr; Environment &rarr; Add ODDS_API_KEY.</div>
+  <div class="info-box">No lines? Set ODDS_API_KEY in Render &rarr; Environment Variables.</div>
 </div>
 
 <!-- BATTERS -->
 <div id="tc-batters" class="tc">
-  <div class="st">Batter Power Profiles</div>
-  <div class="ss">Green = elite/favorable &mdash; Red = poor &mdash; Sorted by HR prop score</div>
+  <div class="section-hdr"><h2>Batter Power Profiles</h2><span class="badge" id="batter-count">0</span></div>
+  <div class="section-sub">Form-adjusted score — hot streaks boost ranking, cold streaks drop it — Statcast overlay for top hitters</div>
   <div class="tw"><table>
-    <thead><tr><th>Player</th><th>Team</th><th>Hand</th><th>Form</th><th>L14 AVG</th><th>L14 SLG</th><th>L14 HR</th><th>Season AVG</th><th>SLG</th><th>HR</th><th>Barrel%</th><th>Exit Velo</th><th>ISO</th><th>K%</th><th>Score</th></tr></thead>
+    <thead><tr><th>Player</th><th>Team</th><th>H</th><th>Form</th><th>L14 AVG</th><th>L14 SLG</th><th>L14 HR</th><th>AVG</th><th>SLG</th><th>HR</th><th>Barrel%</th><th>EV</th><th>ISO</th><th>K%</th><th>Score</th></tr></thead>
     <tbody id="batters-body"></tbody>
   </table></div>
 </div>
 
 <!-- PITCHERS -->
 <div id="tc-pitchers" class="tc">
-  <div class="st">Pitcher Vulnerability</div>
-  <div class="ss">Red = vulnerable &mdash; Green = tough &mdash; HR Risk RHB/LHB splits shown separately</div>
+  <div class="section-hdr"><h2>Pitcher Vulnerability</h2></div>
+  <div class="section-sub">Red = target, Green = avoid — Velo trend shows recent vs season average</div>
   <div class="tw"><table>
-    <thead><tr><th>Player</th><th>Team</th><th>Hand</th><th>Role</th><th>ERA</th><th>WHIP</th><th>K/9</th><th>HR/9</th><th>HR Risk RHB</th><th>HR Risk LHB</th><th>Barrel%</th><th>SwStr%</th><th>Velo Season</th><th>Velo Recent</th><th>Velo Trend</th><th>Vuln Score</th></tr></thead>
+    <thead><tr><th>Player</th><th>Team</th><th>H</th><th>Role</th><th>ERA</th><th>WHIP</th><th>K/9</th><th>HR/9</th><th>Risk RHB</th><th>Risk LHB</th><th>Barrel%</th><th>SwStr%</th><th>Velo Ssn</th><th>Velo Rec</th><th>Velo Trend</th><th>Vuln</th></tr></thead>
     <tbody id="pitchers-body"></tbody>
   </table></div>
 </div>
 
 <!-- DAY/NIGHT -->
 <div id="tc-daynight" class="tc">
-  <div class="st">Day / Night Split Analysis</div>
-  <div class="ss">Target batters in preferred game time &mdash; large gaps = strongest edges</div>
+  <div class="section-hdr"><h2>Day / Night Splits</h2></div>
+  <div class="section-sub">Target batters in their preferred game time — large gaps = strongest edges</div>
   <div class="two">
-    <div style="background:#0f1923;border:1px solid #1e3a2a;border-radius:10px;padding:14px">
-      <div style="font-size:12px;font-weight:700;color:#4ade80;margin-bottom:10px">&#9728; Day Specialists</div>
+    <div class="alert-box">
+      <div class="alert-title">&#9728; Day Specialists</div>
       <div id="day-list"></div>
     </div>
-    <div style="background:#0f1923;border:1px solid #1e3a5f;border-radius:10px;padding:14px">
-      <div style="font-size:12px;font-weight:700;color:#60a5fa;margin-bottom:10px">&#127769; Night Specialists</div>
+    <div class="alert-box">
+      <div class="alert-title">&#127769; Night Specialists</div>
       <div id="night-list"></div>
     </div>
   </div>
@@ -155,49 +322,56 @@ tr:last-child td{border-bottom:none}
 
 <!-- FRAMEWORK -->
 <div id="tc-framework" class="tc">
-  <div class="st">HR Prop Betting Framework</div>
-  <div class="ss">Daily Top Picks Analytics HR Matchup Report</div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:20px">
-    <div class="tip g"><h3>Tip 01 &mdash; Use Tonight's Lineups Tab</h3><p>The Lineups tab shows the actual batting order vs tonight's starter. Target batters with matchup score &ge; 70 for HR props.</p></div>
-    <div class="tip g"><h3>Tip 02 &mdash; Elite Thresholds</h3><p>&#127919; Elite: .300 ISO / .500 SLG / 92+ EV / 20%+ Barrel<br>&#9989; Favorable: .200 ISO / .400 SLG / 89+ EV / 12%+ Barrel</p></div>
-    <div class="tip y"><h3>Tip 03 &mdash; Parks + Weather</h3><p>Target HR-friendly parks (&#128293; 1.15x+). Matchup score &ge; 70 + park &ge; 1.15x + vulnerable pitcher = triple signal.</p></div>
-    <div class="tip y"><h3>Tip 04 &mdash; Parlay 2&ndash;3 Legs Max</h3><p>Best combo: 1 top-tier batter + 1 value hitter vs same pitcher. Or: 2 teammates vs same vulnerable starter.</p></div>
-    <div class="tip r"><h3>Tip 05 &mdash; Fade Pitcher HR Allowed</h3><p>Some books offer Over 1.5 HR Allowed. Great value when multiple batters show &ge; 70 vs same starter in a hitter-friendly park.</p></div>
-    <div class="tip r"><h3>Tip 06 &mdash; Reverse Splits + Velo</h3><p>Always check HR Risk RHB vs LHB separately. Recent velo below career avg = elevated HR risk regardless of ERA.</p></div>
+  <div class="section-hdr"><h2>HR Prop Framework</h2></div>
+  <div class="section-sub">Daily Top Picks Analytics — minimum 2 signals before any bet</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-bottom:16px">
+    <div class="tip-card g"><h3>Stack Vulnerable Pitchers</h3><p>Use Lineups tab. Target pitchers where 2+ batters score &ge; 70. Stack teammates vs same starter.</p></div>
+    <div class="tip-card g"><h3>Elite Thresholds</h3><p>&#127919; Elite: .300 ISO / .500 SLG / 92+ EV / 20%+ Barrel<br>&#9989; Target: .200 ISO / .400 SLG / 89+ EV / 12%+ Barrel</p></div>
+    <div class="tip-card y"><h3>Park + Weather Stack</h3><p>Matchup &ge; 70 + park &ge; 1.15x + wind out = triple signal. Best plays of the day.</p></div>
+    <div class="tip-card y"><h3>2-3 Leg Parlays Only</h3><p>1 elite + 1 value vs same pitcher. Or 2 teammates vs vulnerable starter. Never more than 3 legs.</p></div>
+    <div class="tip-card r"><h3>Pitcher HR Allowed Props</h3><p>Over 1.5 HR Allowed lines — great value when 3+ batters show &ge; 70 vs same starter in hitter park.</p></div>
+    <div class="tip-card r"><h3>Velocity Drops = Edge</h3><p>Pitcher down 2+ mph from season avg = significant HR risk increase regardless of ERA. Always check Velo Trend column.</p></div>
   </div>
-  <div style="background:#0f1923;border:1px solid #1e3a2a;border-radius:10px;padding:16px">
-    <div style="font-size:13px;font-weight:700;color:#4ade80;margin-bottom:10px">&#129504; Final Tips</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px">
-      <div style="font-size:12px;color:#94a3b8;padding:9px;background:#060d14;border-radius:7px"><strong style="color:#f1f5f9">Pair 2+ signals</strong> &mdash; Matchup score + park + day/night all pointing same direction.</div>
-      <div style="font-size:12px;color:#94a3b8;padding:9px;background:#060d14;border-radius:7px"><strong style="color:#f1f5f9">Park amplifies</strong> &mdash; Same matchup worth more at GABP than Oracle Park.</div>
-      <div style="font-size:12px;color:#94a3b8;padding:9px;background:#060d14;border-radius:7px"><strong style="color:#f1f5f9">Day/Night matters</strong> &mdash; Large gap batter in preferred slot + Matchup &ge; 70 = strong edge.</div>
-      <div style="font-size:12px;color:#94a3b8;padding:9px;background:#060d14;border-radius:7px"><strong style="color:#f1f5f9">Near HR data</strong> &mdash; Cross reference PropFinder near HR counts alongside matchup scores.</div>
+  <div class="alert-box">
+    <div class="alert-title">Signal Checklist — Need 2+ Before Betting</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;margin-top:8px">
+      <div style="font-size:10px;color:var(--muted)">&#9989; Barrel% &ge; 12% Favorable / &ge; 20% Elite</div>
+      <div style="font-size:10px;color:var(--muted)">&#9989; Exit Velo &ge; 89 mph / &ge; 92 mph Elite</div>
+      <div style="font-size:10px;color:var(--muted)">&#9989; HR Risk vs batter hand &ge; 1.5</div>
+      <div style="font-size:10px;color:var(--muted)">&#9989; Pitcher Barrel% Against &ge; 7%</div>
+      <div style="font-size:10px;color:var(--muted)">&#9989; Platoon advantage confirmed</div>
+      <div style="font-size:10px;color:var(--muted)">&#9989; Park factor &ge; 1.10x</div>
+      <div style="font-size:10px;color:var(--muted)">&#9989; Matchup score &ge; 70</div>
+      <div style="font-size:10px;color:var(--muted)">&#9989; Batter in preferred day/night slot</div>
     </div>
   </div>
 </div>
 
 <!-- PARKS -->
 <div id="tc-parks" class="tc">
-  <div class="st">Park Factor Analysis</div>
-  <div class="ss">Same matchup worth more in hitter-friendly venues</div>
-  <div style="margin-bottom:18px">
-    <div style="font-size:12px;font-weight:700;color:#4ade80;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">&#129001; HR-Friendly Parks</div>
-    <div class="pg" id="parks-friendly"></div>
+  <div class="section-hdr"><h2>Park Factors</h2></div>
+  <div class="section-sub">Same matchup is worth significantly more at hitter-friendly venues</div>
+  <div style="margin-bottom:16px">
+    <div style="font-size:10px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">HR-Friendly Parks</div>
+    <div class="parks-grid" id="parks-friendly"></div>
   </div>
   <div>
-    <div style="font-size:12px;font-weight:700;color:#f87171;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">&#128308; Pitcher-Friendly Parks</div>
-    <div class="pg" id="parks-pitcher"></div>
+    <div style="font-size:10px;font-weight:800;color:var(--red);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Pitcher-Friendly Parks</div>
+    <div class="parks-grid" id="parks-pitcher"></div>
   </div>
 </div>
 
 <!-- CHEAT SHEET -->
 <div id="tc-cheatsheet" class="tc">
-  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+  <div class="cs-header">
     <div>
-      <div class="st">&#128196; Daily HR Prop Cheat Sheet</div>
-      <div class="ss">Screenshot this and reference it all day &mdash; updated with tonight's lineups</div>
+      <div class="cs-title">&#9900; DIAMOND ANALYTICS</div>
+      <div class="cs-date">Daily HR Prop Cheat Sheet &mdash; <span id="cs-date"></span></div>
     </div>
-    <button onclick="window.print()" style="background:#1e3a5f;color:#60a5fa;border:1px solid #2563eb;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">&#128438; Print / Save</button>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div class="cs-counts" id="cs-counts"></div>
+      <button class="print-btn" onclick="window.print()">&#128438; Print / Save PDF</button>
+    </div>
   </div>
   <div id="cheatsheet-content"></div>
 </div>
@@ -215,44 +389,73 @@ var PARKS    = RAW.parks     || {};
 var MATCHUPS = RAW.matchups  || [];
 var PICKS    = RAW.top_picks || [];
 
-function f(v,d){ if(v===null||v===undefined||isNaN(v)||v==='') return '—'; return parseFloat(v).toFixed(d||2); }
-function clr(v,gT,bT,inv){
-  if(v===null||v===undefined||isNaN(v)) return '#94a3b8';
-  if(inv) return v<=gT?'#4ade80':v>=bT?'#f87171':'#facc15';
-  return v>=gT?'#4ade80':v<=bT?'#f87171':'#facc15';
+// ── INIT HEADER STATS ─────────────────────────────────────────────
+document.getElementById('stat-picks').textContent    = PICKS.length;
+document.getElementById('stat-games').textContent    = GAMES.length;
+document.getElementById('stat-batters').textContent  = BATTERS.length;
+var updTime = '{{ updated }}';
+if(updTime){ document.getElementById('stat-updated').textContent = updTime.split(' ').slice(3).join(' ') || updTime; }
+document.getElementById('picks-count').textContent  = PICKS.length;
+document.getElementById('batter-count').textContent = BATTERS.length;
+
+// ── TICKER ────────────────────────────────────────────────────────
+function buildTicker(){
+  if(!GAMES || GAMES.length===0) return;
+  var items = '';
+  for(var i=0;i<GAMES.length;i++){
+    var g = GAMES[i];
+    var pf = g.park_factor || 1.0;
+    var pkStr = pf>=1.15 ? ' &#128293;'+pf.toFixed(2)+'x' : pf<=0.85 ? ' &#10060;'+pf.toFixed(2)+'x' : ' &#9898;'+pf.toFixed(2)+'x';
+    var wx = g.weather && !g.weather.dome ? ' &middot; '+g.weather.temp_f+'&#176;F' : '';
+    var statusStr = g.status && g.status.toLowerCase().indexOf('progress')>=0 ? '<span class="live">&#9679; LIVE</span> ' : '';
+    items += '<span class="tick-item">'+statusStr+'<span>'+g.away_abb+'</span> @ <span>'+g.home_abb+'</span>'+pkStr+wx+'</span>';
+  }
+  // Duplicate for seamless loop
+  var inner = document.getElementById('ticker-inner');
+  inner.innerHTML = items + items;
 }
-function bar(score,w){
-  w=w||80; var pct=Math.min(score,100);
-  var col=score>=75?'#4ade80':score>=55?'#60a5fa':score>=40?'#facc15':'#f87171';
-  return '<div style="display:flex;align-items:center;gap:6px">'
-    +'<div style="width:'+w+'px;background:#2a2a2a;border-radius:3px;height:7px;overflow:hidden">'
-    +'<div style="width:'+pct+'%;height:100%;background:'+col+';border-radius:3px"></div></div>'
-    +'<span style="font-size:12px;font-weight:600;color:'+col+'">'+score.toFixed(0)+'</span></div>';
+buildTicker();
+
+// ── HELPERS ───────────────────────────────────────────────────────
+function f(v,d){
+  if(v===null||v===undefined||v===''||isNaN(parseFloat(v))) return '—';
+  return parseFloat(v).toFixed(d!=null?d:2);
+}
+function clr(v,gT,bT,inv){
+  if(v===null||v===undefined||isNaN(v)) return 'var(--muted)';
+  if(inv) return v<=gT?'var(--green)':v>=bT?'var(--red)':'var(--gold)';
+  return v>=gT?'var(--green)':v<=bT?'var(--red)':'var(--gold)';
+}
+function pbar(score,w){
+  w=w||70; var pct=Math.min(score||0,100);
+  var col=score>=75?'var(--green)':score>=55?'var(--blue)':score>=40?'var(--gold)':'var(--red)';
+  return '<div style="display:flex;align-items:center;gap:5px">'
+    +'<div style="width:'+w+'px;background:var(--surface2);border-radius:2px;height:5px;overflow:hidden">'
+    +'<div style="width:'+pct+'%;height:100%;background:'+col+';border-radius:2px"></div></div>'
+    +'<span style="font-size:11px;font-weight:800;color:'+col+'">'+pct.toFixed(0)+'</span></div>';
 }
 function sigPill(sig){
-  var sc = sig.good===true  ? 'background:#1a3a2a;color:#4ade80;border:1px solid #4ade80'
-         : sig.good===false ? 'background:#3a1a1a;color:#f87171;border:1px solid #f87171'
-         : 'background:#2a2a1a;color:#facc15;border:1px solid #facc15';
-  return '<span style="'+sc+';padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;margin-right:3px;white-space:nowrap;display:inline-block;margin-bottom:2px">'+sig.label+'</span>';
-}
-function muBadge(ms){
-  var col=ms>=70?'#4ade80':ms>=55?'#facc15':ms>=40?'#fb923c':'#f87171';
-  var bg =ms>=70?'#1a3a2a':ms>=55?'#2a2a1a':ms>=40?'#2a1a0a':'#3a1a1a';
-  var lbl=ms>=70?'GOOD':ms>=55?'NEUTRAL':ms>=40?'RISKY':'AVOID';
-  return '<span style="background:'+bg+';color:'+col+';border:1px solid '+col+';padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">'+ms+' &mdash; '+lbl+'</span>';
+  var cls = sig.good===true?'sig-good':sig.good===false?'sig-bad':'sig-neutral';
+  return '<span class="sig '+cls+'">'+sig.label+'</span>';
 }
 function parkBadge(factor,friendly){
   if(friendly===true){
-    var col=factor>=1.15?'#4ade80':'#facc15';
-    var bg=factor>=1.15?'#1a3a2a':'#2a2a1a';
-    var ico=factor>=1.15?'🔥':'✅';
-    return '<span style="background:'+bg+';color:'+col+';border:1px solid '+col+';padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">'+ico+' '+factor.toFixed(2)+'x</span>';
+    var cls=factor>=1.15?'badge-green':'badge-gold';
+    var ico=factor>=1.15?'&#128293;':'&#9989;';
+    return '<span class="'+cls+'">'+ico+' '+factor.toFixed(2)+'x</span>';
   } else if(friendly===false){
-    return '<span style="background:#3a1a1a;color:#f87171;border:1px solid #f87171;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">❌ '+factor.toFixed(2)+'x</span>';
+    return '<span class="badge-red">&#10060; '+factor.toFixed(2)+'x</span>';
   }
-  return '<span style="background:#2a2a2a;color:#94a3b8;border:1px solid #4b5563;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">⚪ '+factor.toFixed(2)+'x</span>';
+  return '<span class="badge-gray">&#9898; '+factor.toFixed(2)+'x</span>';
 }
+function muBadge(ms){
+  var cls=ms>=70?'badge-green':ms>=55?'badge-gold':ms>=40?'badge-gold':'badge-red';
+  var lbl=ms>=70?'GOOD':ms>=55?'NEUTRAL':ms>=40?'RISKY':'AVOID';
+  return '<span class="'+cls+'">'+ms+' '+lbl+'</span>';
+}
+function rcFn(v){ return v>=1.5?'var(--red)':v<1.0?'var(--green)':'var(--gold)'; }
 
+// ── TAB NAV ───────────────────────────────────────────────────────
 function go(name){
   var all=['picks','lineups','slate','props','batters','pitchers','daynight','framework','parks','cheatsheet'];
   for(var i=0;i<all.length;i++){
@@ -261,267 +464,222 @@ function go(name){
     if(tc) tc.className='tc'+(all[i]===name?' on':'');
     if(nb) nb.className='nb'+(all[i]===name?' on':'');
   }
-  if(name==='picks')    buildPicks();
-  if(name==='lineups')  buildLineups();
-  if(name==='slate')    buildSlate();
-  if(name==='props')    buildProps();
-  if(name==='batters')  buildBatters();
-  if(name==='pitchers') buildPitchers();
-  if(name==='daynight') buildDN();
+  if(name==='picks')       buildPicks();
+  if(name==='lineups')     buildLineups();
+  if(name==='slate')       buildSlate();
+  if(name==='props')       buildProps();
+  if(name==='batters')     buildBatters();
+  if(name==='pitchers')    buildPitchers();
+  if(name==='daynight')    buildDN();
   if(name==='parks')       buildParks();
   if(name==='cheatsheet')  buildCheatSheet();
 }
 
 // ── DAILY PICKS ───────────────────────────────────────────────────
 function buildPicks(){
-  var el = document.getElementById('picks-content');
-  if(!PICKS || PICKS.length===0){
-    el.innerHTML='<div style="background:#0f1923;border:1px solid #1e293b;border-radius:12px;padding:24px;text-align:center;color:#64748b">'
-      +'<div style="font-size:24px;margin-bottom:8px">&#128197;</div>'
-      +'<div style="font-size:14px;font-weight:600;color:#f1f5f9;margin-bottom:4px">No picks yet</div>'
-      +'<div style="font-size:12px">Lineups are typically posted 2-3 hours before first pitch. Check back later today or click Refresh Data.</div>'
-      +'</div>';
+  var el=document.getElementById('picks-content');
+  if(!PICKS||PICKS.length===0){
+    el.innerHTML='<div class="empty-state"><div class="icon">&#128197;</div><h3>No picks yet today</h3><p>Lineups post 2-3 hours before first pitch. Click Refresh after 1pm ET.</p></div>';
     return;
   }
-
-  var html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px">';
+  var html='';
   PICKS.forEach(function(pick){
-    var conf = pick.confidence || 'MODERATE';
-    var cls  = conf==='STRONG'?'strong':conf==='GOOD'?'good':'moderate';
-    var cc   = conf==='STRONG'?'#4ade80':conf==='GOOD'?'#60a5fa':'#facc15';
-    var cb   = conf==='STRONG'?'#1a3a2a':conf==='GOOD'?'#1a2a3a':'#2a2a1a';
-    var ms   = pick.matchup_score || 0;
-    var sigs = (pick.signals||[]).filter(function(s){return s.good===true;}).slice(0,3);
-
-    var wxPick = pick.weather;
-    var wxPickHtml = '';
-    if(wxPick){
-      wxPickHtml = '<div style="background:#060d14;border-radius:6px;padding:8px 10px;margin-top:6px;display:flex;align-items:center;gap:12px">'
-        +'<span style="font-size:11px;font-weight:600;color:'+(wxPick.rating_col||'#94a3b8')+'">'+wxPick.rating+'</span>'
-        +'<span style="font-size:11px;color:'+(wxPick.wind_col||'#94a3b8')+'">'+wxPick.wind_label+'</span>'
-        +'<span style="font-size:11px;color:#64748b">'+wxPick.temp_f+'°F</span>'
-        +'<span style="font-size:11px;color:#64748b">'+wxPick.conditions+'</span>'
-        +'</div>';
+    var conf=pick.confidence||'MODERATE';
+    var cls =conf==='STRONG'?'strong':conf==='GOOD'?'good':'moderate';
+    var ccls=conf==='STRONG'?'conf-strong':conf==='GOOD'?'conf-good':'conf-moderate';
+    var ms  =pick.matchup_score||0;
+    var msCol=ms>=70?'var(--green)':ms>=55?'var(--blue)':'var(--gold)';
+    var sigs=(pick.signals||[]).filter(function(s){return s.good===true;}).slice(0,4).map(sigPill).join('');
+    var propHtml='';
+    if(pick.prop_line!=null&&pick.prop_odds!=null){
+      var oc=pick.prop_odds>0?'var(--green)':pick.prop_odds<-150?'var(--red)':'var(--gold)';
+      var os=pick.prop_odds>0?'+'+pick.prop_odds:''+pick.prop_odds;
+      propHtml='<div class="prop-line"><div><div class="prop-label">HR Prop</div></div>'
+        +'<span class="prop-val">O '+pick.prop_line+'</span>'
+        +'<span class="prop-odds" style="color:'+oc+'">'+os+'</span>'
+        +'<span class="prop-book">'+pick.prop_book+'</span></div>';
     }
-    var propHtml = '';
-    if(pick.prop_line!==null && pick.prop_odds!==null){
-      var oc = pick.prop_odds>0?'#4ade80':pick.prop_odds<-150?'#f87171':'#facc15';
-      var os = pick.prop_odds>0?'+'+pick.prop_odds:''+pick.prop_odds;
-      propHtml = '<div style="background:#060d14;border-radius:6px;padding:8px 10px;margin-top:8px;display:flex;justify-content:space-between;align-items:center">'
-        +'<span style="font-size:11px;color:#64748b">HR Prop Line</span>'
-        +'<span style="font-size:13px;font-weight:700;color:#facc15">O'+pick.prop_line+'</span>'
-        +'<span style="font-size:13px;font-weight:700;color:'+oc+'">'+os+'</span>'
-        +'<span style="font-size:10px;color:#64748b">'+pick.prop_book+'</span>'
-        +'</div>';
+    var wxHtml='';
+    if(pick.weather&&!pick.weather.dome){
+      wxHtml='<span style="font-size:9px;color:'+(pick.weather.wind_col||'var(--muted)')+'"> '+pick.weather.wind_label+'</span>';
     }
-
-    html += '<div class="pick-card '+cls+'">'
-      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">'
-      +'<div>'
-      +'<div style="font-size:15px;font-weight:700;color:#f1f5f9">'+pick.name+'</div>'
-      +'<div style="font-size:11px;color:#64748b;margin-top:2px">'+pick.team+' vs '+pick.pitcher+' ('+pick.pitcher_hand+'HP) &middot; '+pick.game+'</div>'
+    var formHtml='';
+    if(pick.form_label&&pick.form_adj&&pick.form_adj!==0){
+      formHtml='<span style="font-size:9px;color:'+(pick.form_col||'var(--muted)')+'"> '+(pick.form_emoji||'')+' '+(pick.form_label||'')+' (L14)</span>';
+    }
+    html+='<div class="pick-card '+cls+'">'
+      +'<div class="pick-header">'
+      +'<div><div class="pick-name">'+pick.name+'</div>'
+      +'<div class="pick-meta">'+pick.team+' vs '+pick.pitcher+' ('+pick.pitcher_hand+'HP) &bull; '+pick.game+formHtml+wxHtml+'</div></div>'
+      +'<span class="conf-badge '+ccls+'">'+conf+'</span></div>'
+      +'<div class="pick-stats">'
+      +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+msCol+'">'+ms+'</div><div class="pick-stat-lbl">Match</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+clr(pick.barrel_pct,15,8)+'">'+f(pick.barrel_pct,1)+'%</div><div class="pick-stat-lbl">Barrel%</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+clr(pick.avg_hit_speed,91,87)+'">'+f(pick.avg_hit_speed,1)+'</div><div class="pick-stat-lbl">EV mph</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val">'+parkBadge(pick.park_factor||1.0,pick.park_friendly)+'</div><div class="pick-stat-lbl">Park</div></div>'
       +'</div>'
-      +'<span style="background:'+cb+';color:'+cc+';border:1px solid '+cc+';padding:3px 10px;border-radius:16px;font-size:11px;font-weight:700">'+conf+'</span>'
-      +'</div>'
-      +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">'
-      +'<div style="background:#060d14;border-radius:6px;padding:8px;text-align:center"><div style="font-size:10px;color:#64748b">Match</div><div style="font-size:16px;font-weight:700;color:'+cc+'">'+ms+'</div></div>'
-      +'<div style="background:#060d14;border-radius:6px;padding:8px;text-align:center"><div style="font-size:10px;color:#64748b">Barrel%</div><div style="font-size:16px;font-weight:700;color:'+clr(pick.barrel_pct,15,8)+'">'+f(pick.barrel_pct,1)+'%</div></div>'
-      +'<div style="background:#060d14;border-radius:6px;padding:8px;text-align:center"><div style="font-size:10px;color:#64748b">EV</div><div style="font-size:16px;font-weight:700;color:'+clr(pick.avg_hit_speed,91,87)+'">'+f(pick.avg_hit_speed,1)+'</div></div>'
-      +'<div style="background:#060d14;border-radius:6px;padding:8px;text-align:center"><div style="font-size:10px;color:#64748b">Park</div><div style="font-size:14px;font-weight:700">'+parkBadge(pick.park_factor||1.0, pick.park_friendly)+'</div></div>'
-      +'</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px">'+sigs.map(sigPill).join('')+'</div>'
-      + wxPickHtml
-      + propHtml
-      +'</div>';
+      +'<div class="sigs">'+sigs+'</div>'
+      +propHtml+'</div>';
   });
-  html += '</div>';
-  el.innerHTML = html;
+  el.innerHTML=html;
 }
 
-// ── TONIGHT'S LINEUPS ─────────────────────────────────────────────
+// ── LINEUPS ───────────────────────────────────────────────────────
 function buildLineups(){
-  var el = document.getElementById('lineups-content');
-  if(!MATCHUPS || MATCHUPS.length===0){
-    el.innerHTML='<div style="background:#0f1923;border:1px solid #1e293b;border-radius:12px;padding:24px;text-align:center;color:#64748b">'
-      +'<div style="font-size:24px;margin-bottom:8px">&#128197;</div>'
-      +'<div style="font-size:14px;font-weight:600;color:#f1f5f9;margin-bottom:4px">Lineups not yet available</div>'
-      +'<div style="font-size:12px">Confirmed lineups are posted 2-3 hours before first pitch. Click Refresh Data after 1pm ET on game days.</div>'
-      +'</div>';
+  var el=document.getElementById('lineups-content');
+  if(!MATCHUPS||MATCHUPS.length===0){
+    el.innerHTML='<div class="empty-state"><div class="icon">&#128197;</div><h3>Lineups not yet posted</h3><p>Check back 2-3 hours before first pitch</p></div>';
     return;
   }
-
-  var html = '';
+  var html='';
   MATCHUPS.forEach(function(m){
-    var hp = m.home_pitcher || {};
-    var ap = m.away_pitcher || {};
-    var rcFn = function(v){ return v>=1.5?'#f87171':v<1.0?'#4ade80':'#facc15'; };
-
-    html += '<div class="game-block">'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">'
-      +'<div>'
-      +'<div style="font-size:16px;font-weight:700;color:#f1f5f9">'+m.game+'</div>'
-      +'<div style="font-size:12px;color:#64748b;margin-top:2px">'+m.venue+' &nbsp;&bull;&nbsp; '+parkBadge(m.park_factor||1.0, m.park_friendly)+(m.weather?' &nbsp;&bull;&nbsp; <span style="color:'+(m.weather.rating_col||'#94a3b8')+';font-weight:600">'+m.weather.rating+'</span> <span style="color:'+(m.weather.wind_col||'#94a3b8')+';font-size:11px">'+m.weather.wind_label+'</span> <span style="color:#64748b;font-size:11px">'+m.weather.temp_f+'°F</span>':'')+'</div>'
-      +'</div>'
-      +'<span style="background:#1e293b;color:#94a3b8;padding:3px 10px;border-radius:16px;font-size:11px">'+m.status+'</span>'
-      +'</div>'
-
+    var hp=m.home_pitcher||{}, ap=m.away_pitcher||{};
+    var wxStr='';
+    if(m.weather){
+      var wx=m.weather;
+      wxStr=wx.dome?' &bull; <span class="badge-blue">Dome</span>'
+        :' &bull; <span style="color:'+(wx.rating_col||'var(--muted)')+'">'+wx.rating+'</span>'
+        +' <span style="color:'+(wx.wind_col||'var(--muted)')+'">'+wx.wind_label+'</span>'
+        +' <span style="color:var(--muted)">'+wx.temp_f+'&#176;F</span>';
+    }
+    html+='<div class="game-block">'
+      +'<div class="game-hdr">'
+      +'<div><div class="game-title">'+m.away_abb+' @ '+m.home_abb+'</div>'
+      +'<div class="game-sub">'+m.venue+' &bull; '+parkBadge(m.park_factor||1.0,m.park_friendly)+wxStr+'</div></div>'
+      +'<span class="badge-gray">'+m.status+'</span></div>'
       +'<div class="lineup-grid">'
-
-      // Away batters vs Home pitcher
-      +'<div>'
-      +'<div style="background:#0f1923;border:1px solid #1e293b;border-radius:10px;padding:12px;margin-bottom:10px">'
-      +'<div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Home Pitcher</div>'
-      +'<div style="font-size:14px;font-weight:700;color:#f1f5f9">'+(hp.name||'TBD')+'</div>'
-      +'<div style="font-size:11px;color:#64748b;margin-top:2px">'+(hp.team||'')+'&nbsp;&middot;&nbsp;Throws '+(hp.hand||'R')+'</div>'
-      +'<div style="display:flex;gap:10px;margin-top:8px;font-size:12px;flex-wrap:wrap">'
-      +'<span style="color:#94a3b8">ERA: <span style="color:'+clr(hp.era,999,4.0)+'">'+f(hp.era,2)+'</span></span>'
-      +'<span style="color:#94a3b8">HR Risk RHB: <span style="color:'+rcFn(hp.hr_risk_rhb)+'">'+f(hp.hr_risk_rhb,2)+'</span></span>'
-      +'<span style="color:#94a3b8">HR Risk LHB: <span style="color:'+rcFn(hp.hr_risk_lhb)+'">'+f(hp.hr_risk_lhb,2)+'</span></span>'
-      +(hp.velo_label?'<span style="color:'+(hp.velo_col||'#94a3b8')+';font-weight:600">Velo: '+hp.velo_label+'</span>':'')
-      +'</div></div>'
-      +'<div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">'+m.away_abb+' Batting Order</div>'
-      + buildLineupTable(m.away_batters, hp)
-      +'</div>'
-
-      // Home batters vs Away pitcher
-      +'<div>'
-      +'<div style="background:#0f1923;border:1px solid #1e293b;border-radius:10px;padding:12px;margin-bottom:10px">'
-      +'<div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Away Pitcher</div>'
-      +'<div style="font-size:14px;font-weight:700;color:#f1f5f9">'+(ap.name||'TBD')+'</div>'
-      +'<div style="font-size:11px;color:#64748b;margin-top:2px">'+(ap.team||'')+'&nbsp;&middot;&nbsp;Throws '+(ap.hand||'R')+'</div>'
-      +'<div style="display:flex;gap:10px;margin-top:8px;font-size:12px;flex-wrap:wrap">'
-      +'<span style="color:#94a3b8">ERA: <span style="color:'+clr(ap.era,999,4.0)+'">'+f(ap.era,2)+'</span></span>'
-      +'<span style="color:#94a3b8">HR Risk RHB: <span style="color:'+rcFn(ap.hr_risk_rhb)+'">'+f(ap.hr_risk_rhb,2)+'</span></span>'
-      +'<span style="color:#94a3b8">HR Risk LHB: <span style="color:'+rcFn(ap.hr_risk_lhb)+'">'+f(ap.hr_risk_lhb,2)+'</span></span>'
-      +(ap.velo_label?'<span style="color:'+(ap.velo_col||'#94a3b8')+';font-weight:600">Velo: '+ap.velo_label+'</span>':'')
-      +'</div></div>'
-      +'<div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">'+m.home_abb+' Batting Order</div>'
-      + buildLineupTable(m.home_batters, ap)
-      +'</div>'
-
+      + buildSide(m.away_batters, hp, m.away_abb, 'Home Pitcher')
+      + buildSide(m.home_batters, ap, m.home_abb, 'Away Pitcher')
       +'</div></div>';
   });
-  el.innerHTML = html;
+  el.innerHTML=html;
 }
 
-function buildLineupTable(batters, pitcher){
-  if(!batters || batters.length===0){
-    return '<div style="color:#64748b;font-size:12px;padding:12px;text-align:center;background:#0f1923;border-radius:8px">Lineup not yet posted</div>';
+function buildSide(batters, pit, teamAbb, pitLabel){
+  var veloHtml='';
+  if(pit.velo_label){
+    veloHtml='<span style="color:'+(pit.velo_col||'var(--muted)')+'"> &bull; '+pit.velo_label+'</span>';
   }
-  var rows = '';
-  batters.forEach(function(bat){
-    var ms   = bat.matchup_score || 0;
-    var sigs = (bat.signals||[]).slice(0,2).map(sigPill).join('');
-    var ph   = pitcher.hand || 'R';
-    var bh   = bat.hand || 'R';
-    var plat = (bh==='L'||bh==='S')&&ph==='R'||(bh==='R'||bh==='S')&&ph==='L';
-    rows += '<tr>'
-      +'<td style="color:#64748b;font-size:10px">'+(bat.order||'')+'</td>'
-      +'<td style="font-weight:600;color:#f1f5f9">'+bat.name+'</td>'
-      +'<td style="color:#94a3b8;font-size:10px">'+(bat.position||'')+'</td>'
-      +'<td style="color:'+(plat?'#4ade80':'#f87171')+';font-weight:600;font-size:10px">'+bh+'</td>'
-      +'<td style="color:'+clr(bat.barrel_pct,15,8)+'">'+f(bat.barrel_pct,1)+'%</td>'
-      +'<td style="color:'+clr(bat.avg_hit_speed,91,87)+'">'+f(bat.avg_hit_speed,1)+'</td>'
-      +'<td style="color:'+clr(bat.iso,0.220,0.150)+'">'+f(bat.iso,3)+'</td>'
-      +'<td><div style="display:flex;flex-wrap:wrap;gap:2px">'+sigs+'</div></td>'
-      +'<td>'+muBadge(ms)+'</td>'
-      +'</tr>';
-  });
-  return '<div style="overflow-x:auto;border-radius:8px;border:1px solid #1e293b">'
-    +'<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:500px">'
-    +'<thead><tr style="border-bottom:1px solid #1e293b">'
-    +'<th style="padding:6px 8px;background:#060d14;color:#64748b;font-size:10px;text-transform:uppercase">#</th>'
-    +'<th style="padding:6px 8px;background:#060d14;color:#64748b;font-size:10px;text-transform:uppercase">Batter</th>'
-    +'<th style="padding:6px 8px;background:#060d14;color:#64748b;font-size:10px;text-transform:uppercase">Pos</th>'
-    +'<th style="padding:6px 8px;background:#060d14;color:#64748b;font-size:10px;text-transform:uppercase">Hand</th>'
-    +'<th style="padding:6px 8px;background:#060d14;color:#64748b;font-size:10px;text-transform:uppercase">Barrel%</th>'
-    +'<th style="padding:6px 8px;background:#060d14;color:#64748b;font-size:10px;text-transform:uppercase">EV</th>'
-    +'<th style="padding:6px 8px;background:#060d14;color:#64748b;font-size:10px;text-transform:uppercase">ISO</th>'
-    +'<th style="padding:6px 8px;background:#060d14;color:#64748b;font-size:10px;text-transform:uppercase">Signals</th>'
-    +'<th style="padding:6px 8px;background:#060d14;color:#64748b;font-size:10px;text-transform:uppercase">Matchup</th>'
-    +'</tr></thead>'
-    +'<tbody>'+rows+'</tbody></table></div>';
+  var rows='';
+  if(!batters||batters.length===0){
+    rows='<div style="font-size:11px;color:var(--muted);padding:12px;text-align:center;background:var(--surface2);border-radius:6px">Lineup not yet posted</div>';
+  } else {
+    var trows='';
+    batters.forEach(function(bat){
+      var ms=bat.matchup_score||0;
+      var ph=pit.hand||'R', bh=bat.hand||'R';
+      var plat=(bh==='L'||bh==='S')&&ph==='R'||(bh==='R'||bh==='S')&&ph==='L';
+      var sigs=(bat.signals||[]).slice(0,2).map(sigPill).join('');
+      trows+='<tr>'
+        +'<td style="color:var(--muted);">'+(bat.order||'')+'</td>'
+        +'<td style="font-weight:800;color:var(--white)">'+bat.name+'</td>'
+        +'<td style="color:var(--muted)">'+(bat.position||'')+'</td>'
+        +'<td style="color:'+(plat?'var(--green)':'var(--red)')+';font-weight:700">'+bh+'</td>'
+        +'<td style="color:'+clr(bat.barrel_pct,15,8)+'">'+f(bat.barrel_pct,1)+'%</td>'
+        +'<td style="color:'+clr(bat.avg_hit_speed,91,87)+'">'+f(bat.avg_hit_speed,1)+'</td>'
+        +'<td style="color:'+clr(bat.iso,0.220,0.150)+'">'+f(bat.iso,3)+'</td>'
+        +'<td>'+sigs+'</td>'
+        +'<td>'+muBadge(ms)+'</td>'
+        +'</tr>';
+    });
+    rows='<div style="overflow-x:auto;border:1px solid var(--border);border-radius:6px">'
+      +'<table style="width:100%;min-width:480px">'
+      +'<thead><tr>'
+      +'<th>#</th><th>Batter</th><th>Pos</th><th>Hand</th>'
+      +'<th>Barrel%</th><th>EV</th><th>ISO</th>'
+      +'<th>Signals</th><th>Matchup</th>'
+      +'</tr></thead><tbody>'+trows+'</tbody></table></div>';
+  }
+  return '<div>'
+    +'<div class="pit-box">'
+    +'<div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">'+pitLabel+'</div>'
+    +'<div class="pit-name">'+(pit.name||'TBD')+'</div>'
+    +'<div class="pit-meta">'+(pit.team||'')+' &bull; Throws '+(pit.hand||'R')+veloHtml+'</div>'
+    +'<div class="pit-stats">'
+    +'<div>ERA: <span>'+f(pit.era,2)+'</span></div>'
+    +'<div>HR Risk RHB: <span style="color:'+rcFn(pit.hr_risk_rhb)+'">'+f(pit.hr_risk_rhb,2)+'</span></div>'
+    +'<div>HR Risk LHB: <span style="color:'+rcFn(pit.hr_risk_lhb)+'">'+f(pit.hr_risk_lhb,2)+'</span></div>'
+    +'</div></div>'
+    +'<div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">'+teamAbb+' Batting Order</div>'
+    +rows+'</div>';
 }
 
 // ── SCHEDULE ──────────────────────────────────────────────────────
 function buildSlate(){
   if(!GAMES||GAMES.length===0){
-    document.getElementById('slate-body').innerHTML='<tr><td colspan="6" style="text-align:center;color:#64748b;padding:16px">No games today</td></tr>';
+    document.getElementById('slate-body').innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:16px">No games today</td></tr>';
     return;
   }
   var rows='';
   GAMES.forEach(function(g){
-    var wx = g.weather;
-    var wxHtml = wx
-      ? '<span style="color:'+(wx.rating_col||'#94a3b8')+';font-weight:600;font-size:11px">'+wx.rating+'</span>'
-        +'<div style="font-size:10px;color:'+(wx.wind_col||'#94a3b8')+'">'+wx.wind_label+'</div>'
-        +'<div style="font-size:10px;color:#64748b">'+wx.temp_f+'°F &middot; '+wx.conditions+'</div>'
-      : '<span style="color:#64748b;font-size:11px">—</span>';
+    var wx=g.weather;
+    var wxHtml=wx
+      ?'<span style="color:'+(wx.rating_col||'var(--muted)')+';font-weight:700">'+wx.rating+'</span>'
+       +'<div style="font-size:9px;color:'+(wx.wind_col||'var(--muted)')+'">'+wx.wind_label+'</div>'
+       +'<div style="font-size:9px;color:var(--muted)">'+wx.temp_f+'&#176;F</div>'
+      :'<span style="color:var(--muted)">—</span>';
     rows+='<tr>'
-      +'<td style="font-weight:600;color:#f1f5f9">'+g.away_abb+' @ '+g.home_abb+'</td>'
-      +'<td style="color:#94a3b8;font-size:12px">'+g.venue+'</td>'
+      +'<td style="font-weight:800;color:var(--white)">'+g.away_abb+' @ '+g.home_abb+'</td>'
+      +'<td style="color:var(--muted)">'+g.venue+'</td>'
       +'<td>'+parkBadge(g.park_factor,g.park_friendly)+'</td>'
       +'<td>'+wxHtml+'</td>'
-      +'<td style="color:#60a5fa">'+(g.away_pitcher||'TBD')+'</td>'
-      +'<td style="color:#4ade80">'+(g.home_pitcher||'TBD')+'</td>'
-      +'<td><span style="background:#1e293b;color:#94a3b8;padding:2px 6px;border-radius:3px;font-size:10px">'+(g.status||'Scheduled')+'</span></td>'
+      +'<td style="color:var(--blue)">'+(g.away_pitcher||'TBD')+'</td>'
+      +'<td style="color:var(--green)">'+(g.home_pitcher||'TBD')+'</td>'
+      +'<td><span class="badge-gray">'+(g.status||'Scheduled')+'</span></td>'
       +'</tr>';
   });
   document.getElementById('slate-body').innerHTML=rows;
 }
 
-// ── LIVE PROPS ────────────────────────────────────────────────────
+// ── PROPS ─────────────────────────────────────────────────────────
 function buildProps(){
   var body=document.getElementById('props-body');
   if(!PROPS||PROPS.length===0){
-    body.innerHTML='<tr><td colspan="5" style="text-align:center;color:#64748b;padding:16px">No live props &mdash; add ODDS_API_KEY in Render environment variables</td></tr>';
+    body.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:16px">No live props — set ODDS_API_KEY in Render</td></tr>';
     return;
   }
   var seen={},rows='';
   PROPS.forEach(function(p){
     var key=p.player+'|'+p.book+'|'+p.side;
     if(seen[key]) return; seen[key]=true;
-    var oc=p.odds>0?'#4ade80':p.odds<-150?'#f87171':'#facc15';
+    var oc=p.odds>0?'var(--green)':p.odds<-150?'var(--red)':'var(--gold)';
     var os=p.odds>0?'+'+p.odds:''+p.odds;
     rows+='<tr>'
-      +'<td style="font-weight:600;color:#f1f5f9">'+p.player+'</td>'
-      +'<td style="color:#facc15;font-weight:600">'+p.line+'</td>'
-      +'<td><span style="background:#1a2a3a;color:#60a5fa;padding:1px 6px;border-radius:3px;font-size:10px">'+p.side+'</span></td>'
-      +'<td style="color:'+oc+';font-weight:600">'+os+'</td>'
-      +'<td style="color:#64748b;font-size:11px">'+p.book+'</td>'
+      +'<td style="font-weight:800;color:var(--white)">'+p.player+'</td>'
+      +'<td style="color:var(--gold);font-weight:800">'+p.line+'</td>'
+      +'<td><span class="badge-blue">'+p.side+'</span></td>'
+      +'<td style="color:'+oc+';font-weight:800">'+os+'</td>'
+      +'<td style="color:var(--muted)">'+p.book+'</td>'
       +'</tr>';
   });
-  body.innerHTML=rows||'<tr><td colspan="5" style="text-align:center;color:#64748b;padding:16px">No HR props found</td></tr>';
+  body.innerHTML=rows||'<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:16px">No HR props found</td></tr>';
 }
 
 // ── BATTERS ───────────────────────────────────────────────────────
 function buildBatters(){
   var rows='';
   BATTERS.forEach(function(b){
-    var sc   = b.batter_score_with_form || b.batter_score || 0;
-    var fl   = b.form_label  || 'Neutral';
-    var fe   = b.form_emoji  || '&#10145;';
-    var fc   = b.form_col    || '#94a3b8';
-    var fa   = b.form_adj    || 0;
-    var formHtml = '<span style="color:'+fc+';font-weight:600;font-size:11px">'+fe+' '+fl+'</span>';
-    var avg14col = b.avg_14d > b.avg ? '#4ade80' : b.avg_14d < b.avg - 0.030 ? '#f87171' : '#f1f5f9';
-    var slg14col = b.slg_14d > b.slg ? '#4ade80' : b.slg_14d < b.slg - 0.050 ? '#f87171' : '#f1f5f9';
+    var sc=b.batter_score_with_form||b.batter_score||0;
+    var fc=b.form_col||'var(--muted)';
+    var avg14col=b.avg_14d>b.avg?'var(--green)':b.avg_14d<b.avg-0.030?'var(--red)':'var(--white)';
+    var slg14col=b.slg_14d>b.slg?'var(--green)':b.slg_14d<b.slg-0.050?'var(--red)':'var(--white)';
+    var drop=b.velo_drop_val;
     rows+='<tr>'
-      +'<td style="font-weight:600;color:#f1f5f9">'+b.name+'</td>'
-      +'<td><span style="background:#1e293b;color:#94a3b8;padding:1px 5px;border-radius:3px;font-size:10px">'+b.team+'</span></td>'
-      +'<td style="color:#94a3b8">'+(b.hand||'—')+'</td>'
-      +'<td>'+formHtml+'</td>'
+      +'<td style="font-weight:800;color:var(--white)">'+b.name+'</td>'
+      +'<td><span class="badge-gray">'+b.team+'</span></td>'
+      +'<td style="color:var(--muted)">'+b.hand+'</td>'
+      +'<td style="color:'+fc+';font-weight:700">'+(b.form_emoji||'')+' '+(b.form_label||'—')+'</td>'
       +'<td style="color:'+avg14col+'">'+f(b.avg_14d,3)+'</td>'
       +'<td style="color:'+slg14col+'">'+f(b.slg_14d,3)+'</td>'
-      +'<td style="color:'+(b.hr_14d>=3?'#4ade80':b.hr_14d===0?'#f87171':'#f1f5f9')+'">'+((b.hr_14d!==null&&b.hr_14d!==undefined)?b.hr_14d:'—')+'</td>'
+      +'<td style="color:'+(b.hr_14d>=3?'var(--green)':b.hr_14d===0?'var(--red)':'var(--white)')+'">'+((b.hr_14d!=null)?b.hr_14d:'—')+'</td>'
       +'<td style="color:'+clr(b.avg,0.285,0.250)+'">'+f(b.avg,3)+'</td>'
       +'<td style="color:'+clr(b.slg,0.480,0.400)+'">'+f(b.slg,3)+'</td>'
       +'<td>'+f(b.hr,0)+'</td>'
       +'<td style="color:'+clr(b.barrel_pct,15,8)+'">'+f(b.barrel_pct,1)+'%</td>'
-      +'<td style="color:'+clr(b.avg_hit_speed,91,87)+'">'+f(b.avg_hit_speed,1)+' mph</td>'
+      +'<td style="color:'+clr(b.avg_hit_speed,91,87)+'">'+f(b.avg_hit_speed,1)+'</td>'
       +'<td style="color:'+clr(b.iso,0.220,0.150)+'">'+f(b.iso,3)+'</td>'
       +'<td style="color:'+clr(b.k_pct,17,25,true)+'">'+f(b.k_pct,1)+'%</td>'
-      +'<td>'+bar(sc)+'</td>'
+      +'<td>'+pbar(sc)+'</td>'
       +'</tr>';
   });
   document.getElementById('batters-body').innerHTML=rows;
@@ -531,34 +689,29 @@ function buildBatters(){
 function buildPitchers(){
   var rows='';
   PITCHERS.forEach(function(p){
-    var vs   = p.vuln_score||0;
-    var rc   = function(v){return v>=1.5?'#f87171':v<1.0?'#4ade80':'#facc15';};
-    var rcol = p.role==='SP'?'#60a5fa':'#c084fc';
-    var rbg  = p.role==='SP'?'#1a2a3a':'#2a1a3a';
-    var ec   = p.era>4.0?'#f87171':p.era<3.0?'#4ade80':'#f1f5f9';
-    var drop = p.velo_drop_val;
-    var vSeasonCol = (p.velo_season>=96)?'#4ade80':(p.velo_season>=92)?'#60a5fa':'#f1f5f9';
-    var vRecentCol = (drop!=null&&drop>=1.0)?'#f87171':(drop!=null&&drop<=-1.0)?'#4ade80':'#f1f5f9';
-    var veloTrendHtml = p.velo_label
-      ? '<span style="color:'+(p.velo_col||'#94a3b8')+';font-size:11px;font-weight:600">'+p.velo_label+'</span>'
-      : '<span style="color:#64748b">—</span>';
+    var vs=p.vuln_score||0;
+    var rcol=p.role==='SP'?'var(--blue)':'#a855f7';
+    var ec=p.era>4.0?'var(--red)':p.era<3.0?'var(--green)':'var(--white)';
+    var drop=p.velo_drop_val;
+    var vsCol=p.velo_season>=96?'var(--green)':p.velo_season>=92?'var(--blue)':'var(--white)';
+    var vrCol=drop!=null&&drop>=1.0?'var(--red)':drop!=null&&drop<=-1.0?'var(--green)':'var(--white)';
     rows+='<tr>'
-      +'<td style="font-weight:600;color:#f1f5f9">'+p.name+'</td>'
-      +'<td><span style="background:#1e293b;color:#94a3b8;padding:1px 5px;border-radius:3px;font-size:10px">'+p.team+'</span></td>'
-      +'<td style="color:#94a3b8">'+(p.hand||'R')+'</td>'
-      +'<td><span style="background:'+rbg+';color:'+rcol+';padding:1px 5px;border-radius:3px;font-size:10px">'+(p.role||'SP')+'</span></td>'
+      +'<td style="font-weight:800;color:var(--white)">'+p.name+'</td>'
+      +'<td><span class="badge-gray">'+p.team+'</span></td>'
+      +'<td style="color:var(--muted)">'+p.hand+'</td>'
+      +'<td><span style="color:'+rcol+';font-weight:700">'+(p.role||'SP')+'</span></td>'
       +'<td style="color:'+ec+'">'+f(p.era,2)+'</td>'
       +'<td>'+f(p.whip,2)+'</td>'
       +'<td>'+f(p.k9,1)+'</td>'
-      +'<td style="color:'+rc(p.hr9)+'">'+f(p.hr9,2)+'</td>'
-      +'<td style="color:'+rc(p.hr_risk_rhb)+'">'+f(p.hr_risk_rhb,2)+'</td>'
-      +'<td style="color:'+rc(p.hr_risk_lhb)+'">'+f(p.hr_risk_lhb,2)+'</td>'
+      +'<td style="color:'+rcFn(p.hr9)+'">'+f(p.hr9,2)+'</td>'
+      +'<td style="color:'+rcFn(p.hr_risk_rhb)+'">'+f(p.hr_risk_rhb,2)+'</td>'
+      +'<td style="color:'+rcFn(p.hr_risk_lhb)+'">'+f(p.hr_risk_lhb,2)+'</td>'
       +'<td style="color:'+clr(p.barrel_pct,10,5)+'">'+f(p.barrel_pct,1)+'%</td>'
       +'<td style="color:'+clr(p.swstr,18,10)+'">'+f(p.swstr,1)+'%</td>'
-      +'<td style="color:'+vSeasonCol+'">'+f(p.velo_season,1)+' mph</td>'
-      +'<td style="color:'+vRecentCol+'">'+f(p.velo_recent,1)+' mph</td>'
-      +'<td>'+veloTrendHtml+'</td>'
-      +'<td>'+bar(vs)+'</td>'
+      +'<td style="color:'+vsCol+'">'+f(p.velo_season,1)+'</td>'
+      +'<td style="color:'+vrCol+'">'+f(p.velo_recent,1)+'</td>'
+      +'<td style="color:'+(p.velo_col||'var(--muted)');+';font-weight:700">'+(p.velo_label||'—')+'</td>'
+      +'<td>'+pbar(vs)+'</td>'
       +'</tr>';
   });
   document.getElementById('pitchers-body').innerHTML=rows;
@@ -570,289 +723,199 @@ function buildDN(){
   var ds=DN.filter(function(p){return p.pref==='Day'&&p.gap!=='Small';}).sort(function(a,b){return b.day_barrel-a.day_barrel;}).slice(0,6);
   var ns=DN.filter(function(p){return p.pref==='Night'&&p.gap!=='Small';}).sort(function(a,b){return b.night_barrel-a.night_barrel;}).slice(0,6);
   document.getElementById('day-list').innerHTML=ds.map(function(p){
-    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #1e293b">'
-      +'<div><div style="font-size:12px;font-weight:600;color:#f1f5f9">'+p.name+'</div>'
-      +'<div style="font-size:10px;color:#64748b">'+p.team+' &middot; Day Barrel '+p.day_barrel.toFixed(1)+'% vs Night '+p.night_barrel.toFixed(1)+'%</div></div>'
-      +'<span style="background:#1a3a2a;color:#4ade80;border:1px solid #4ade80;padding:1px 7px;border-radius:3px;font-size:10px;font-weight:600">'+p.gap+'</span></div>';
+    return '<div class="alert-row"><div><div style="font-size:11px;font-weight:700;color:var(--white)">'+p.name+'</div>'
+      +'<div style="font-size:9px;color:var(--muted)">'+p.team+' &bull; Day Barrel '+p.day_barrel.toFixed(1)+'% vs Night '+p.night_barrel.toFixed(1)+'%</div></div>'
+      +'<span class="badge-green">'+p.gap+'</span></div>';
   }).join('');
   document.getElementById('night-list').innerHTML=ns.map(function(p){
-    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #1e293b">'
-      +'<div><div style="font-size:12px;font-weight:600;color:#f1f5f9">'+p.name+'</div>'
-      +'<div style="font-size:10px;color:#64748b">'+p.team+' &middot; Night Barrel '+p.night_barrel.toFixed(1)+'% vs Day '+p.day_barrel.toFixed(1)+'%</div></div>'
-      +'<span style="background:#1a2a3a;color:#60a5fa;border:1px solid #60a5fa;padding:1px 7px;border-radius:3px;font-size:10px;font-weight:600">'+p.gap+'</span></div>';
+    return '<div class="alert-row"><div><div style="font-size:11px;font-weight:700;color:var(--white)">'+p.name+'</div>'
+      +'<div style="font-size:9px;color:var(--muted)">'+p.team+' &bull; Night Barrel '+p.night_barrel.toFixed(1)+'% vs Day '+p.day_barrel.toFixed(1)+'%</div></div>'
+      +'<span class="badge-blue">'+p.gap+'</span></div>';
   }).join('');
   var sorted=DN.slice().sort(function(a,b){return go(a)-go(b);});
   document.getElementById('dn-body').innerHTML=sorted.map(function(p){
-    var pc=p.pref==='Day'?'#4ade80':'#60a5fa';
-    var gc=p.gap==='Large'?'#4ade80':p.gap==='Moderate'?'#facc15':'#94a3b8';
     var d=p.pref==='Day';
+    var gc=p.gap==='Large'?'var(--green)':p.gap==='Moderate'?'var(--gold)':'var(--muted)';
     return '<tr>'
-      +'<td style="font-weight:600;color:#f1f5f9">'+p.name+'</td>'
-      +'<td><span style="background:#1e293b;color:#94a3b8;padding:1px 5px;border-radius:3px;font-size:10px">'+p.team+'</span></td>'
-      +'<td style="color:'+pc+';font-weight:600">'+(p.pref==='Day'?'&#9728; Day':'&#127769; Night')+'</td>'
-      +'<td style="color:'+gc+';font-weight:600">'+p.gap+'</td>'
-      +'<td style="color:'+(d?'#4ade80':'#f1f5f9')+'">'+p.day_avg.toFixed(3)+'</td>'
-      +'<td style="color:'+(d?'#4ade80':'#f1f5f9')+'">'+p.day_slg.toFixed(3)+'</td>'
-      +'<td style="color:'+(d?'#4ade80':'#f1f5f9')+'">'+p.day_hr+'</td>'
-      +'<td style="color:'+(d?'#4ade80':'#f1f5f9')+'">'+p.day_barrel.toFixed(1)+'%</td>'
-      +'<td style="color:'+(!d?'#60a5fa':'#f1f5f9')+'">'+p.night_avg.toFixed(3)+'</td>'
-      +'<td style="color:'+(!d?'#60a5fa':'#f1f5f9')+'">'+p.night_slg.toFixed(3)+'</td>'
-      +'<td style="color:'+(!d?'#60a5fa':'#f1f5f9')+'">'+p.night_hr+'</td>'
-      +'<td style="color:'+(!d?'#60a5fa':'#f1f5f9')+'">'+p.night_barrel.toFixed(1)+'%</td>'
+      +'<td style="font-weight:800;color:var(--white)">'+p.name+'</td>'
+      +'<td><span class="badge-gray">'+p.team+'</span></td>'
+      +'<td style="color:'+(d?'var(--gold)':'var(--blue)')+';font-weight:700">'+(d?'&#9728; Day':'&#127769; Night')+'</td>'
+      +'<td style="color:'+gc+';font-weight:700">'+p.gap+'</td>'
+      +'<td style="color:'+(d?'var(--green)':'var(--white)')+'">'+p.day_avg.toFixed(3)+'</td>'
+      +'<td style="color:'+(d?'var(--green)':'var(--white)')+'">'+p.day_slg.toFixed(3)+'</td>'
+      +'<td style="color:'+(d?'var(--green)':'var(--white)')+'">'+p.day_hr+'</td>'
+      +'<td style="color:'+(d?'var(--green)':'var(--white)')+'">'+p.day_barrel.toFixed(1)+'%</td>'
+      +'<td style="color:'+(!d?'var(--blue)':'var(--white)')+'">'+p.night_avg.toFixed(3)+'</td>'
+      +'<td style="color:'+(!d?'var(--blue)':'var(--white)')+'">'+p.night_slg.toFixed(3)+'</td>'
+      +'<td style="color:'+(!d?'var(--blue)':'var(--white)')+'">'+p.night_hr+'</td>'
+      +'<td style="color:'+(!d?'var(--blue)':'var(--white)')+'">'+p.night_barrel.toFixed(1)+'%</td>'
       +'</tr>';
   }).join('');
 }
 
 // ── PARKS ─────────────────────────────────────────────────────────
 function buildParks(){
-  var fHTML='', pHTML='';
+  var fHTML='',pHTML='';
   Object.keys(PARKS).forEach(function(k){
     var v=PARKS[k];
     if(v.friendly){
-      fHTML+='<div class="pc" style="border:1px solid #1e3a2a">'
-        +'<div style="font-size:20px;font-weight:700;color:#4ade80">'+v.factor.toFixed(2)+'x</div>'
-        +'<div style="font-size:12px;font-weight:600;color:#f1f5f9;margin:3px 0">'+v.name+'</div>'
-        +'<div style="font-size:10px;color:#64748b">'+k+'</div></div>';
+      var col=v.factor>=1.15?'var(--green)':'var(--gold)';
+      fHTML+='<div class="park-card"><div class="park-factor" style="color:'+col+'">'+v.factor.toFixed(2)+'x</div>'
+        +'<div class="park-name">'+v.name+'</div><div class="park-abb">'+k+'</div></div>';
     } else {
-      pHTML+='<div class="pc" style="border:1px solid #3a1a1a">'
-        +'<div style="font-size:20px;font-weight:700;color:#f87171">'+v.factor.toFixed(2)+'x</div>'
-        +'<div style="font-size:12px;font-weight:600;color:#f1f5f9;margin:3px 0">'+v.name+'</div>'
-        +'<div style="font-size:10px;color:#64748b">'+k+'</div></div>';
+      pHTML+='<div class="park-card"><div class="park-factor" style="color:var(--red)">'+v.factor.toFixed(2)+'x</div>'
+        +'<div class="park-name">'+v.name+'</div><div class="park-abb">'+k+'</div></div>';
     }
   });
   document.getElementById('parks-friendly').innerHTML=fHTML;
   document.getElementById('parks-pitcher').innerHTML=pHTML;
 }
 
+// ── CHEAT SHEET ───────────────────────────────────────────────────
 function buildCheatSheet(){
-  var el = document.getElementById('cheatsheet-content');
-  var today = RAW.today || new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  var today=RAW.today||new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('cs-date').textContent=today;
 
-  var strong = PICKS.filter(function(p){return p.confidence==='STRONG';});
-  var good   = PICKS.filter(function(p){return p.confidence==='GOOD';});
-  var mod    = PICKS.filter(function(p){return p.confidence==='MODERATE';});
+  var strong=PICKS.filter(function(p){return p.confidence==='STRONG';});
+  var good  =PICKS.filter(function(p){return p.confidence==='GOOD';});
+  var mod   =PICKS.filter(function(p){return p.confidence==='MODERATE';});
 
-  // Velocity alerts for tonight's pitchers
-  var veloAlerts = [];
+  document.getElementById('cs-counts').innerHTML=
+    '<span class="badge-green">'+strong.length+' STRONG</span>'
+    +'<span class="badge-blue" style="margin-left:6px">'+good.length+' GOOD</span>'
+    +'<span class="badge-gold" style="margin-left:6px">'+mod.length+' MOD</span>';
+
+  function csCard(pick){
+    var conf=pick.confidence||'MODERATE';
+    var ccls=conf==='STRONG'?'conf-strong':conf==='GOOD'?'conf-good':'conf-moderate';
+    var bcls=conf==='STRONG'?'strong':conf==='GOOD'?'good':'moderate';
+    var ms=pick.matchup_score||0;
+    var msCol=ms>=70?'var(--green)':ms>=55?'var(--blue)':'var(--gold)';
+    var sigs=(pick.signals||[]).filter(function(s){return s.good===true;}).slice(0,3).map(sigPill).join('');
+    var pHtml='';
+    if(pick.prop_line!=null&&pick.prop_odds!=null){
+      var oc=pick.prop_odds>0?'var(--green)':pick.prop_odds<-150?'var(--red)':'var(--gold)';
+      var os=pick.prop_odds>0?'+'+pick.prop_odds:''+pick.prop_odds;
+      pHtml='<div class="prop-line"><span class="prop-label">HR Prop</span>'
+        +'<span class="prop-val">O '+pick.prop_line+'</span>'
+        +'<span class="prop-odds" style="color:'+oc+'">'+os+'</span>'
+        +'<span class="prop-book">'+pick.prop_book+'</span></div>';
+    }
+    return '<div class="pick-card '+bcls+'" style="margin-bottom:10px">'
+      +'<div class="pick-header">'
+      +'<div><div class="pick-name">'+pick.name+'</div>'
+      +'<div class="pick-meta">'+pick.team+' vs '+pick.pitcher+' &bull; '+pick.game+'</div></div>'
+      +'<span class="conf-badge '+ccls+'">'+conf+'</span></div>'
+      +'<div class="pick-stats">'
+      +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+msCol+'">'+ms+'</div><div class="pick-stat-lbl">Match</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+clr(pick.barrel_pct,15,8)+'">'+f(pick.barrel_pct,1)+'%</div><div class="pick-stat-lbl">Barrel%</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+clr(pick.avg_hit_speed,91,87)+'">'+f(pick.avg_hit_speed,1)+'</div><div class="pick-stat-lbl">EV</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val">'+parkBadge(pick.park_factor||1.0,pick.park_friendly)+'</div><div class="pick-stat-lbl">Park</div></div>'
+      +'</div><div class="sigs">'+sigs+'</div>'+pHtml+'</div>';
+  }
+
+  var veloAlerts=[];
   MATCHUPS.forEach(function(m){
-    [m.home_pitcher, m.away_pitcher].forEach(function(pit){
-      if(pit && pit.velo_drop_val >= 1.0){
-        veloAlerts.push({name: pit.name, team: pit.team, drop: pit.velo_drop_val, label: pit.velo_label, col: pit.velo_col});
-      }
+    [m.home_pitcher,m.away_pitcher].forEach(function(p){
+      if(p&&p.velo_drop_val>=1.0) veloAlerts.push(p);
     });
   });
+  var hotBatters =BATTERS.filter(function(b){return b.form_adj>=8;}).slice(0,5);
+  var coldBatters=BATTERS.filter(function(b){return b.form_adj<=-8;}).slice(0,5);
+  var hrParks    =GAMES.filter(function(g){return g.park_friendly===true&&g.park_factor>=1.15;});
+  var wxBoost    =GAMES.filter(function(g){return g.weather&&g.weather.wind_score>=1&&!g.weather.dome;});
+  var wxBad      =GAMES.filter(function(g){return g.weather&&g.weather.wind_score<=-1&&!g.weather.dome;});
 
-  // Park alerts
-  var hrParks = GAMES.filter(function(g){return g.park_friendly===true && g.park_factor>=1.15;});
-  var badParks = GAMES.filter(function(g){return g.park_friendly===false;});
-
-  // Weather alerts
-  var wxAlerts = GAMES.filter(function(g){return g.weather && g.weather.wind_score>=1 && !g.weather.dome;});
-  var wxBad    = GAMES.filter(function(g){return g.weather && g.weather.wind_score<=-1 && !g.weather.dome;});
-
-  function pickCard(pick, size){
-    var conf  = pick.confidence||'MODERATE';
-    var cc    = conf==='STRONG'?'#4ade80':conf==='GOOD'?'#60a5fa':'#facc15';
-    var cb    = conf==='STRONG'?'#1a3a2a':conf==='GOOD'?'#1a2a3a':'#2a2a1a';
-    var ms    = pick.matchup_score||0;
-    var sigs  = (pick.signals||[]).filter(function(s){return s.good===true;}).slice(0,3).map(function(s){
-      return '<span style="background:#1a3a2a;color:#4ade80;border:1px solid #4ade80;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;margin-right:3px;display:inline-block;margin-bottom:2px">'+s.label+'</span>';
-    }).join('');
-    var propHtml = '';
-    if(pick.prop_line!=null && pick.prop_odds!=null){
-      var oc = pick.prop_odds>0?'#4ade80':pick.prop_odds<-150?'#f87171':'#facc15';
-      var os = pick.prop_odds>0?'+'+pick.prop_odds:''+pick.prop_odds;
-      propHtml = '<span style="background:#060d14;color:#facc15;border:1px solid #facc15;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;margin-left:8px">O'+pick.prop_line+' '+os+'</span>';
-    }
-    var wxHtml = '';
-    if(pick.weather && !pick.weather.dome){
-      wxHtml = '<span style="font-size:10px;color:'+(pick.weather.wind_col||'#94a3b8')+'"> &nbsp;&bull;&nbsp; '+pick.weather.wind_label+'</span>';
-    }
-    var summary = pick.name+' vs '+pick.pitcher+' ('+pick.pitcher_hand+'HP) &mdash; '
-      +'Barrel '+f(pick.barrel_pct,1)+'% &middot; EV '+f(pick.avg_hit_speed,1)+' &middot; '
-      +parkBadge(pick.park_factor||1.0, pick.park_friendly);
-    return '<div style="background:#0a1628;border:1px solid '+cc+';border-radius:10px;padding:14px;margin-bottom:10px">'
-      +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">'
-      +'<span style="background:'+cb+';color:'+cc+';border:1px solid '+cc+';padding:3px 12px;border-radius:16px;font-size:11px;font-weight:700">'+conf+'</span>'
-      +'<span style="font-size:15px;font-weight:700;color:#f1f5f9">'+pick.name+'</span>'
-      +'<span style="font-size:12px;color:#64748b">'+pick.team+'</span>'
-      +(pick.form_label?'<span style="color:'+(pick.form_col||'#94a3b8')+';font-size:11px;font-weight:600">'+(pick.form_emoji||'')+' '+(pick.form_label||'')+' (L14)</span>':'')
-      +'<span style="font-size:12px;color:#94a3b8">Match: <strong style="color:'+cc+'">'+ms+'</strong></span>'
-      + propHtml + wxHtml
-      +'</div>'
-      +'<div style="font-size:11px;color:#94a3b8;margin-bottom:6px">'+summary+'</div>'
-      +'<div>'+sigs+'</div>'
-      +'</div>';
+  var html='';
+  if(strong.length>0){
+    html+='<div style="font-size:10px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">&#9900; Strong Plays</div>';
+    html+='<div class="picks-grid">';
+    strong.forEach(function(p){html+=csCard(p);});
+    html+='</div>';
+  }
+  if(good.length>0){
+    html+='<div style="font-size:10px;font-weight:800;color:var(--blue);text-transform:uppercase;letter-spacing:1px;margin:12px 0 8px">&#9900; Good Plays</div>';
+    html+='<div class="picks-grid">';
+    good.forEach(function(p){html+=csCard(p);});
+    html+='</div>';
+  }
+  if(mod.length>0){
+    html+='<div style="font-size:10px;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin:12px 0 8px">&#9900; Moderate — Parlay Legs Only</div>';
+    html+='<div class="picks-grid">';
+    mod.slice(0,4).forEach(function(p){html+=csCard(p);});
+    html+='</div>';
+  }
+  if(PICKS.length===0){
+    html='<div class="empty-state"><div class="icon">&#128197;</div><h3>No picks yet today</h3><p>Lineups post 2-3 hours before first pitch</p></div>';
   }
 
-  var html = ''
-    // Header
-    +'<div style="background:#0a1628;border:1px solid #1e293b;border-radius:14px;padding:20px;margin-bottom:20px">'
-    +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">'
-    +'<div>'
-    +'<div style="font-size:22px;font-weight:800;color:#f1f5f9">&#9918; MLB HR Prop Cheat Sheet</div>'
-    +'<div style="font-size:13px;color:#64748b;margin-top:4px">'+today+' &nbsp;&bull;&nbsp; mlb-prop-dashboard.onrender.com</div>'
-    +'</div>'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
-    +'<span style="background:#1a3a2a;color:#4ade80;border:1px solid #4ade80;padding:4px 12px;border-radius:16px;font-size:11px;font-weight:700">'+strong.length+' STRONG</span>'
-    +'<span style="background:#1a2a3a;color:#60a5fa;border:1px solid #60a5fa;padding:4px 12px;border-radius:16px;font-size:11px;font-weight:700">'+good.length+' GOOD</span>'
-    +'<span style="background:#2a2a1a;color:#facc15;border:1px solid #facc15;padding:4px 12px;border-radius:16px;font-size:11px;font-weight:700">'+mod.length+' MODERATE</span>'
-    +'</div>'
-    +'</div>'
-    +'</div>';
+  // Alerts row
+  html+='<div class="alert-grid" style="margin-top:16px">';
 
-  // Strong picks
-  if(strong.length > 0){
-    html += '<div style="font-size:13px;font-weight:700;color:#4ade80;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">&#128293; Strong Picks &mdash; Max Confidence</div>';
-    strong.forEach(function(p){ html += pickCard(p); });
-  }
+  // Hot/Cold
+  html+='<div class="alert-box"><div class="alert-title">&#128293; Hot vs &#10052; Cold — Last 14 Days</div>';
+  hotBatters.concat(coldBatters).slice(0,8).forEach(function(b){
+    html+='<div class="alert-row"><div style="font-size:11px;font-weight:700;color:var(--white)">'+b.name+' <span style="color:var(--muted);font-size:9px">'+b.team+'</span></div>'
+      +'<span style="color:'+(b.form_col||'var(--muted)')+';font-size:10px;font-weight:700">'+(b.form_emoji||'')+' '+(b.form_label||'')+'</span></div>';
+  });
+  if(hotBatters.length===0&&coldBatters.length===0) html+='<div style="font-size:11px;color:var(--muted)">No notable streaks</div>';
+  html+='</div>';
 
-  // Good picks
-  if(good.length > 0){
-    html += '<div style="font-size:13px;font-weight:700;color:#60a5fa;margin:16px 0 10px;text-transform:uppercase;letter-spacing:0.5px">&#9989; Good Picks</div>';
-    good.forEach(function(p){ html += pickCard(p); });
-  }
+  // Parks
+  html+='<div class="alert-box"><div class="alert-title">&#127967; Park Alerts</div>';
+  hrParks.forEach(function(g){
+    html+='<div class="alert-row"><span style="font-size:11px;font-weight:700;color:var(--white)">'+g.away_abb+' @ '+g.home_abb+'</span>'+parkBadge(g.park_factor,g.park_friendly)+'</div>';
+  });
+  if(hrParks.length===0) html+='<div style="font-size:11px;color:var(--muted)">No HR-friendly parks tonight</div>';
+  html+='</div>';
 
-  // Moderate picks
-  if(mod.length > 0){
-    html += '<div style="font-size:13px;font-weight:700;color:#facc15;margin:16px 0 10px;text-transform:uppercase;letter-spacing:0.5px">&#9888; Moderate Picks &mdash; 1 Signal Only</div>';
-    mod.slice(0,3).forEach(function(p){ html += pickCard(p); });
-  }
+  // Weather
+  html+='<div class="alert-box"><div class="alert-title">&#127777; Weather Alerts</div>';
+  wxBoost.forEach(function(g){
+    var wx=g.weather;
+    html+='<div class="alert-row"><div><div style="font-size:11px;font-weight:700;color:var(--white)">'+g.away_abb+' @ '+g.home_abb+'</div>'
+      +'<div style="font-size:9px;color:'+(wx.wind_col||'var(--muted)')+'">'+wx.wind_label+'</div></div>'
+      +'<span class="badge-green">Boost</span></div>';
+  });
+  wxBad.forEach(function(g){
+    var wx=g.weather;
+    html+='<div class="alert-row"><div><div style="font-size:11px;font-weight:700;color:var(--white)">'+g.away_abb+' @ '+g.home_abb+'</div>'
+      +'<div style="font-size:9px;color:'+(wx.wind_col||'var(--muted)')+'">'+wx.wind_label+'</div></div>'
+      +'<span class="badge-red">Suppress</span></div>';
+  });
+  if(wxBoost.length===0&&wxBad.length===0) html+='<div style="font-size:11px;color:var(--muted)">No significant weather</div>';
+  html+='</div>';
 
-  if(PICKS.length === 0){
-    html += '<div style="background:#0f1923;border:1px solid #1e293b;border-radius:12px;padding:24px;text-align:center;color:#64748b">'
-      +'<div style="font-size:24px;margin-bottom:8px">&#128197;</div>'
-      +'<div style="font-size:14px;font-weight:600;color:#f1f5f9;margin-bottom:4px">No picks yet today</div>'
-      +'<div style="font-size:12px">Lineups post 2-3 hours before first pitch. Click Refresh Data after 1pm ET.</div>'
-      +'</div>';
-  }
+  // Velo
+  html+='<div class="alert-box"><div class="alert-title">&#128308; Velocity Drops</div>';
+  veloAlerts.slice(0,5).forEach(function(p){
+    html+='<div class="alert-row"><div style="font-size:11px;font-weight:700;color:var(--white)">'+p.name+' <span style="color:var(--muted);font-size:9px">'+p.team+'</span></div>'
+      +'<span style="color:'+(p.velo_col||'var(--red)')+';font-size:10px;font-weight:700">'+(p.velo_label||'')+'</span></div>';
+  });
+  if(veloAlerts.length===0) html+='<div style="font-size:11px;color:var(--muted)">No notable drops tonight</div>';
+  html+='</div>';
 
-  // Alerts section
-  // Hot/Cold streaks for cheat sheet
-  var hotBatters  = BATTERS.filter(function(b){return b.form_adj>=8;}).slice(0,5);
-  var coldBatters = BATTERS.filter(function(b){return b.form_adj<=-8;}).slice(0,5);
+  html+='</div>';
 
-  html += '<div style="background:#0a1628;border:1px solid #1e3a2a;border-radius:12px;padding:16px;margin-top:14px">'
-    +'<div style="font-size:12px;font-weight:700;color:#f1f5f9;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">&#128293; Hot Batters vs &#10052; Cold Batters — Last 14 Days</div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
-    +'<div>';
-  if(hotBatters.length>0){
-    hotBatters.forEach(function(b){
-      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1e293b">'
-        +'<div><span style="font-size:12px;font-weight:600;color:#f1f5f9">'+b.name+'</span> <span style="font-size:10px;color:#64748b">'+b.team+'</span></div>'
-        +'<div style="text-align:right">'
-        +'<span style="color:'+(b.form_col||'#4ade80')+';font-size:11px;font-weight:600">'+(b.form_emoji||'')+' '+(b.form_label||'')+' </span>'
-        +'<span style="font-size:10px;color:#94a3b8">'+f(b.avg_14d,3)+' / '+f(b.slg_14d,3)+'</span>'
-        +'</div></div>';
-    });
-  } else {
-    html += '<div style="font-size:12px;color:#64748b">No batters on hot streaks</div>';
-  }
-  html += '</div><div>';
-  if(coldBatters.length>0){
-    coldBatters.forEach(function(b){
-      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1e293b">'
-        +'<div><span style="font-size:12px;font-weight:600;color:#f1f5f9">'+b.name+'</span> <span style="font-size:10px;color:#64748b">'+b.team+'</span></div>'
-        +'<div style="text-align:right">'
-        +'<span style="color:'+(b.form_col||'#60a5fa')+';font-size:11px;font-weight:600">'+(b.form_emoji||'')+' '+(b.form_label||'')+' </span>'
-        +'<span style="font-size:10px;color:#94a3b8">'+f(b.avg_14d,3)+' / '+f(b.slg_14d,3)+'</span>'
-        +'</div></div>';
-    });
-  } else {
-    html += '<div style="font-size:12px;color:#64748b">No batters in cold slumps</div>';
-  }
-  html += '</div></div></div>';
-
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:14px">';
-
-  // Park alerts
-  html += '<div style="background:#0a1628;border:1px solid #1e293b;border-radius:12px;padding:16px">'
-    +'<div style="font-size:12px;font-weight:700;color:#f1f5f9;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">&#127967; Park Factor Alerts</div>';
-  if(hrParks.length > 0){
-    hrParks.forEach(function(g){
-      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1e293b">'
-        +'<span style="font-size:12px;color:#f1f5f9">'+g.away_abb+' @ '+g.home_abb+'</span>'
-        +parkBadge(g.park_factor, g.park_friendly)+'</div>';
-    });
-  } else {
-    html += '<div style="font-size:12px;color:#64748b">No HR-friendly parks tonight</div>';
-  }
-  if(badParks.length > 0){
-    html += '<div style="font-size:11px;color:#f87171;margin-top:8px;font-weight:600">Avoid:</div>';
-    badParks.forEach(function(g){
-      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0">'
-        +'<span style="font-size:11px;color:#94a3b8">'+g.away_abb+' @ '+g.home_abb+'</span>'
-        +parkBadge(g.park_factor, g.park_friendly)+'</div>';
-    });
-  }
-  html += '</div>';
-
-  // Weather alerts
-  html += '<div style="background:#0a1628;border:1px solid #1e293b;border-radius:12px;padding:16px">'
-    +'<div style="font-size:12px;font-weight:700;color:#f1f5f9;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">&#127777; Weather Alerts</div>';
-  if(wxAlerts.length > 0){
-    html += '<div style="font-size:11px;color:#4ade80;font-weight:600;margin-bottom:4px">HR Boost:</div>';
-    wxAlerts.forEach(function(g){
-      var wx = g.weather;
-      html += '<div style="padding:5px 0;border-bottom:1px solid #1e293b">'
-        +'<span style="font-size:12px;color:#f1f5f9">'+g.away_abb+' @ '+g.home_abb+'</span>'
-        +'<div style="font-size:11px;color:'+(wx.wind_col||'#94a3b8')+'">'+(wx.wind_label||'')+' &middot; '+wx.temp_f+'°F</div>'
-        +'</div>';
-    });
-  }
-  if(wxBad.length > 0){
-    html += '<div style="font-size:11px;color:#f87171;font-weight:600;margin-top:8px;margin-bottom:4px">HR Suppressor:</div>';
-    wxBad.forEach(function(g){
-      var wx = g.weather;
-      html += '<div style="padding:5px 0">'
-        +'<span style="font-size:12px;color:#f1f5f9">'+g.away_abb+' @ '+g.home_abb+'</span>'
-        +'<div style="font-size:11px;color:'+(wx.wind_col||'#94a3b8')+'">'+(wx.wind_label||'')+' &middot; '+wx.temp_f+'°F</div>'
-        +'</div>';
-    });
-  }
-  if(wxAlerts.length===0 && wxBad.length===0){
-    html += '<div style="font-size:12px;color:#64748b">No significant weather factors tonight</div>';
-  }
-  html += '</div>';
-
-  // Velocity alerts
-  html += '<div style="background:#0a1628;border:1px solid #1e293b;border-radius:12px;padding:16px">'
-    +'<div style="font-size:12px;font-weight:700;color:#f1f5f9;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">&#128308; Velocity Alerts</div>';
-  if(veloAlerts.length > 0){
-    veloAlerts.forEach(function(v){
-      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1e293b">'
-        +'<div><div style="font-size:12px;color:#f1f5f9">'+v.name+'</div>'
-        +'<div style="font-size:10px;color:#64748b">'+v.team+'</div></div>'
-        +'<span style="color:'+(v.col||'#f87171')+';font-size:11px;font-weight:600">'+v.label+'</span>'
-        +'</div>';
-    });
-  } else {
-    html += '<div style="font-size:12px;color:#64748b">No significant velocity drops tonight</div>';
-  }
-  html += '</div>';
-
-  html += '</div>'; // close alerts grid
-
-  // Bet sizing guide
-  html += '<div style="background:#0a1628;border:1px solid #1e293b;border-radius:12px;padding:16px;margin-top:14px">'
-    +'<div style="font-size:12px;font-weight:700;color:#f1f5f9;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">&#127919; Bet Sizing Guide</div>'
-    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">'
-    +'<div style="background:#060d14;border-radius:8px;padding:10px;border:1px solid #1e3a2a"><div style="font-size:11px;color:#4ade80;font-weight:700;margin-bottom:4px">STRONG &#128293;</div><div style="font-size:12px;color:#94a3b8">3 units &mdash; Multiple signals, park boost, velocity drop</div></div>'
-    +'<div style="background:#060d14;border-radius:8px;padding:10px;border:1px solid #1a2a3a"><div style="font-size:11px;color:#60a5fa;font-weight:700;margin-bottom:4px">GOOD &#9989;</div><div style="font-size:12px;color:#94a3b8">2 units &mdash; 2+ clear signals confirmed</div></div>'
-    +'<div style="background:#060d14;border-radius:8px;padding:10px;border:1px solid #2a2a1a"><div style="font-size:11px;color:#facc15;font-weight:700;margin-bottom:4px">MODERATE &#9888;</div><div style="font-size:12px;color:#94a3b8">1 unit &mdash; Single signal, use as parlay leg only</div></div>'
-    +'<div style="background:#060d14;border-radius:8px;padding:10px;border:1px solid #1e293b"><div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:4px">PARLAY RULE</div><div style="font-size:12px;color:#94a3b8">Max 2-3 legs &mdash; never parlay all picks together</div></div>'
+  // Bet sizing
+  html+='<div class="alert-box" style="margin-top:12px"><div class="alert-title">&#127919; Bet Sizing</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin-top:8px">'
+    +'<div style="font-size:10px;color:var(--muted)"><span class="badge-green">STRONG</span> — 3 units &bull; Multiple signals + park + velo drop</div>'
+    +'<div style="font-size:10px;color:var(--muted)"><span class="badge-blue">GOOD</span> — 2 units &bull; 2+ clear signals confirmed</div>'
+    +'<div style="font-size:10px;color:var(--muted)"><span class="badge-gold">MODERATE</span> — 1 unit &bull; Parlay leg only</div>'
+    +'<div style="font-size:10px;color:var(--muted)"><span class="badge-gray">RULE</span> — Max 2-3 parlay legs, never stack all picks</div>'
     +'</div></div>';
 
-  el.innerHTML = html;
+  document.getElementById('cheatsheet-content').innerHTML=html;
 }
 
 function refreshData(){
   fetch('/api/refresh',{method:'POST'}).then(function(){
-    setTimeout(function(){ window.location.reload(); }, 4000);
+    setTimeout(function(){window.location.reload();},4000);
   });
 }
 
-// Init
+// Init on load
 buildPicks();
 buildSlate();
 buildProps();
