@@ -1099,10 +1099,10 @@ function deleteResult(id){
 }
 
 function clearResults(){
-  if(confirm('Clear all results? This cannot be undone.')){{
+  if(confirm('Clear all results? This cannot be undone.')){
     localStorage.removeItem(STORAGE_KEY);
     buildResults();
-  }}
+  }
 }
 
 function buildResults(){

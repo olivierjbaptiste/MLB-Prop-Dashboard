@@ -13,16 +13,7 @@ app = Flask(__name__)
 
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY", "")
 
-# Debug: test odds_free import directly
-try:
-    from odds_free import get_free_props
-    print("[STARTUP] odds_free imported successfully")
-    test = get_free_props()
-    print(f"[STARTUP] Free props test returned: {len(test)} props")
-except Exception as e:
-    import traceback
-    print(f"[STARTUP] odds_free import/run failed: {e}")
-    traceback.print_exc()
+# odds_free loaded via dashboard.py
 
 # Simple cache
 _data = None
@@ -56,12 +47,21 @@ print("Startup data load complete")
 
 @app.route("/")
 def index():
-    data    = _data or db.build_all_data(ODDS_API_KEY)
-    updated = _updated or "Just now"
+    try:
+        data    = _data or db.build_all_data(ODDS_API_KEY)
+        updated = _updated or "Just now"
+        today   = data.get("today", "") if data else ""
+        data_json = json.dumps(data or {})
+    except Exception as e:
+        print(f"Route error: {e}")
+        import traceback; traceback.print_exc()
+        data_json = "{}"
+        updated   = "Error loading data"
+        today     = ""
     return render_template("index.html",
-                           data=json.dumps(data),
+                           data=data_json,
                            updated=updated,
-                           today=data.get("today", ""),
+                           today=today,
                            loading=False)
 
 
