@@ -1,7 +1,5 @@
 """
-app.py
-Flask web server for MLB HR Prop Dashboard
-Serves live dashboard at a real URL via Render
+app.py - Flask web server for MLB HR Prop Dashboard
 """
 
 import os
@@ -9,88 +7,74 @@ import json
 import threading
 from datetime import datetime
 from flask import Flask, render_template, jsonify
-from apscheduler.schedulers.background import BackgroundScheduler
 import dashboard as db
 
 app = Flask(__name__)
 
-# ── CONFIG ───────────────────────────────────────────────────────
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY", "")
 
-# ── CACHE ────────────────────────────────────────────────────────
-# Data is cached so the site loads fast
-# It refreshes automatically every morning at 9am
-_cache = {"data": None, "updated": None, "loading": False}
+# Simple cache
+_data = None
+_updated = None
 
 
 def refresh_data():
-    """Pull fresh data and update cache."""
-    global _cache
-    if _cache["loading"]:
-        return
-    _cache["loading"] = True
-    print(f"[{datetime.now()}] Refreshing MLB data...")
+    global _data, _updated
+    print(f"[{datetime.now()}] Loading MLB data...")
     try:
         data = db.build_all_data(ODDS_API_KEY)
-        _cache["data"]    = data
-        _cache["updated"] = datetime.now().strftime("%B %d, %Y %I:%M %p")
-        print(f"[{datetime.now()}] Data refresh complete")
+        _data    = data
+        _updated = datetime.now().strftime("%B %d, %Y %I:%M %p")
+        print(f"[{datetime.now()}] Data loaded successfully")
+        print(f"  Batters:  {len(data.get('batters', []))}")
+        print(f"  Pitchers: {len(data.get('pitchers', []))}")
+        print(f"  Games:    {len(data.get('games', []))}")
+        print(f"  Props:    {len(data.get('props', []))}")
     except Exception as e:
-        print(f"[{datetime.now()}] Data refresh error: {e}")
-    finally:
-        _cache["loading"] = False
+        print(f"[{datetime.now()}] Data load error: {e}")
+        import traceback
+        traceback.print_exc()
 
 
-def get_data():
-    """Get cached data, refresh if empty."""
-    if _cache["data"] is None:
-        refresh_data()
-    return _cache["data"]
+# Load data immediately on startup — not in background
+# This ensures data is ready when first request comes in
+print("Starting MLB HR Prop Dashboard...")
+refresh_data()
+print("Startup data load complete")
 
 
-# ── SCHEDULER ────────────────────────────────────────────────────
-# Automatically refresh data every morning at 9am
-scheduler = BackgroundScheduler()
-scheduler.add_job(refresh_data, 'cron', hour=9, minute=0)
-scheduler.start()
-
-# Load data on startup in background thread
-threading.Thread(target=refresh_data, daemon=True).start()
-
-
-# ── ROUTES ───────────────────────────────────────────────────────
 @app.route("/")
 def index():
-    """Main dashboard page."""
-    data    = get_data()
-    updated = _cache.get("updated", "Loading...")
+    data    = _data or db.build_all_data(ODDS_API_KEY)
+    updated = _updated or "Just now"
     return render_template("index.html",
                            data=json.dumps(data),
                            updated=updated,
-                           today=data.get("today", "") if data else "",
-                           loading=data is None)
+                           today=data.get("today", ""),
+                           loading=False)
 
 
 @app.route("/api/refresh", methods=["POST"])
 def api_refresh():
-    """Manual refresh endpoint."""
     threading.Thread(target=refresh_data, daemon=True).start()
     return jsonify({"status": "refreshing"})
 
 
 @app.route("/api/data")
 def api_data():
-    """Returns current data as JSON."""
-    data = get_data()
-    if not data:
-        return jsonify({"error": "Data loading"}), 503
-    return jsonify(data)
+    if not _data:
+        refresh_data()
+    return jsonify(_data or {})
 
 
 @app.route("/health")
 def health():
-    """Health check for Render."""
-    return jsonify({"status": "ok", "updated": _cache.get("updated")})
+    return jsonify({
+        "status": "ok",
+        "updated": _updated,
+        "batters": len(_data.get("batters", [])) if _data else 0,
+        "pitchers": len(_data.get("pitchers", [])) if _data else 0,
+    })
 
 
 if __name__ == "__main__":
