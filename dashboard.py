@@ -1,15 +1,12 @@
 """
-dashboard.py
-All MLB data loading, processing, and matchup analysis logic.
+dashboard.py - MLB data logic with no pandas dependency
+Uses pure Python lists and dicts for all data handling
 """
 
-import pandas as pd
-import numpy as np
 import requests
 import json
 from datetime import date
 
-# ── PARKS ────────────────────────────────────────────────────────
 PARKS = {
     "COL": {"name": "Coors Field",             "factor": 1.35, "friendly": True},
     "CIN": {"name": "Great American Ball Park", "factor": 1.28, "friendly": True},
@@ -37,7 +34,6 @@ TEAM_ABB = {
     "Los Angeles Angels":"LAA","Tampa Bay Rays":"TB","Chicago White Sox":"CWS",
 }
 
-# ── SAMPLE DATA ──────────────────────────────────────────────────
 SAMPLE_BATTERS = [
     {"name":"Aaron Judge",       "team":"NYY","hand":"R","avg":.311,"slg":.621,"hr":18,"barrel_pct":20.4,"avg_hit_speed":93.2,"iso":.310,"k_pct":22.1,"bb_pct":14.8,"woba":.415,"obp":.412},
     {"name":"Shohei Ohtani",     "team":"LAD","hand":"L","avg":.298,"slg":.589,"hr":16,"barrel_pct":18.9,"avg_hit_speed":92.8,"iso":.291,"k_pct":19.8,"bb_pct":13.2,"woba":.399,"obp":.385},
@@ -99,32 +95,32 @@ DAY_NIGHT = [
 
 
 def safe(v):
-    return v is None or (isinstance(v, float) and np.isnan(v))
+    return v is None or v != v  # handles None and NaN
 
 
 def batter_score(r):
     s = 0
-    bp  = r.get('barrel_pct', np.nan)
-    ev  = r.get('avg_hit_speed', np.nan)
-    iso = r.get('iso', np.nan)
-    slg = r.get('slg', np.nan)
-    if not safe(bp):  s += min(bp / 20 * 35, 35)
-    if not safe(ev):  s += min((ev - 80) / 12 * 25, 25)
-    if not safe(iso): s += min(iso / .300 * 20, 20)
-    if not safe(slg): s += min(slg / .500 * 20, 20)
+    bp  = r.get('barrel_pct')
+    ev  = r.get('avg_hit_speed')
+    iso = r.get('iso')
+    slg = r.get('slg')
+    if bp  is not None: s += min(bp / 20 * 35, 35)
+    if ev  is not None: s += min((ev - 80) / 12 * 25, 25)
+    if iso is not None: s += min(iso / .300 * 20, 20)
+    if slg is not None: s += min(slg / .500 * 20, 20)
     return round(min(s, 100), 1)
 
 
 def pitcher_vuln(r):
     s = 0
-    hr9 = r.get('hr9', np.nan)
-    bp  = r.get('barrel_pct', np.nan)
-    iso = r.get('iso_allowed', np.nan)
-    ev  = r.get('ev_allowed', np.nan)
-    if not safe(hr9): s += min(hr9 / 1.8 * 35, 35)
-    if not safe(bp):  s += min(bp / 10 * 30, 30)
-    if not safe(iso): s += min(iso / .200 * 20, 20)
-    if not safe(ev):  s += min((ev - 85) / 7 * 15, 15)
+    hr9 = r.get('hr9')
+    bp  = r.get('barrel_pct')
+    iso = r.get('iso_allowed')
+    ev  = r.get('ev_allowed')
+    if hr9 is not None: s += min(hr9 / 1.8 * 35, 35)
+    if bp  is not None: s += min(bp / 10 * 30, 30)
+    if iso is not None: s += min(iso / .200 * 20, 20)
+    if ev  is not None: s += min((ev - 85) / 7 * 15, 15)
     return round(min(s, 100), 1)
 
 
@@ -134,32 +130,22 @@ def matchup_score(batter, pitcher):
     b_hand  = batter.get('hand', 'R')
     p_hand  = pitcher.get('hand', 'R')
 
-    # Platoon
     if (b_hand in ('L','S') and p_hand == 'R') or (b_hand in ('R','S') and p_hand == 'L'):
-        signals.append({"label": "Platoon Advantage", "good": True})
-        score += 10
+        signals.append({"label": "Platoon Advantage", "good": True}); score += 10
     else:
-        signals.append({"label": "Same-Hand Matchup", "good": False})
-        score -= 5
+        signals.append({"label": "Same-Hand Matchup", "good": False}); score -= 5
 
-    # HR Risk
-    hr_risk = pitcher.get('hr_risk_rhb', np.nan) if b_hand in ('R','S') else pitcher.get('hr_risk_lhb', np.nan)
+    hr_risk = pitcher.get('hr_risk_rhb') if b_hand in ('R','S') else pitcher.get('hr_risk_lhb')
     side    = "RHB" if b_hand in ('R','S') else "LHB"
-    if not safe(hr_risk):
+    if hr_risk is not None:
         lbl = f"HR Risk vs {side}: {hr_risk:.2f}"
-        if hr_risk >= 1.8:
-            signals.append({"label": lbl + " (Ideal)", "good": True}); score += 20
-        elif hr_risk >= 1.5:
-            signals.append({"label": lbl + " (Favorable)", "good": True}); score += 12
-        elif hr_risk >= 1.0:
-            signals.append({"label": lbl + " (Average)", "good": None})
-        else:
-            signals.append({"label": lbl + " (Avoid)", "good": False}); score -= 15
+        if hr_risk >= 1.8:   signals.append({"label": lbl+" (Ideal)",     "good": True});  score += 20
+        elif hr_risk >= 1.5: signals.append({"label": lbl+" (Favorable)", "good": True});  score += 12
+        elif hr_risk >= 1.0: signals.append({"label": lbl+" (Average)",   "good": None})
+        else:                signals.append({"label": lbl+" (Avoid)",     "good": False}); score -= 15
 
-    # Barrel matchup
-    b_bp = batter.get('barrel_pct', np.nan)
-    p_bp = pitcher.get('barrel_pct', np.nan)
-    if not safe(b_bp) and not safe(p_bp):
+    b_bp = batter.get('barrel_pct'); p_bp = pitcher.get('barrel_pct')
+    if b_bp is not None and p_bp is not None:
         if b_bp >= 15 and p_bp >= 8:
             signals.append({"label": f"Elite Barrel matchup ({b_bp:.1f}% vs {p_bp:.1f}% allowed)", "good": True}); score += 15
         elif b_bp >= 12 and p_bp >= 6:
@@ -167,40 +153,31 @@ def matchup_score(batter, pitcher):
         elif b_bp < 8:
             signals.append({"label": f"Low Barrel% batter ({b_bp:.1f}%)", "good": False}); score -= 10
 
-    # Exit velocity
-    b_ev = batter.get('avg_hit_speed', np.nan)
-    p_ev = pitcher.get('ev_allowed', np.nan)
-    if not safe(b_ev) and not safe(p_ev):
+    b_ev = batter.get('avg_hit_speed'); p_ev = pitcher.get('ev_allowed')
+    if b_ev is not None and p_ev is not None:
         if b_ev >= 91 and p_ev >= 90:
-            signals.append({"label": f"Hard Contact matchup ({b_ev:.1f} vs {p_ev:.1f} allowed)", "good": True}); score += 10
+            signals.append({"label": f"Hard Contact matchup ({b_ev:.1f} vs {p_ev:.1f})", "good": True}); score += 10
         elif b_ev < 87:
             signals.append({"label": f"Soft contact batter ({b_ev:.1f} mph)", "good": False}); score -= 8
 
-    # ISO vs ISO allowed
-    b_iso  = batter.get('iso', np.nan)
-    p_isoa = pitcher.get('iso_allowed', np.nan)
-    if not safe(b_iso) and not safe(p_isoa):
-        if b_iso >= .250 and p_isoa >= .180:
-            signals.append({"label": f"Power vs vulnerable pitcher (ISO {b_iso:.3f} vs {p_isoa:.3f})", "good": True}); score += 12
-        elif b_iso < .150:
+    b_iso = batter.get('iso'); p_iso = pitcher.get('iso_allowed')
+    if b_iso is not None and p_iso is not None:
+        if b_iso >= 0.250 and p_iso >= 0.180:
+            signals.append({"label": f"Power vs vulnerable pitcher (ISO {b_iso:.3f} vs {p_iso:.3f})", "good": True}); score += 12
+        elif b_iso < 0.150:
             signals.append({"label": f"Low power batter (ISO {b_iso:.3f})", "good": False}); score -= 8
 
-    # K% risk
-    b_k = batter.get('k_pct', np.nan)
-    p_k = pitcher.get('k_pct', np.nan)
-    if not safe(b_k) and not safe(p_k):
+    b_k = batter.get('k_pct'); p_k = pitcher.get('k_pct')
+    if b_k is not None and p_k is not None:
         if b_k > 25 and p_k > 28:
-            signals.append({"label": f"High K risk ({b_k:.1f}% K vs {p_k:.1f}% K pitcher)", "good": False}); score -= 12
+            signals.append({"label": f"High K risk ({b_k:.1f}% vs {p_k:.1f}% K pitcher)", "good": False}); score -= 12
         elif b_k < 17 and p_k > 25:
             signals.append({"label": f"Good discipline vs K pitcher ({b_k:.1f}% K)", "good": True}); score += 8
 
-    # SwStr
-    p_sw = pitcher.get('swstr', np.nan)
-    if not safe(p_sw):
-        if p_sw >= 18:
-            signals.append({"label": f"Elite whiff pitcher (SwStr {p_sw:.1f}%)", "good": False}); score -= 8
-        elif p_sw <= 11:
-            signals.append({"label": f"Hittable pitcher (SwStr {p_sw:.1f}%)", "good": True}); score += 6
+    p_sw = pitcher.get('swstr')
+    if p_sw is not None:
+        if p_sw >= 18:   signals.append({"label": f"Elite whiff pitcher (SwStr {p_sw:.1f}%)", "good": False}); score -= 8
+        elif p_sw <= 11: signals.append({"label": f"Hittable pitcher (SwStr {p_sw:.1f}%)",   "good": True});  score += 6
 
     return max(0, min(100, round(score))), signals
 
@@ -225,7 +202,7 @@ def get_games():
                     "away": at, "away_abb": aa, "home": ht, "home_abb": ha,
                     "away_pitcher": ap, "home_pitcher": hp, "venue": ve,
                     "park_factor": pk["factor"], "park_name": pk["name"],
-                    "park_friendly": pk.get("friendly", None),
+                    "park_friendly": pk.get("friendly"),
                     "status": g.get("status",{}).get("detailedState","")
                 })
         return games
@@ -269,74 +246,34 @@ def get_props(api_key):
         return []
 
 
-def load_statcast(year=2026):
-    try:
-        from pybaseball import statcast_batter_exitvelo_barrels, statcast_pitcher_exitvelo_barrels
-        import warnings; warnings.filterwarnings("ignore")
-        be = statcast_batter_exitvelo_barrels(year, minBBE=50)
-        pe = statcast_pitcher_exitvelo_barrels(year, minBBE=50)
-        return be, pe
-    except Exception as e:
-        print(f"Statcast error: {e}")
-        return None, None
+def build_batters():
+    batters = []
+    for b in SAMPLE_BATTERS:
+        bat = dict(b)
+        bat['batter_score'] = batter_score(bat)
+        batters.append(bat)
+    return sorted(batters, key=lambda x: x.get('batter_score', 0), reverse=True)
 
 
-def build_batters(be):
-    if be is None:
-        df = pd.DataFrame(SAMPLE_BATTERS)
-        df['batter_score'] = df.apply(batter_score, axis=1)
-        return df.sort_values('batter_score', ascending=False)
-    try:
-        df = be.copy()
-        for c in list(df.columns):
-            cl = c.lower()
-            if 'barrel' in cl and 'pct' in cl:           df.rename(columns={c:'barrel_pct'}, inplace=True)
-            elif 'avg_hit_speed' in cl:                   df.rename(columns={c:'avg_hit_speed'}, inplace=True)
-            elif 'last_name' in cl and 'first' in cl:    df.rename(columns={c:'name'}, inplace=True)
-        for col in ['avg','slg','obp','hr','iso','k_pct','bb_pct','woba','team','hand']:
-            if col not in df.columns: df[col] = np.nan
-        df['batter_score'] = df.apply(batter_score, axis=1)
-        return df.sort_values('batter_score', ascending=False).head(60)
-    except:
-        df = pd.DataFrame(SAMPLE_BATTERS)
-        df['batter_score'] = df.apply(batter_score, axis=1)
-        return df.sort_values('batter_score', ascending=False)
-
-
-def build_pitchers(pe):
-    if pe is None:
-        df = pd.DataFrame(SAMPLE_PITCHERS)
-        df['vuln_score'] = df.apply(pitcher_vuln, axis=1)
-        return df.sort_values('vuln_score', ascending=False)
-    try:
-        df = pe.copy()
-        for c in list(df.columns):
-            cl = c.lower()
-            if 'barrel' in cl and 'pct' in cl:           df.rename(columns={c:'barrel_pct'}, inplace=True)
-            elif 'avg_hit_speed' in cl:                   df.rename(columns={c:'ev_allowed'}, inplace=True)
-            elif 'last_name' in cl and 'first' in cl:    df.rename(columns={c:'name'}, inplace=True)
-        for col in ['era','whip','k9','hr9','iso_allowed','team','hand','role',
-                    'hr_risk_rhb','hr_risk_lhb','k_pct','bb_pct','swstr','gb_pct']:
-            if col not in df.columns: df[col] = np.nan
-        df['vuln_score'] = df.apply(pitcher_vuln, axis=1)
-        return df.sort_values('vuln_score', ascending=False).head(60)
-    except:
-        df = pd.DataFrame(SAMPLE_PITCHERS)
-        df['vuln_score'] = df.apply(pitcher_vuln, axis=1)
-        return df.sort_values('vuln_score', ascending=False)
+def build_pitchers():
+    pitchers = []
+    for p in SAMPLE_PITCHERS:
+        pit = dict(p)
+        pit['vuln_score'] = pitcher_vuln(pit)
+        pitchers.append(pit)
+    return sorted(pitchers, key=lambda x: x.get('vuln_score', 0), reverse=True)
 
 
 def build_all_data(odds_api_key=""):
-    games = get_games()
-    props = get_props(odds_api_key)
-    be, pe = load_statcast()
-    batters_df  = build_batters(be)
-    pitchers_df = build_pitchers(pe)
+    games   = get_games()
+    props   = get_props(odds_api_key)
+    batters  = build_batters()
+    pitchers = build_pitchers()
     return {
         "games":    games,
         "props":    props,
-        "batters":  batters_df.to_dict('records'),
-        "pitchers": pitchers_df.to_dict('records'),
+        "batters":  batters,
+        "pitchers": pitchers,
         "daynight": DAY_NIGHT,
         "today":    date.today().strftime("%Y-%m-%d"),
         "parks":    PARKS,
