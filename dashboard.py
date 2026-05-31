@@ -402,6 +402,55 @@ def get_pitcher_stats(name):
     return None
 
 
+# MLB player ID lookup for headshots
+# URL: https://img.mlb.com/headshots/current/60x60/{ID}@2x.jpg
+PLAYER_IDS = {
+    "Aaron Judge":        592450,
+    "Shohei Ohtani":      660271,
+    "Yordan Alvarez":     670541,
+    "Bryce Harper":       547180,
+    "Freddie Freeman":    518692,
+    "Juan Soto":          665742,
+    "Gunnar Henderson":   683002,
+    "Matt Olson":         621566,
+    "Rafael Devers":      646240,
+    "Kyle Tucker":        663656,
+    "Bobby Witt Jr":      677951,
+    "Jose Ramirez":       608070,
+    "Mookie Betts":       605141,
+    "Ronald Acuna Jr":    660670,
+    "Fernando Tatis Jr":  665487,
+    "Adolis Garcia":      666969,
+    "Julio Rodriguez":    677594,
+    "Corbin Carroll":     682998,
+    "Bo Bichette":        666182,
+    "Trea Turner":        607208,
+    "Pete Alonso":        624413,
+    "Elly De La Cruz":    682829,
+    "William Contreras":  661388,
+    "Marcell Ozuna":      542303,
+    "Teoscar Hernandez":  606192,
+    "Corey Seager":       608369,
+    "Willy Adames":       642715,
+    "Cal Raleigh":        663728,
+    "Sal Stewart":        694973,
+    "Tyler Stephenson":   663886,
+    "Nolan Arenado":      571448,
+    "Paul Goldschmidt":   502671,
+    "Cody Bellinger":     641355,
+    "Marcus Semien":      543760,
+    "Anthony Rizzo":      519203,
+    "Nathaniel Lowe":     663993,
+    "Josh Bell":          605137,
+    "Cedric Mullins":     656429,
+}
+
+def get_headshot_url(name, player_id=None):
+    pid = player_id or PLAYER_IDS.get(name)
+    if pid:
+        return f"https://img.mlb.com/headshots/current/60x60/{pid}@2x.jpg"
+    return None
+
 # Statcast data for top power hitters — overlaid on live roster data
 STATCAST_OVERLAY = {
     "Aaron Judge":        {"barrel_pct":20.4,"avg_hit_speed":93.2,"iso":.310,"woba":.415},
@@ -561,6 +610,8 @@ def load_live_batters():
                     "k_pct":     k_pct,
                     "bb_pct":    bb_pct,
                     "woba":      None,
+                    "player_id": pid,
+                    "headshot":  get_headshot_url(name, pid),
                     # Statcast overlay for known players
                     "barrel_pct":      STATCAST_OVERLAY.get(name, {}).get("barrel_pct"),
                     "avg_hit_speed":   STATCAST_OVERLAY.get(name, {}).get("avg_hit_speed"),
@@ -827,6 +878,7 @@ def get_top_picks(matchups, props):
                     "form_adj":    bat.get('form_adj'),
                     "hr_14d":      bat.get('hr_14d'),
                     "weather":     m.get('weather'),
+                    "headshot":    bat.get('headshot') or get_headshot_url(bat.get('name','')),
                 })
 
     picks.sort(key=lambda x: (
@@ -888,6 +940,9 @@ def build_batters():
         bat['form_col']    = fc
         bat['form_adj']    = fa
         bat['batter_score_with_form'] = batter_score_with_form(bat)
+        # Add headshot if not already set
+        if not bat.get('headshot'):
+            bat['headshot'] = get_headshot_url(bat.get('name',''))
         batters.append(bat)
     return sorted(batters, key=lambda x: x.get('batter_score_with_form', 0), reverse=True)
 
