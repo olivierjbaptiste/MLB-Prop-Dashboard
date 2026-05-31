@@ -79,6 +79,23 @@ def api_data():
     return jsonify(_data or {})
 
 
+@app.route("/manifest.json")
+def manifest():
+    return jsonify({
+        "name": "Diamond Analytics",
+        "short_name": "Diamond",
+        "description": "MLB Home Run Prop Research Dashboard",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#070f0a",
+        "theme_color": "#22c55e",
+        "icons": [
+            {"src": "https://img.icons8.com/fluency/192/baseball.png", "sizes": "192x192", "type": "image/png"},
+            {"src": "https://img.icons8.com/fluency/512/baseball.png", "sizes": "512x512", "type": "image/png"}
+        ]
+    })
+
+
 @app.route("/health")
 def health():
     return jsonify({

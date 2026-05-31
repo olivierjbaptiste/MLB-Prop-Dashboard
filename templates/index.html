@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Diamond Analytics — MLB HR Props</title>
+<meta name="description" content="MLB Home Run Prop Research Dashboard — Daily picks, matchup analysis, park factors, weather, and velocity tracking">
+<meta name="theme-color" content="#22c55e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Diamond Analytics">
+<link rel="manifest" href="/manifest.json">
 <style>
 :root {
   --bg:       #070f0a;
@@ -79,6 +85,9 @@ tr:last-child td{border-bottom:none}
 /* ── PICK CARDS ── */
 .picks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:12px;margin-bottom:18px}
 .pick-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;position:relative;overflow:hidden}
+.player-photo{width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid var(--border2);background:var(--surface2);flex-shrink:0}
+.player-photo-sm{width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid var(--border);background:var(--surface2);flex-shrink:0}
+.photo-fallback{width:52px;height:52px;border-radius:50%;background:var(--surface2);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;color:var(--muted)}
 .pick-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--border)}
 .pick-card.strong::before{background:var(--green)}
 .pick-card.good::before{background:var(--blue)}
@@ -267,6 +276,9 @@ tr:last-child td{border-bottom:none}
   <button class="nb"    id="btn-parks"      onclick="go('parks')">&#127967; Parks</button>
   <button class="nb"    id="btn-cheatsheet" onclick="go('cheatsheet')">&#128196; Cheat Sheet</button>
   <button class="nb"    id="btn-results"    onclick="go('results')">&#128200; Results</button>
+  <button class="nb"    id="btn-glossary"   onclick="go('glossary')">&#128218; Glossary</button>
+  <button class="nb"    id="btn-rotation"   onclick="go('rotation')">&#128197; Rotation</button>
+  <button class="nb"    id="btn-leaders"    onclick="go('leaders')">&#127942; HR Leaders</button>
 </div>
 
 <div class="main">
@@ -418,6 +430,114 @@ tr:last-child td{border-bottom:none}
   <div id="cheatsheet-content"></div>
 </div>
 
+<!-- GLOSSARY -->
+<div id="tc-glossary" class="tc">
+  <div class="section-hdr"><h2>&#128218; Glossary — How to Read This Dashboard</h2></div>
+  <div class="section-sub">Every stat and signal explained — share this with anyone you send picks to</div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;margin-bottom:18px">
+
+    <div class="alert-box">
+      <div class="alert-title">&#127919; Confidence Ratings</div>
+      <div class="alert-row"><div><div style="font-size:12px;font-weight:800;color:var(--green)">STRONG</div><div style="font-size:11px;color:var(--muted)">3+ signals aligned — matchup score &ge;75, park boost, form. Bet 3 units.</div></div></div>
+      <div class="alert-row"><div><div style="font-size:12px;font-weight:800;color:var(--blue)">GOOD</div><div style="font-size:11px;color:var(--muted)">2+ clear signals — matchup score &ge;70. Bet 2 units.</div></div></div>
+      <div class="alert-row"><div><div style="font-size:12px;font-weight:800;color:var(--gold)">MODERATE</div><div style="font-size:11px;color:var(--muted)">1 signal — use as parlay leg only. Bet 1 unit max.</div></div></div>
+    </div>
+
+    <div class="alert-box">
+      <div class="alert-title">&#128293; Form Tags (Last 14 Days)</div>
+      <div class="alert-row"><div style="font-size:11px;color:var(--muted)"><span style="color:var(--green);font-weight:700">&#128293; On Fire</span> — AVG .040+ above season avg, multiple recent HRs. Strongest buy signal.</div></div>
+      <div class="alert-row"><div style="font-size:11px;color:var(--muted)"><span style="color:var(--green);font-weight:700">&#128293; Hot</span> — AVG .020+ above season avg. Batter trending up.</div></div>
+      <div class="alert-row"><div style="font-size:11px;color:var(--muted)"><span style="color:var(--gold);font-weight:700">&#8594; Neutral</span> — Consistent with season average. No edge either way.</div></div>
+      <div class="alert-row"><div style="font-size:11px;color:var(--muted)"><span style="color:var(--blue);font-weight:700">&#10052; Cold</span> — AVG .020+ below season avg. Avoid or reduce units.</div></div>
+      <div class="alert-row"><div style="font-size:11px;color:var(--muted)"><span style="color:var(--red);font-weight:700">&#10052; Ice Cold</span> — AVG .040+ below season avg. Fade strongly.</div></div>
+    </div>
+
+    <div class="alert-box">
+      <div class="alert-title">&#9918; Pitcher Stats</div>
+      <div class="alert-row"><div><div style="font-size:11px;font-weight:700;color:var(--white)">HR Risk RHB / LHB</div><div style="font-size:11px;color:var(--muted)">Home runs allowed per 9 innings split by batter handedness. &ge;1.5 = target. &ge;1.8 = ideal.</div></div></div>
+      <div class="alert-row"><div><div style="font-size:11px;font-weight:700;color:var(--white)">HR/9</div><div style="font-size:11px;color:var(--muted)">Total HR allowed per 9 innings regardless of handedness.</div></div></div>
+      <div class="alert-row"><div><div style="font-size:11px;font-weight:700;color:var(--white)">SwStr%</div><div style="font-size:11px;color:var(--muted)">Swinging strike rate. &ge;18% = elite whiff pitcher, hard to hit HRs. &le;11% = hittable.</div></div></div>
+      <div class="alert-row"><div><div style="font-size:11px;font-weight:700;color:var(--white)">Velo Trend</div><div style="font-size:11px;color:var(--muted)">Recent velocity vs season average. Down 1+ mph = elevated HR risk regardless of ERA.</div></div></div>
+      <div class="alert-row"><div><div style="font-size:11px;font-weight:700;color:var(--white)">Barrel% Against</div><div style="font-size:11px;color:var(--muted)">How often batters barrel the ball vs this pitcher. &ge;10% = elite danger, &ge;7% = vulnerable.</div></div></div>
+    </div>
+
+    <div class="alert-box">
+      <div class="alert-title">&#127955; Batter Stats</div>
+      <div class="alert-row"><div><div style="font-size:11px;font-weight:700;color:var(--white)">Barrel%</div><div style="font-size:11px;color:var(--muted)">% of batted balls that are barreled (optimal launch angle + exit velo). &ge;20% = elite. &ge;12% = favorable.</div></div></div>
+      <div class="alert-row"><div><div style="font-size:11px;font-weight:700;color:var(--white)">EV (Exit Velocity)</div><div style="font-size:11px;color:var(--muted)">Average speed off the bat in mph. &ge;92 = elite hard contact. &ge;89 = favorable.</div></div></div>
+      <div class="alert-row"><div><div style="font-size:11px;font-weight:700;color:var(--white)">ISO</div><div style="font-size:11px;color:var(--muted)">Isolated power (SLG minus AVG). Pure power measurement. &ge;.250 = elite. &ge;.200 = favorable.</div></div></div>
+      <div class="alert-row"><div><div style="font-size:11px;font-weight:700;color:var(--white)">wOBA</div><div style="font-size:11px;color:var(--muted)">Weighted on-base average. Best single hitting metric. &ge;.370 = above average. &ge;.400 = elite.</div></div></div>
+      <div class="alert-row"><div><div style="font-size:11px;font-weight:700;color:var(--white)">Platoon Advantage</div><div style="font-size:11px;color:var(--muted)">LHB vs RHP or RHB vs LHP. Batters hit significantly better against opposite-hand pitchers.</div></div></div>
+    </div>
+
+    <div class="alert-box">
+      <div class="alert-title">&#127967; Park Factors</div>
+      <div class="alert-row"><div style="font-size:11px;color:var(--muted)"><span style="color:var(--green);font-weight:700">&#128293; 1.15x+</span> — Strongly HR friendly. Coors Field (1.35x), GABP (1.28x), Yankee Stadium (1.22x).</div></div>
+      <div class="alert-row"><div style="font-size:11px;color:var(--muted)"><span style="color:var(--gold);font-weight:700">&#9989; 1.05-1.15x</span> — Slightly HR friendly. Minor boost.</div></div>
+      <div class="alert-row"><div style="font-size:11px;color:var(--muted)"><span style="color:var(--muted);font-weight:700">&#9898; ~1.00x</span> — Neutral park. No significant HR effect.</div></div>
+      <div class="alert-row"><div style="font-size:11px;color:var(--muted)"><span style="color:var(--red);font-weight:700">&#10060; &lt;0.90x</span> — Pitcher friendly. Avoid HR props here. Oracle Park (0.72x), loanDepot (0.78x).</div></div>
+    </div>
+
+    <div class="alert-box">
+      <div class="alert-title">&#127777; Weather Signals</div>
+      <div class="alert-row"><div style="font-size:11px;color:var(--muted)"><span style="color:var(--green);font-weight:700">Wind OUT 15+ mph</span> — Blowing toward outfield. Significant HR boost. Best weather condition.</div></div>
+      <div class="alert-row"><div style="font-size:11px;color:var(--muted)"><span style="color:var(--green);font-weight:700">Wind OUT 8+ mph</span> — Mild HR boost. Minor positive factor.</div></div>
+      <div class="alert-row"><div style="font-size:11px;color:var(--muted)"><span style="color:var(--red);font-weight:700">Wind IN 15+ mph</span> — Blowing toward infield. Strong HR suppressor. Avoid props.</div></div>
+      <div class="alert-row"><div style="font-size:11px;color:var(--muted)"><span style="color:var(--gold);font-weight:700">80°F+</span> — Warm air is thinner, ball carries further. Minor positive.</div></div>
+      <div class="alert-row"><div style="font-size:11px;color:var(--muted)"><span style="color:var(--blue);font-weight:700">&#127968; Dome</span> — Indoor stadium. Weather completely irrelevant.</div></div>
+    </div>
+
+    <div class="alert-box">
+      <div class="alert-title">&#128202; Matchup Score</div>
+      <div class="alert-row"><div style="font-size:11px;color:var(--muted)">Composite score 0-100 for each batter vs pitcher matchup. Combines platoon advantage, HR Risk split, Barrel%, Exit Velo, ISO, K%, SwStr%, velocity trend, and recent form.</div></div>
+      <div class="alert-row"><div><div style="font-size:11px;font-weight:700;color:var(--green)">70-100 — GOOD</div><div style="font-size:11px;color:var(--muted)">Strong HR prop target. Multiple signals aligned.</div></div></div>
+      <div class="alert-row"><div><div style="font-size:11px;font-weight:700;color:var(--gold)">55-69 — NEUTRAL</div><div style="font-size:11px;color:var(--muted)">Some signals present. Use as parlay leg only.</div></div></div>
+      <div class="alert-row"><div><div style="font-size:11px;font-weight:700;color:var(--red)">&lt;55 — RISKY/AVOID</div><div style="font-size:11px;color:var(--muted)">Signals point against batter. Skip this pick.</div></div></div>
+    </div>
+
+    <div class="alert-box">
+      <div class="alert-title">&#127919; Model Odds & Edge%</div>
+      <div class="alert-row"><div style="font-size:11px;color:var(--muted)"><span style="color:var(--white);font-weight:700">Model Odds</span> — Our estimated fair price based on HR probability from matchup score. e.g. +420 means our model thinks the fair line is +420.</div></div>
+      <div class="alert-row"><div style="font-size:11px;color:var(--muted)"><span style="color:var(--green);font-weight:700">Positive Edge%</span> — Market is paying more than model says it should. Value bet — the line is in your favor.</div></div>
+      <div class="alert-row"><div style="font-size:11px;color:var(--muted)"><span style="color:var(--red);font-weight:700">Negative Edge%</span> — Market has this priced tighter than model. Overpriced — skip or reduce units.</div></div>
+    </div>
+
+  </div>
+
+  <div class="alert-box">
+    <div class="alert-title">&#128203; The 2-Signal Rule</div>
+    <div style="font-size:12px;color:var(--muted);line-height:1.8;margin-top:8px">
+      Never bet a HR prop on a single signal alone. Always require at least 2 of the following before placing a bet:<br>
+      <span style="color:var(--green)">&#9989;</span> Matchup score &ge;70 &nbsp;&nbsp;
+      <span style="color:var(--green)">&#9989;</span> Barrel% &ge;12% &nbsp;&nbsp;
+      <span style="color:var(--green)">&#9989;</span> HR Risk vs hand &ge;1.5 &nbsp;&nbsp;
+      <span style="color:var(--green)">&#9989;</span> Park factor &ge;1.10x &nbsp;&nbsp;
+      <span style="color:var(--green)">&#9989;</span> Wind blowing out &nbsp;&nbsp;
+      <span style="color:var(--green)">&#9989;</span> Batter hot last 14 days &nbsp;&nbsp;
+      <span style="color:var(--green)">&#9989;</span> Pitcher velo drop 1+ mph
+    </div>
+  </div>
+</div>
+
+<!-- PITCHER ROTATION -->
+<div id="tc-rotation" class="tc">
+  <div class="section-hdr"><h2>&#128197; This Week's Pitching Rotation</h2></div>
+  <div class="section-sub">Upcoming starters for the next 7 days — plan your props ahead of time</div>
+  <div id="rotation-content"><div class="empty-state"><div class="icon">&#128197;</div><h3>Loading rotation...</h3></div></div>
+</div>
+
+<!-- HR LEADERS -->
+<div id="tc-leaders" class="tc">
+  <div class="section-hdr"><h2>&#127942; 2026 HR Leaders</h2></div>
+  <div class="section-sub">Top home run hitters this season — cross reference with tonight's matchups</div>
+  <div class="tw"><table>
+    <thead><tr><th>Rank</th><th>Player</th><th>Team</th><th>HR</th><th>AVG</th><th>SLG</th><th>ISO</th><th>Barrel%</th><th>EV</th><th>Form</th><th>Score</th></tr></thead>
+    <tbody id="leaders-body"></tbody>
+  </table></div>
+</div>
+
+<!-- RESULTS TRACKER -->
 <!-- RESULTS TRACKER -->
 <div id="tc-results" class="tc">
   <div class="section-hdr"><h2>&#128200; Results Tracker</h2><span class="badge" id="results-record">0-0</span></div>
@@ -550,7 +670,7 @@ function rcFn(v){ return v>=1.5?'var(--red)':v<1.0?'var(--green)':'var(--gold)';
 
 // ── TAB NAV ───────────────────────────────────────────────────────
 function go(name){
-  var all=['picks','lineups','slate','props','batters','pitchers','daynight','framework','parks','cheatsheet','results'];
+  var all=['picks','lineups','slate','props','batters','pitchers','daynight','framework','parks','cheatsheet','results','glossary','rotation','leaders'];
   for(var i=0;i<all.length;i++){
     var tc=document.getElementById('tc-'+all[i]);
     var nb=document.getElementById('btn-'+all[i]);
@@ -566,6 +686,9 @@ function go(name){
   if(name==='daynight')    buildDN();
   if(name==='parks')       buildParks();
   if(name==='results')     buildResults();
+  if(name==='glossary')    {} // static content
+  if(name==='rotation')    buildRotation();
+  if(name==='leaders')     buildLeaders();
   if(name==='cheatsheet')  buildCheatSheet();
 }
 
@@ -663,7 +786,9 @@ function buildPicks(){
       formHtml=(pick.form_emoji||'')+' '+(pick.form_label||'')+' ('+formDesc+(pick.hr_14d!=null?' &bull; '+pick.hr_14d+' HR L14':'')+')';
     }
     html+='<div class="pick-card '+cls+'">'
-      +'<div class="pick-header">'
+      +'<div class="pick-header" style="display:flex;gap:10px;align-items:flex-start">'
+      +'<div style="display:flex;gap:10px;align-items:center;flex:1">'
+      +photoHtml
       +'<div><div class="pick-name">'+pick.name+'</div>'
       +'<div class="pick-meta" style="margin-top:3px">'
       +'<span style="color:var(--white);font-weight:700">'+pick.team+'</span>'
@@ -672,7 +797,7 @@ function buildPicks(){
       +' <span style="color:var(--muted)">('+pick.pitcher_hand+'HP)</span>'
       +' <span style="color:var(--muted)">&bull; '+pick.game+'</span>'
       +(formHtml?' <span style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);padding:1px 5px;border-radius:3px;font-size:9px">'+formHtml+'</span>':'')
-      +wxHtml+'</div></div>'
+      +wxHtml+'</div></div></div>'
       +'<span class="conf-badge '+ccls+'">'+conf+'</span></div>'
       +'<div class="pick-stats">'
       +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+msCol+'">'+ms+'</div><div class="pick-stat-lbl">Match</div></div>'
@@ -732,9 +857,12 @@ function buildSide(batters, pit, teamAbb, pitLabel){
       var ph=pit.hand||'R', bh=bat.hand||'R';
       var plat=(bh==='L'||bh==='S')&&ph==='R'||(bh==='R'||bh==='S')&&ph==='L';
       var sigs=(bat.signals||[]).slice(0,2).map(sigPill).join('');
+      var batPhoto = bat.headshot
+        ? '<img src="'+bat.headshot+'" class="player-photo-sm" onerror="this.style.display='none'">'
+        : '<div style="width:36px;height:36px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:14px">&#127955;</div>';
       trows+='<tr>'
         +'<td style="color:var(--muted);">'+(bat.order||'')+'</td>'
-        +'<td style="font-weight:800;color:var(--white)">'+bat.name+'</td>'
+        +'<td><div style="display:flex;align-items:center;gap:8px">'+batPhoto+'<span style="font-weight:800;color:var(--white)">'+bat.name+'</span></div></td>'
         +'<td style="color:var(--muted)">'+(bat.position||'')+'</td>'
         +'<td style="color:'+(plat?'var(--green)':'var(--red)')+';font-weight:700">'+bh+'</td>'
         +'<td style="color:'+clr(bat.barrel_pct,15,8)+'">'+f(bat.barrel_pct,1)+'%</td>'
@@ -826,8 +954,11 @@ function buildBatters(){
     var avg14col=b.avg_14d>b.avg?'var(--green)':b.avg_14d<b.avg-0.030?'var(--red)':'var(--white)';
     var slg14col=b.slg_14d>b.slg?'var(--green)':b.slg_14d<b.slg-0.050?'var(--red)':'var(--white)';
     var drop=b.velo_drop_val;
+    var bPhoto = b.headshot
+      ? '<img src="'+b.headshot+'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid var(--border);vertical-align:middle;margin-right:6px" onerror="this.style.display='none'">'
+      : '';
     rows+='<tr>'
-      +'<td style="font-weight:800;color:var(--white)">'+b.name+'</td>'
+      +'<td style="font-weight:800;color:var(--white)">'+bPhoto+b.name+'</td>'
       +'<td><span class="badge-gray">'+b.team+'</span></td>'
       +'<td style="color:var(--muted)">'+b.hand+'</td>'
       +'<td style="color:'+fc+';font-weight:700">'+(b.form_emoji||'')+' '+(b.form_label||'—')+'</td>'
@@ -1184,6 +1315,71 @@ function buildResults(){
       +'</tr>';
   });
   document.getElementById('results-body').innerHTML = rows;
+}
+
+// ── ROTATION ──────────────────────────────────────────────────────
+function buildRotation(){
+  var el = document.getElementById('rotation-content');
+  // Build rotation from games data + probable pitchers
+  if(!GAMES || GAMES.length === 0){
+    el.innerHTML = '<div class="empty-state"><div class="icon">&#128197;</div><h3>No games scheduled</h3><p>Check back on game days</p></div>';
+    return;
+  }
+  var html = '<div class="tw"><table><thead><tr>'
+    +'<th>Game</th><th>Venue</th><th>Park</th><th>Away Starter</th><th>Home Starter</th><th>Weather</th>'
+    +'</tr></thead><tbody>';
+  GAMES.forEach(function(g){
+    var ap = g.away_pitcher || 'TBD';
+    var hp = g.home_pitcher || 'TBD';
+    var wx = g.weather;
+    var wxStr = wx ? '<span style="color:'+(wx.rating_col||'var(--muted)')+'">'+wx.rating+'</span>' : '—';
+    // Find pitcher vulnerability
+    var apStats = PITCHERS.find(function(p){ return p.name === ap; });
+    var hpStats = PITCHERS.find(function(p){ return p.name === hp; });
+    var apVuln = apStats ? '<span style="font-size:9px;color:'+rcFn(apStats.hr9)+'"> HR/9:'+f(apStats.hr9,2)+'</span>' : '';
+    var hpVuln = hpStats ? '<span style="font-size:9px;color:'+rcFn(hpStats.hr9)+'"> HR/9:'+f(hpStats.hr9,2)+'</span>' : '';
+    html += '<tr>'
+      +'<td style="font-weight:800;color:var(--white)">'+g.away_abb+' @ '+g.home_abb+'</td>'
+      +'<td style="color:var(--muted);font-size:11px">'+g.venue+'</td>'
+      +'<td>'+parkBadge(g.park_factor,g.park_friendly)+'</td>'
+      +'<td style="color:var(--blue)">'+ap+apVuln+'</td>'
+      +'<td style="color:var(--green)">'+hp+hpVuln+'</td>'
+      +'<td>'+wxStr+'</td>'
+      +'</tr>';
+  });
+  html += '</tbody></table></div>';
+  html += '<div class="info-box" style="margin-top:12px"><strong style="color:var(--white)">How to use:</strong> Find games with vulnerable starters (high HR/9) in HR-friendly parks. Stack batters from that team in the Daily Picks tab.</div>';
+  el.innerHTML = html;
+}
+
+// ── HR LEADERS ────────────────────────────────────────────────────
+function buildLeaders(){
+  // Sort batters by HR count
+  var sorted = BATTERS.slice().sort(function(a,b){
+    return (b.hr||0) - (a.hr||0);
+  }).slice(0,30);
+
+  var rows = '';
+  sorted.forEach(function(b, i){
+    if(!b.hr && b.hr !== 0) return;
+    var sc = b.batter_score_with_form || b.batter_score || 0;
+    var fc = b.form_col || 'var(--muted)';
+    rows += '<tr>'
+      +'<td style="color:var(--muted);font-weight:700">'+(i+1)+'</td>'
+      +'<td style="font-weight:800;color:var(--white)">'+b.name+'</td>'
+      +'<td><span class="badge-gray">'+b.team+'</span></td>'
+      +'<td style="color:var(--green);font-weight:800;font-size:14px">'+f(b.hr,0)+'</td>'
+      +'<td style="color:'+clr(b.avg,0.285,0.250)+'">'+f(b.avg,3)+'</td>'
+      +'<td style="color:'+clr(b.slg,0.480,0.400)+'">'+f(b.slg,3)+'</td>'
+      +'<td style="color:'+clr(b.iso,0.220,0.150)+'">'+f(b.iso,3)+'</td>'
+      +'<td style="color:'+clr(b.barrel_pct,15,8)+'">'+f(b.barrel_pct,1)+'%</td>'
+      +'<td style="color:'+clr(b.avg_hit_speed,91,87)+'">'+f(b.avg_hit_speed,1)+'</td>'
+      +'<td style="color:'+fc+';font-weight:700">'+(b.form_emoji||'')+' '+(b.form_label||'—')+'</td>'
+      +'<td>'+pbar(sc,60)+'</td>'
+      +'</tr>';
+  });
+  document.getElementById('leaders-body').innerHTML = rows ||
+    '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:16px">No batter data available</td></tr>';
 }
 
 function refreshData(){
