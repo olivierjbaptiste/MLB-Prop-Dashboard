@@ -34,10 +34,13 @@ tr:last-child td{border-bottom:none}
 .pg{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-top:8px}
 .pc{background:#0f1923;border-radius:8px;padding:10px;text-align:center}
 .info{background:#0f1923;border:1px solid #1e293b;border-radius:10px;padding:14px;font-size:12px;color:#94a3b8;line-height:1.8;margin-top:14px}
-.loading{display:flex;align-items:center;justify-content:center;height:200px;color:#64748b;font-size:14px}
-.rfbtn{background:#1e3a5f;color:#60a5fa;border:1px solid #2563eb;padding:6px 14px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:500}
-.rfbtn:hover{background:#2563eb;color:#fff}
-@media(max-width:768px){.two{grid-template-columns:1fr}.main{padding:12px}}
+.pick-card{background:#0a1628;border-radius:12px;padding:16px;margin-bottom:14px}
+.pick-card.strong{border:1px solid #4ade80}
+.pick-card.good{border:1px solid #60a5fa}
+.pick-card.moderate{border:1px solid #facc15}
+.game-block{background:#0a1628;border:1px solid #1e293b;border-radius:14px;padding:18px;margin-bottom:22px}
+.lineup-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:768px){.two{grid-template-columns:1fr}.main{padding:12px}.lineup-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -45,7 +48,7 @@ tr:last-child td{border-bottom:none}
 <div class="hdr">
   <div>
     <h1>&#9918; MLB HR Prop Dashboard</h1>
-    <p>Live Statcast &middot; Tonight's slate &middot; Batter vs Pitcher matchup engine &middot; Day/Night splits</p>
+    <p>Tonight's lineups &middot; Batter vs Pitcher matchups &middot; Daily top picks &middot; Live prop lines</p>
     <div class="brow">
       <span class="pill" style="background:#1a3a2a;color:#4ade80;border:1px solid #4ade80">&#9679; Green = Batter edge</span>
       <span class="pill" style="background:#3a1a1a;color:#f87171;border:1px solid #f87171">&#9679; Red = Pitcher edge</span>
@@ -55,15 +58,15 @@ tr:last-child td{border-bottom:none}
   <div style="text-align:right">
     <div style="font-size:11px;color:#64748b">Updated</div>
     <div id="updated-time" style="font-size:13px;font-weight:600;color:#94a3b8">{{ updated }}</div>
-    <div style="font-size:10px;color:#4ade80;margin-top:2px">&#9679; Baseball Savant + MLB Stats API</div>
-    <button class="rfbtn" style="margin-top:6px" onclick="refreshData()">&#8635; Refresh Data</button>
+    <div style="font-size:10px;color:#4ade80;margin-top:2px">&#9679; MLB Stats API + Baseball Savant</div>
+    <button style="margin-top:6px;background:#1e3a5f;color:#60a5fa;border:1px solid #2563eb;padding:6px 14px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:500" onclick="refreshData()">&#8635; Refresh Data</button>
   </div>
 </div>
 
 <div class="nav">
-  <button class="nb on"  id="btn-dashboard" onclick="go('dashboard')">&#128202; Dashboard</button>
-  <button class="nb"     id="btn-matchups"  onclick="go('matchups')">&#128269; Matchups</button>
-  <button class="nb"     id="btn-slate"     onclick="go('slate')">&#128197; Tonight's Slate</button>
+  <button class="nb on"  id="btn-picks"     onclick="go('picks')">&#127919; Daily Picks</button>
+  <button class="nb"     id="btn-lineups"   onclick="go('lineups')">&#128200; Tonight's Lineups</button>
+  <button class="nb"     id="btn-slate"     onclick="go('slate')">&#128197; Schedule</button>
   <button class="nb"     id="btn-props"     onclick="go('props')">&#128176; Live Props</button>
   <button class="nb"     id="btn-batters"   onclick="go('batters')">&#127955; Batters</button>
   <button class="nb"     id="btn-pitchers"  onclick="go('pitchers')">&#9918; Pitchers</button>
@@ -74,86 +77,62 @@ tr:last-child td{border-bottom:none}
 
 <div class="main">
 
-<div id="tc-dashboard" class="tc on">
-  <div class="st">Today's Top HR Prop Targets</div>
-  <div class="ss">Minimum 2 signals before betting &mdash; per Daily Top Picks Analytics framework</div>
-  <div class="two" id="dash-cards"><div class="loading">Loading data...</div></div>
-  <div style="background:#0f1923;border:1px solid #1e3a2a;border-radius:10px;padding:16px">
-    <div style="font-size:13px;font-weight:700;color:#4ade80;margin-bottom:10px">&#127919; Quick Checklist</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:7px">
-      <div style="font-size:12px;color:#94a3b8">&#9989; Barrel% &ge; 12% Favorable or &ge; 20% Elite</div>
-      <div style="font-size:12px;color:#94a3b8">&#9989; Exit Velo &ge; 89 mph Favorable or &ge; 92 mph Elite</div>
-      <div style="font-size:12px;color:#94a3b8">&#9989; HR Risk vs batter hand &ge; 1.5 Favorable</div>
-      <div style="font-size:12px;color:#94a3b8">&#9989; Pitcher Barrel% Against &ge; 7% or &ge; 10% Elite Danger</div>
-      <div style="font-size:12px;color:#94a3b8">&#9989; Platoon advantage confirmed in Matchups tab</div>
-      <div style="font-size:12px;color:#94a3b8">&#9989; HR-friendly park factor &ge; 1.10x</div>
-      <div style="font-size:12px;color:#94a3b8">&#9989; Matchup score &ge; 70 = GOOD signal</div>
-    </div>
-  </div>
+<!-- DAILY PICKS -->
+<div id="tc-picks" class="tc on">
+  <div class="st">&#127919; Today's Top HR Prop Picks</div>
+  <div class="ss">Based on tonight's actual lineups &middot; Matchup score &middot; Park factor &middot; Live prop lines &mdash; Strong picks first</div>
+  <div id="picks-content"><div style="color:#64748b;padding:20px;text-align:center">Loading picks...</div></div>
 </div>
 
-<div id="tc-matchups" class="tc">
-  <div class="st">&#128269; Batter vs Pitcher Matchup Analysis</div>
-  <div class="ss">Green = batter edge &mdash; Red = pitcher edge &mdash; Matchup score = HR prop confidence. Sorted best matchups first.</div>
-  <div style="background:#0f1923;border:1px solid #1e293b;border-radius:10px;padding:12px;margin-bottom:20px;font-size:12px;color:#94a3b8">
-    <strong style="color:#f1f5f9">How to read:</strong>
-    Each pitcher section shows the top batter matchups ranked by confidence score.
-    <span style="color:#4ade80;font-weight:600">Green stats</span> = batter edge.
-    <span style="color:#f87171;font-weight:600">Red stats</span> = pitcher edge.
-    Signals column shows exactly why the matchup is rated good or bad.
-    Score &ge; 70 = target. Score &lt; 40 = avoid.
-  </div>
-  <div id="matchup-content"><div class="loading">Loading matchups...</div></div>
+<!-- TONIGHT'S LINEUPS -->
+<div id="tc-lineups" class="tc">
+  <div class="st">&#128200; Tonight's Lineups vs Starting Pitchers</div>
+  <div class="ss">Confirmed batting orders with matchup scores vs the opposing starter &mdash; Green = batter edge &middot; Red = pitcher edge</div>
+  <div id="lineups-content"><div style="color:#64748b;padding:20px;text-align:center">Loading lineups...</div></div>
 </div>
 
+<!-- SCHEDULE -->
 <div id="tc-slate" class="tc">
   <div class="st">Tonight's Schedule</div>
-  <div class="ss">Probable starters and park factors &mdash; live from MLB Stats API &mdash; auto-refreshes daily</div>
+  <div class="ss">Probable starters and park factors &mdash; live from MLB Stats API</div>
   <div class="tw"><table>
     <thead><tr><th>Matchup</th><th>Venue</th><th>Park Factor</th><th>Away Starter</th><th>Home Starter</th><th>Status</th></tr></thead>
     <tbody id="slate-body"><tr><td colspan="6" style="text-align:center;color:#64748b;padding:16px">Loading...</td></tr></tbody>
   </table></div>
-  <div class="info">
-    <strong style="color:#f1f5f9">Daily workflow:</strong><br>
-    1. Find a game with a &#128293; park factor (1.15x+)<br>
-    2. Find the starting pitcher in the Matchups tab<br>
-    3. Target batters with matchup score &ge; 70<br>
-    4. Cross reference with Live Props tab for best odds<br>
-    5. Stack 2&ndash;3 batters from same team vs vulnerable starter
-  </div>
 </div>
 
+<!-- LIVE PROPS -->
 <div id="tc-props" class="tc">
   <div class="st">Live HR Prop Lines</div>
-  <div class="ss">DraftKings &middot; FanDuel &middot; BetMGM &mdash; auto-refreshes daily at 9am</div>
+  <div class="ss">DraftKings &middot; FanDuel &middot; BetMGM &mdash; auto-refreshes daily</div>
   <div class="tw"><table>
     <thead><tr><th>Player</th><th>Line</th><th>Over/Under</th><th>Odds</th><th>Book</th></tr></thead>
     <tbody id="props-body"><tr><td colspan="5" style="text-align:center;color:#64748b;padding:16px">Loading...</td></tr></tbody>
   </table></div>
-  <div class="info">
-    <strong style="color:#f1f5f9">No lines showing?</strong><br>
-    Set your ODDS_API_KEY environment variable in Render. Go to your Render dashboard &rarr; Environment &rarr; Add ODDS_API_KEY = your key from the-odds-api.com
-  </div>
+  <div class="info"><strong style="color:#f1f5f9">No lines showing?</strong><br>Set ODDS_API_KEY in Render Environment variables. Go to dashboard.render.com &rarr; MLB-Prop-Dashboard &rarr; Environment &rarr; Add ODDS_API_KEY.</div>
 </div>
 
+<!-- BATTERS -->
 <div id="tc-batters" class="tc">
   <div class="st">Batter Power Profiles</div>
   <div class="ss">Green = elite/favorable &mdash; Red = poor &mdash; Sorted by HR prop score</div>
   <div class="tw"><table>
     <thead><tr><th>Player</th><th>Team</th><th>Hand</th><th>AVG</th><th>SLG</th><th>HR</th><th>Barrel%</th><th>Exit Velo</th><th>ISO</th><th>wOBA</th><th>K%</th><th>Score</th></tr></thead>
-    <tbody id="batters-body"><tr><td colspan="12" style="text-align:center;color:#64748b;padding:16px">Loading...</td></tr></tbody>
+    <tbody id="batters-body"></tbody>
   </table></div>
 </div>
 
+<!-- PITCHERS -->
 <div id="tc-pitchers" class="tc">
   <div class="st">Pitcher Vulnerability</div>
-  <div class="ss">Red = vulnerable &mdash; Green = tough &mdash; HR Risk RHB/LHB matches batter hand to pitcher split</div>
+  <div class="ss">Red = vulnerable &mdash; Green = tough &mdash; HR Risk RHB/LHB splits shown separately</div>
   <div class="tw"><table>
     <thead><tr><th>Player</th><th>Team</th><th>Hand</th><th>Role</th><th>ERA</th><th>WHIP</th><th>K/9</th><th>HR/9</th><th>HR Risk RHB</th><th>HR Risk LHB</th><th>Barrel%</th><th>SwStr%</th><th>Vuln Score</th></tr></thead>
-    <tbody id="pitchers-body"><tr><td colspan="13" style="text-align:center;color:#64748b;padding:16px">Loading...</td></tr></tbody>
+    <tbody id="pitchers-body"></tbody>
   </table></div>
 </div>
 
+<!-- DAY/NIGHT -->
 <div id="tc-daynight" class="tc">
   <div class="st">Day / Night Split Analysis</div>
   <div class="ss">Target batters in preferred game time &mdash; large gaps = strongest edges</div>
@@ -173,15 +152,16 @@ tr:last-child td{border-bottom:none}
   </table></div>
 </div>
 
+<!-- FRAMEWORK -->
 <div id="tc-framework" class="tc">
   <div class="st">HR Prop Betting Framework</div>
   <div class="ss">Daily Top Picks Analytics HR Matchup Report</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:20px">
-    <div class="tip g"><h3>Tip 01 &mdash; Stack Against HR-Prone Pitchers</h3><p>Use the Matchups tab. Target pitchers where multiple batters score &ge; 70. Stack 2&ndash;3 from same team vs high-vuln starter.</p></div>
+    <div class="tip g"><h3>Tip 01 &mdash; Use Tonight's Lineups Tab</h3><p>The Lineups tab shows the actual batting order vs tonight's starter. Target batters with matchup score &ge; 70 for HR props.</p></div>
     <div class="tip g"><h3>Tip 02 &mdash; Elite Thresholds</h3><p>&#127919; Elite: .300 ISO / .500 SLG / 92+ EV / 20%+ Barrel<br>&#9989; Favorable: .200 ISO / .400 SLG / 89+ EV / 12%+ Barrel</p></div>
-    <div class="tip y"><h3>Tip 03 &mdash; Parks + Weather</h3><p>Target HR-friendly parks in Tonight's Slate. Matchup score &ge; 70 + park &ge; 1.15x + vulnerable pitcher = triple signal.</p></div>
-    <div class="tip y"><h3>Tip 04 &mdash; Parlay 2&ndash;3 Legs Max</h3><p>1 top-tier batter + 1 value hitter vs same pitcher.<br>Or: 2 teammates vs same vulnerable starter.</p></div>
-    <div class="tip r"><h3>Tip 05 &mdash; Fade Pitcher HR Allowed</h3><p>Some books offer Over 1.5 HR Allowed lines. Great value when multiple batters show &ge; 70 vs same starter.</p></div>
+    <div class="tip y"><h3>Tip 03 &mdash; Parks + Weather</h3><p>Target HR-friendly parks (&#128293; 1.15x+). Matchup score &ge; 70 + park &ge; 1.15x + vulnerable pitcher = triple signal.</p></div>
+    <div class="tip y"><h3>Tip 04 &mdash; Parlay 2&ndash;3 Legs Max</h3><p>Best combo: 1 top-tier batter + 1 value hitter vs same pitcher. Or: 2 teammates vs same vulnerable starter.</p></div>
+    <div class="tip r"><h3>Tip 05 &mdash; Fade Pitcher HR Allowed</h3><p>Some books offer Over 1.5 HR Allowed. Great value when multiple batters show &ge; 70 vs same starter in a hitter-friendly park.</p></div>
     <div class="tip r"><h3>Tip 06 &mdash; Reverse Splits + Velo</h3><p>Always check HR Risk RHB vs LHB separately. Recent velo below career avg = elevated HR risk regardless of ERA.</p></div>
   </div>
   <div style="background:#0f1923;border:1px solid #1e3a2a;border-radius:10px;padding:16px">
@@ -195,6 +175,7 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- PARKS -->
 <div id="tc-parks" class="tc">
   <div class="st">Park Factor Analysis</div>
   <div class="ss">Same matchup worth more in hitter-friendly venues</div>
@@ -211,44 +192,46 @@ tr:last-child td{border-bottom:none}
 </div>
 
 <script>
-var RAW = {{ data | safe }};
-var DATA = RAW || {};
-var BATTERS  = DATA.batters  || [];
-var PITCHERS = DATA.pitchers || [];
-var GAMES    = DATA.games    || [];
-var PROPS    = DATA.props    || [];
-var DN       = DATA.daynight || [];
-var PARKS    = DATA.parks    || {};
+var RAW      = {{ data | safe }};
+var BATTERS  = RAW.batters   || [];
+var PITCHERS = RAW.pitchers  || [];
+var GAMES    = RAW.games     || [];
+var PROPS    = RAW.props     || [];
+var DN       = RAW.daynight  || [];
+var PARKS    = RAW.parks     || {};
+var MATCHUPS = RAW.matchups  || [];
+var PICKS    = RAW.top_picks || [];
 
-// ── HELPERS ──────────────────────────────────────────────────────
-function f(v,d){ if(v===null||v===undefined||isNaN(v)) return '—'; return parseFloat(v).toFixed(d||2); }
+function f(v,d){ if(v===null||v===undefined||isNaN(v)||v==='') return '—'; return parseFloat(v).toFixed(d||2); }
 function clr(v,gT,bT,inv){
   if(v===null||v===undefined||isNaN(v)) return '#94a3b8';
   if(inv) return v<=gT?'#4ade80':v>=bT?'#f87171':'#facc15';
   return v>=gT?'#4ade80':v<=bT?'#f87171':'#facc15';
 }
 function bar(score,w){
-  w=w||80;
-  var pct=Math.min(score,100);
+  w=w||80; var pct=Math.min(score,100);
   var col=score>=75?'#4ade80':score>=55?'#60a5fa':score>=40?'#facc15':'#f87171';
   return '<div style="display:flex;align-items:center;gap:6px">'
     +'<div style="width:'+w+'px;background:#2a2a2a;border-radius:3px;height:7px;overflow:hidden">'
     +'<div style="width:'+pct+'%;height:100%;background:'+col+';border-radius:3px"></div></div>'
     +'<span style="font-size:12px;font-weight:600;color:'+col+'">'+score.toFixed(0)+'</span></div>';
 }
-function bdg(label,col,bg,bd){
-  return '<span style="background:'+bg+';color:'+col+';border:1px solid '+bd+';padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">'+label+'</span>';
-}
 function sigPill(sig){
-  var sc = sig.good===true ? 'background:#1a3a2a;color:#4ade80;border:1px solid #4ade80'
+  var sc = sig.good===true  ? 'background:#1a3a2a;color:#4ade80;border:1px solid #4ade80'
          : sig.good===false ? 'background:#3a1a1a;color:#f87171;border:1px solid #f87171'
          : 'background:#2a2a1a;color:#facc15;border:1px solid #facc15';
   return '<span style="'+sc+';padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;margin-right:3px;white-space:nowrap;display:inline-block;margin-bottom:2px">'+sig.label+'</span>';
 }
+function muBadge(ms){
+  var col=ms>=70?'#4ade80':ms>=55?'#facc15':ms>=40?'#fb923c':'#f87171';
+  var bg =ms>=70?'#1a3a2a':ms>=55?'#2a2a1a':ms>=40?'#2a1a0a':'#3a1a1a';
+  var lbl=ms>=70?'GOOD':ms>=55?'NEUTRAL':ms>=40?'RISKY':'AVOID';
+  return '<span style="background:'+bg+';color:'+col+';border:1px solid '+col+';padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">'+ms+' &mdash; '+lbl+'</span>';
+}
 function parkBadge(factor,friendly){
   if(friendly===true){
     var col=factor>=1.15?'#4ade80':'#facc15';
-    var bg =factor>=1.15?'#1a3a2a':'#2a2a1a';
+    var bg=factor>=1.15?'#1a3a2a':'#2a2a1a';
     var ico=factor>=1.15?'🔥':'✅';
     return '<span style="background:'+bg+';color:'+col+';border:1px solid '+col+';padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">'+ico+' '+factor.toFixed(2)+'x</span>';
   } else if(friendly===false){
@@ -257,196 +240,186 @@ function parkBadge(factor,friendly){
   return '<span style="background:#2a2a2a;color:#94a3b8;border:1px solid #4b5563;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">⚪ '+factor.toFixed(2)+'x</span>';
 }
 
-// ── MATCHUP ENGINE ────────────────────────────────────────────────
-function calcMatchup(batter, pitcher){
-  var signals=[], score=50;
-  var bh=batter.hand||'R', ph=pitcher.hand||'R';
-
-  // Platoon
-  if((bh==='L'||bh==='S')&&ph==='R'||(bh==='R'||bh==='S')&&ph==='L'){
-    signals.push({label:'Platoon Advantage',good:true}); score+=10;
-  } else {
-    signals.push({label:'Same-Hand Matchup',good:false}); score-=5;
-  }
-
-  // HR Risk
-  var hr_risk = (bh==='R'||bh==='S') ? pitcher.hr_risk_rhb : pitcher.hr_risk_lhb;
-  var side    = (bh==='R'||bh==='S') ? 'RHB' : 'LHB';
-  if(hr_risk!=null&&!isNaN(hr_risk)){
-    var lbl='HR Risk vs '+side+': '+hr_risk.toFixed(2);
-    if(hr_risk>=1.8){signals.push({label:lbl+' (Ideal)',good:true});score+=20;}
-    else if(hr_risk>=1.5){signals.push({label:lbl+' (Favorable)',good:true});score+=12;}
-    else if(hr_risk>=1.0){signals.push({label:lbl+' (Average)',good:null});}
-    else{signals.push({label:lbl+' (Avoid)',good:false});score-=15;}
-  }
-
-  // Barrel
-  var bbp=batter.barrel_pct, pbp=pitcher.barrel_pct;
-  if(bbp!=null&&pbp!=null&&!isNaN(bbp)&&!isNaN(pbp)){
-    if(bbp>=15&&pbp>=8){signals.push({label:'Elite Barrel matchup ('+bbp.toFixed(1)+'% vs '+pbp.toFixed(1)+'% allowed)',good:true});score+=15;}
-    else if(bbp>=12&&pbp>=6){signals.push({label:'Favorable Barrel ('+bbp.toFixed(1)+'% vs '+pbp.toFixed(1)+'% allowed)',good:true});score+=8;}
-    else if(bbp<8){signals.push({label:'Low Barrel% batter ('+bbp.toFixed(1)+'%)',good:false});score-=10;}
-  }
-
-  // EV
-  var bev=batter.avg_hit_speed, pev=pitcher.ev_allowed;
-  if(bev!=null&&pev!=null&&!isNaN(bev)&&!isNaN(pev)){
-    if(bev>=91&&pev>=90){signals.push({label:'Hard Contact matchup ('+bev.toFixed(1)+' vs '+pev.toFixed(1)+')',good:true});score+=10;}
-    else if(bev<87){signals.push({label:'Soft contact batter ('+bev.toFixed(1)+'mph)',good:false});score-=8;}
-  }
-
-  // ISO
-  var biso=batter.iso, piso=pitcher.iso_allowed;
-  if(biso!=null&&piso!=null&&!isNaN(biso)&&!isNaN(piso)){
-    if(biso>=0.250&&piso>=0.180){signals.push({label:'Power vs vulnerable pitcher (ISO '+biso.toFixed(3)+' vs '+piso.toFixed(3)+')',good:true});score+=12;}
-    else if(biso<0.150){signals.push({label:'Low power batter (ISO '+biso.toFixed(3)+')',good:false});score-=8;}
-  }
-
-  // K%
-  var bk=batter.k_pct, pk=pitcher.k_pct;
-  if(bk!=null&&pk!=null&&!isNaN(bk)&&!isNaN(pk)){
-    if(bk>25&&pk>28){signals.push({label:'High K risk ('+bk.toFixed(1)+'% K vs '+pk.toFixed(1)+'% K pitcher)',good:false});score-=12;}
-    else if(bk<17&&pk>25){signals.push({label:'Good discipline vs K pitcher ('+bk.toFixed(1)+'% K)',good:true});score+=8;}
-  }
-
-  // SwStr
-  var psw=pitcher.swstr;
-  if(psw!=null&&!isNaN(psw)){
-    if(psw>=18){signals.push({label:'Elite whiff pitcher (SwStr '+psw.toFixed(1)+'%)',good:false});score-=8;}
-    else if(psw<=11){signals.push({label:'Hittable pitcher (SwStr '+psw.toFixed(1)+'%)',good:true});score+=6;}
-  }
-
-  return {score:Math.max(0,Math.min(100,Math.round(score))), signals:signals};
-}
-
-// ── TAB NAVIGATION ────────────────────────────────────────────────
 function go(name){
-  var all=['dashboard','matchups','slate','props','batters','pitchers','daynight','framework','parks'];
+  var all=['picks','lineups','slate','props','batters','pitchers','daynight','framework','parks'];
   for(var i=0;i<all.length;i++){
     var tc=document.getElementById('tc-'+all[i]);
     var nb=document.getElementById('btn-'+all[i]);
     if(tc) tc.className='tc'+(all[i]===name?' on':'');
     if(nb) nb.className='nb'+(all[i]===name?' on':'');
   }
-  if(name==='matchups')  buildMatchups();
-  if(name==='slate')     buildSlate();
-  if(name==='props')     buildProps();
-  if(name==='batters')   buildBatters();
-  if(name==='pitchers')  buildPitchers();
-  if(name==='daynight')  buildDN();
-  if(name==='parks')     buildParks();
-  if(name==='dashboard') buildDash();
+  if(name==='picks')    buildPicks();
+  if(name==='lineups')  buildLineups();
+  if(name==='slate')    buildSlate();
+  if(name==='props')    buildProps();
+  if(name==='batters')  buildBatters();
+  if(name==='pitchers') buildPitchers();
+  if(name==='daynight') buildDN();
+  if(name==='parks')    buildParks();
 }
 
-// ── DASHBOARD ─────────────────────────────────────────────────────
-function buildDash(){
-  var topB = BATTERS.slice(0,5);
-  var topP = PITCHERS.slice(0,5);
-  var html = '<div><div style="font-size:12px;font-weight:700;color:#4ade80;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">&#127955; Top Batter Targets</div>';
-  topB.forEach(function(b){
-    var sc=b.batter_score||0;
-    html+='<div style="background:#0f1923;border:1px solid #1e3a2a;border-radius:12px;padding:14px;margin-bottom:10px">'
-      +'<div style="font-weight:700;color:#f1f5f9;font-size:14px">'+b.name+'</div>'
-      +'<div style="color:#64748b;font-size:11px;margin:3px 0 8px">'+b.team+' &middot; Bats '+(b.hand||'—')+' &middot; HR Target</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:12px;margin-bottom:8px">'
-      +'<div style="color:#94a3b8">Barrel%: <span style="color:#4ade80;font-weight:600">'+f(b.barrel_pct,1)+'%</span></div>'
-      +'<div style="color:#94a3b8">EV: <span style="color:#4ade80;font-weight:600">'+f(b.avg_hit_speed,1)+' mph</span></div>'
-      +'<div style="color:#94a3b8">ISO: <span style="color:#60a5fa;font-weight:600">'+f(b.iso,3)+'</span></div>'
-      +'<div style="color:#94a3b8">wOBA: <span style="color:#60a5fa;font-weight:600">'+f(b.woba,3)+'</span></div>'
-      +'</div>'+bar(sc)+'</div>';
+// ── DAILY PICKS ───────────────────────────────────────────────────
+function buildPicks(){
+  var el = document.getElementById('picks-content');
+  if(!PICKS || PICKS.length===0){
+    el.innerHTML='<div style="background:#0f1923;border:1px solid #1e293b;border-radius:12px;padding:24px;text-align:center;color:#64748b">'
+      +'<div style="font-size:24px;margin-bottom:8px">&#128197;</div>'
+      +'<div style="font-size:14px;font-weight:600;color:#f1f5f9;margin-bottom:4px">No picks yet</div>'
+      +'<div style="font-size:12px">Lineups are typically posted 2-3 hours before first pitch. Check back later today or click Refresh Data.</div>'
+      +'</div>';
+    return;
+  }
+
+  var html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px">';
+  PICKS.forEach(function(pick){
+    var conf = pick.confidence || 'MODERATE';
+    var cls  = conf==='STRONG'?'strong':conf==='GOOD'?'good':'moderate';
+    var cc   = conf==='STRONG'?'#4ade80':conf==='GOOD'?'#60a5fa':'#facc15';
+    var cb   = conf==='STRONG'?'#1a3a2a':conf==='GOOD'?'#1a2a3a':'#2a2a1a';
+    var ms   = pick.matchup_score || 0;
+    var sigs = (pick.signals||[]).filter(function(s){return s.good===true;}).slice(0,3);
+
+    var propHtml = '';
+    if(pick.prop_line!==null && pick.prop_odds!==null){
+      var oc = pick.prop_odds>0?'#4ade80':pick.prop_odds<-150?'#f87171':'#facc15';
+      var os = pick.prop_odds>0?'+'+pick.prop_odds:''+pick.prop_odds;
+      propHtml = '<div style="background:#060d14;border-radius:6px;padding:8px 10px;margin-top:8px;display:flex;justify-content:space-between;align-items:center">'
+        +'<span style="font-size:11px;color:#64748b">HR Prop Line</span>'
+        +'<span style="font-size:13px;font-weight:700;color:#facc15">O'+pick.prop_line+'</span>'
+        +'<span style="font-size:13px;font-weight:700;color:'+oc+'">'+os+'</span>'
+        +'<span style="font-size:10px;color:#64748b">'+pick.prop_book+'</span>'
+        +'</div>';
+    }
+
+    html += '<div class="pick-card '+cls+'">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">'
+      +'<div>'
+      +'<div style="font-size:15px;font-weight:700;color:#f1f5f9">'+pick.name+'</div>'
+      +'<div style="font-size:11px;color:#64748b;margin-top:2px">'+pick.team+' vs '+pick.pitcher+' ('+pick.pitcher_hand+'HP) &middot; '+pick.game+'</div>'
+      +'</div>'
+      +'<span style="background:'+cb+';color:'+cc+';border:1px solid '+cc+';padding:3px 10px;border-radius:16px;font-size:11px;font-weight:700">'+conf+'</span>'
+      +'</div>'
+      +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">'
+      +'<div style="background:#060d14;border-radius:6px;padding:8px;text-align:center"><div style="font-size:10px;color:#64748b">Match</div><div style="font-size:16px;font-weight:700;color:'+cc+'">'+ms+'</div></div>'
+      +'<div style="background:#060d14;border-radius:6px;padding:8px;text-align:center"><div style="font-size:10px;color:#64748b">Barrel%</div><div style="font-size:16px;font-weight:700;color:'+clr(pick.barrel_pct,15,8)+'">'+f(pick.barrel_pct,1)+'%</div></div>'
+      +'<div style="background:#060d14;border-radius:6px;padding:8px;text-align:center"><div style="font-size:10px;color:#64748b">EV</div><div style="font-size:16px;font-weight:700;color:'+clr(pick.avg_hit_speed,91,87)+'">'+f(pick.avg_hit_speed,1)+'</div></div>'
+      +'<div style="background:#060d14;border-radius:6px;padding:8px;text-align:center"><div style="font-size:10px;color:#64748b">Park</div><div style="font-size:14px;font-weight:700">'+parkBadge(pick.park_factor||1.0, pick.park_friendly)+'</div></div>'
+      +'</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px">'+sigs.map(sigPill).join('')+'</div>'
+      + propHtml
+      +'</div>';
   });
-  html+='</div><div><div style="font-size:12px;font-weight:700;color:#f87171;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">&#9918; Most Vulnerable Pitchers</div>';
-  topP.forEach(function(p){
-    var sc=p.vuln_score||0;
-    html+='<div style="background:#0f1923;border:1px solid #3a1a1a;border-radius:12px;padding:14px;margin-bottom:10px">'
-      +'<div style="font-weight:700;color:#f1f5f9;font-size:14px">'+p.name+'</div>'
-      +'<div style="color:#64748b;font-size:11px;margin:3px 0 8px">'+p.team+' &middot; Throws '+(p.hand||'R')+' &middot; '+(p.role||'SP')+' &middot; Exploit</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:12px;margin-bottom:8px">'
-      +'<div style="color:#94a3b8">HR/9: <span style="color:#f87171;font-weight:600">'+f(p.hr9,2)+'</span></div>'
-      +'<div style="color:#94a3b8">Barrel%: <span style="color:#f87171;font-weight:600">'+f(p.barrel_pct,1)+'%</span></div>'
-      +'<div style="color:#94a3b8">Risk RHB: <span style="color:#facc15;font-weight:600">'+f(p.hr_risk_rhb,2)+'</span></div>'
-      +'<div style="color:#94a3b8">Risk LHB: <span style="color:#facc15;font-weight:600">'+f(p.hr_risk_lhb,2)+'</span></div>'
-      +'</div>'+bar(sc)+'</div>';
-  });
-  html+='</div>';
-  document.getElementById('dash-cards').innerHTML=html;
+  html += '</div>';
+  el.innerHTML = html;
 }
 
-// ── MATCHUPS ──────────────────────────────────────────────────────
-function buildMatchups(){
-  var html='';
-  PITCHERS.slice(0,12).forEach(function(pit){
-    var scored=[];
-    BATTERS.forEach(function(bat){
-      var res=calcMatchup(bat,pit);
-      scored.push({score:res.score,signals:res.signals,bat:bat});
-    });
-    scored.sort(function(a,b){return b.score-a.score;});
+// ── TONIGHT'S LINEUPS ─────────────────────────────────────────────
+function buildLineups(){
+  var el = document.getElementById('lineups-content');
+  if(!MATCHUPS || MATCHUPS.length===0){
+    el.innerHTML='<div style="background:#0f1923;border:1px solid #1e293b;border-radius:12px;padding:24px;text-align:center;color:#64748b">'
+      +'<div style="font-size:24px;margin-bottom:8px">&#128197;</div>'
+      +'<div style="font-size:14px;font-weight:600;color:#f1f5f9;margin-bottom:4px">Lineups not yet available</div>'
+      +'<div style="font-size:12px">Confirmed lineups are posted 2-3 hours before first pitch. Click Refresh Data after 1pm ET on game days.</div>'
+      +'</div>';
+    return;
+  }
 
-    var rcFn=function(v){return v>=1.5?'#f87171':v<1.0?'#4ade80':'#facc15';};
-    var eraCol=pit.era>4.0?'#f87171':pit.era<3.0?'#4ade80':'#f1f5f9';
+  var html = '';
+  MATCHUPS.forEach(function(m){
+    var hp = m.home_pitcher || {};
+    var ap = m.away_pitcher || {};
+    var rcFn = function(v){ return v>=1.5?'#f87171':v<1.0?'#4ade80':'#facc15'; };
 
-    html+='<div style="background:#0a1628;border:1px solid #1e293b;border-radius:14px;padding:20px;margin-bottom:24px">'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">'
-      +'<div><div style="font-size:16px;font-weight:700;color:#f1f5f9">'+pit.name+'</div>'
-      +'<div style="font-size:12px;color:#64748b;margin-top:2px">'+pit.team+' &middot; Throws '+(pit.hand||'R')+' &middot; '+(pit.role||'SP')+'</div></div>'
-      +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
-      +'<div style="text-align:center;background:#1e293b;border-radius:8px;padding:8px 14px"><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">ERA</div><div style="font-size:18px;font-weight:700;color:'+eraCol+'">'+f(pit.era,2)+'</div></div>'
-      +'<div style="text-align:center;background:#1e293b;border-radius:8px;padding:8px 14px"><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">HR Risk RHB</div><div style="font-size:18px;font-weight:700;color:'+rcFn(pit.hr_risk_rhb)+'">'+f(pit.hr_risk_rhb,2)+'</div></div>'
-      +'<div style="text-align:center;background:#1e293b;border-radius:8px;padding:8px 14px"><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">HR Risk LHB</div><div style="font-size:18px;font-weight:700;color:'+rcFn(pit.hr_risk_lhb)+'">'+f(pit.hr_risk_lhb,2)+'</div></div>'
-      +'<div style="text-align:center;background:#1e293b;border-radius:8px;padding:8px 14px"><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">Vuln</div>'+bar(pit.vuln_score||0,60)+'</div>'
+    html += '<div class="game-block">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">'
+      +'<div>'
+      +'<div style="font-size:16px;font-weight:700;color:#f1f5f9">'+m.game+'</div>'
+      +'<div style="font-size:12px;color:#64748b;margin-top:2px">'+m.venue+' &nbsp;&bull;&nbsp; '+parkBadge(m.park_factor||1.0, m.park_friendly)+'</div>'
+      +'</div>'
+      +'<span style="background:#1e293b;color:#94a3b8;padding:3px 10px;border-radius:16px;font-size:11px">'+m.status+'</span>'
+      +'</div>'
+
+      +'<div class="lineup-grid">'
+
+      // Away batters vs Home pitcher
+      +'<div>'
+      +'<div style="background:#0f1923;border:1px solid #1e293b;border-radius:10px;padding:12px;margin-bottom:10px">'
+      +'<div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Home Pitcher</div>'
+      +'<div style="font-size:14px;font-weight:700;color:#f1f5f9">'+(hp.name||'TBD')+'</div>'
+      +'<div style="font-size:11px;color:#64748b;margin-top:2px">'+(hp.team||'')+'&nbsp;&middot;&nbsp;Throws '+(hp.hand||'R')+'</div>'
+      +'<div style="display:flex;gap:10px;margin-top:8px;font-size:12px">'
+      +'<span style="color:#94a3b8">ERA: <span style="color:'+clr(hp.era,999,4.0)+'">'+f(hp.era,2)+'</span></span>'
+      +'<span style="color:#94a3b8">HR Risk RHB: <span style="color:'+rcFn(hp.hr_risk_rhb)+'">'+f(hp.hr_risk_rhb,2)+'</span></span>'
+      +'<span style="color:#94a3b8">HR Risk LHB: <span style="color:'+rcFn(hp.hr_risk_lhb)+'">'+f(hp.hr_risk_lhb,2)+'</span></span>'
       +'</div></div>'
-      +'<div style="font-size:11px;color:#64748b;margin-bottom:8px">Green = Batter edge &nbsp;&bull;&nbsp; Red = Pitcher edge &nbsp;&bull;&nbsp; Score &ge; 70 = target</div>'
-      +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:900px">'
-      +'<thead><tr style="border-bottom:1px solid #1e293b">'
-      +'<th style="padding:7px 10px;text-align:left;color:#64748b;font-size:10px;text-transform:uppercase;background:#060d14">Batter</th>'
-      +'<th style="padding:7px 10px;text-align:left;color:#64748b;font-size:10px;text-transform:uppercase;background:#060d14">Team</th>'
-      +'<th style="padding:7px 10px;text-align:left;color:#64748b;font-size:10px;text-transform:uppercase;background:#060d14">Platoon</th>'
-      +'<th style="padding:7px 10px;text-align:left;color:#64748b;font-size:10px;text-transform:uppercase;background:#060d14">Barrel%</th>'
-      +'<th style="padding:7px 10px;text-align:left;color:#64748b;font-size:10px;text-transform:uppercase;background:#060d14">EV</th>'
-      +'<th style="padding:7px 10px;text-align:left;color:#64748b;font-size:10px;text-transform:uppercase;background:#060d14">ISO</th>'
-      +'<th style="padding:7px 10px;text-align:left;color:#64748b;font-size:10px;text-transform:uppercase;background:#060d14">BA</th>'
-      +'<th style="padding:7px 10px;text-align:left;color:#64748b;font-size:10px;text-transform:uppercase;background:#060d14">SLG</th>'
-      +'<th style="padding:7px 10px;text-align:left;color:#64748b;font-size:10px;text-transform:uppercase;background:#060d14">wOBA</th>'
-      +'<th style="padding:7px 10px;text-align:left;color:#64748b;font-size:10px;text-transform:uppercase;background:#060d14">K%</th>'
-      +'<th style="padding:7px 10px;text-align:left;color:#64748b;font-size:10px;text-transform:uppercase;background:#060d14">Signals</th>'
-      +'<th style="padding:7px 10px;text-align:left;color:#64748b;font-size:10px;text-transform:uppercase;background:#060d14">Matchup</th>'
-      +'</tr></thead><tbody>';
+      +'<div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">'+m.away_abb+' Batting Order</div>'
+      + buildLineupTable(m.away_batters, hp)
+      +'</div>'
 
-    scored.slice(0,10).forEach(function(item){
-      var bat=item.bat, ms=item.score, sigs=item.signals;
-      var mu_col=ms>=70?'#4ade80':ms>=55?'#facc15':ms>=40?'#fb923c':'#f87171';
-      var mu_bg =ms>=70?'#1a3a2a':ms>=55?'#2a2a1a':ms>=40?'#2a1a0a':'#3a1a1a';
-      var mu_lbl=ms>=70?'GOOD':ms>=55?'NEUTRAL':ms>=40?'RISKY':'AVOID';
-      var ph=pit.hand||'R', bh=bat.hand||'R';
-      var plat_good=(bh==='L'||bh==='S')&&ph==='R'||(bh==='R'||bh==='S')&&ph==='L';
-      var plat_col=plat_good?'#4ade80':'#f87171';
-      var sig_html=sigs.slice(0,4).map(sigPill).join('');
+      // Home batters vs Away pitcher
+      +'<div>'
+      +'<div style="background:#0f1923;border:1px solid #1e293b;border-radius:10px;padding:12px;margin-bottom:10px">'
+      +'<div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Away Pitcher</div>'
+      +'<div style="font-size:14px;font-weight:700;color:#f1f5f9">'+(ap.name||'TBD')+'</div>'
+      +'<div style="font-size:11px;color:#64748b;margin-top:2px">'+(ap.team||'')+'&nbsp;&middot;&nbsp;Throws '+(ap.hand||'R')+'</div>'
+      +'<div style="display:flex;gap:10px;margin-top:8px;font-size:12px">'
+      +'<span style="color:#94a3b8">ERA: <span style="color:'+clr(ap.era,999,4.0)+'">'+f(ap.era,2)+'</span></span>'
+      +'<span style="color:#94a3b8">HR Risk RHB: <span style="color:'+rcFn(ap.hr_risk_rhb)+'">'+f(ap.hr_risk_rhb,2)+'</span></span>'
+      +'<span style="color:#94a3b8">HR Risk LHB: <span style="color:'+rcFn(ap.hr_risk_lhb)+'">'+f(ap.hr_risk_lhb,2)+'</span></span>'
+      +'</div></div>'
+      +'<div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">'+m.home_abb+' Batting Order</div>'
+      + buildLineupTable(m.home_batters, ap)
+      +'</div>'
 
-      html+='<tr>'
-        +'<td style="font-weight:600;color:#f1f5f9">'+bat.name+'</td>'
-        +'<td><span style="background:#1e293b;color:#94a3b8;padding:1px 5px;border-radius:3px;font-size:10px">'+bat.team+'</span></td>'
-        +'<td style="color:'+plat_col+';font-weight:600">'+bh+' vs '+ph+'HP</td>'
-        +'<td style="color:'+clr(bat.barrel_pct,15,8)+'">'+f(bat.barrel_pct,1)+'%</td>'
-        +'<td style="color:'+clr(bat.avg_hit_speed,91,87)+'">'+f(bat.avg_hit_speed,1)+'</td>'
-        +'<td style="color:'+clr(bat.iso,0.220,0.150)+'">'+f(bat.iso,3)+'</td>'
-        +'<td style="color:'+clr(bat.avg,0.285,0.250)+'">'+f(bat.avg,3)+'</td>'
-        +'<td style="color:'+clr(bat.slg,0.480,0.400)+'">'+f(bat.slg,3)+'</td>'
-        +'<td style="color:'+clr(bat.woba,0.370,0.320)+'">'+f(bat.woba,3)+'</td>'
-        +'<td style="color:'+clr(bat.k_pct,17,25,true)+'">'+f(bat.k_pct,1)+'%</td>'
-        +'<td><div style="display:flex;flex-wrap:wrap;gap:2px">'+sig_html+'</div></td>'
-        +'<td><span style="background:'+mu_bg+';color:'+mu_col+';border:1px solid '+mu_col+';padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">'+ms+' &mdash; '+mu_lbl+'</span></td>'
-        +'</tr>';
-    });
-    html+='</tbody></table></div></div>';
+      +'</div></div>';
   });
-  document.getElementById('matchup-content').innerHTML=html;
+  el.innerHTML = html;
 }
 
-// ── SLATE ─────────────────────────────────────────────────────────
+function buildLineupTable(batters, pitcher){
+  if(!batters || batters.length===0){
+    return '<div style="color:#64748b;font-size:12px;padding:12px;text-align:center;background:#0f1923;border-radius:8px">Lineup not yet posted</div>';
+  }
+  var rows = '';
+  batters.forEach(function(bat){
+    var ms   = bat.matchup_score || 0;
+    var sigs = (bat.signals||[]).slice(0,2).map(sigPill).join('');
+    var ph   = pitcher.hand || 'R';
+    var bh   = bat.hand || 'R';
+    var plat = (bh==='L'||bh==='S')&&ph==='R'||(bh==='R'||bh==='S')&&ph==='L';
+    rows += '<tr>'
+      +'<td style="color:#64748b;font-size:10px">'+(bat.order||'')+'</td>'
+      +'<td style="font-weight:600;color:#f1f5f9">'+bat.name+'</td>'
+      +'<td style="color:#94a3b8;font-size:10px">'+(bat.position||'')+'</td>'
+      +'<td style="color:'+(plat?'#4ade80':'#f87171')+';font-weight:600;font-size:10px">'+bh+'</td>'
+      +'<td style="color:'+clr(bat.barrel_pct,15,8)+'">'+f(bat.barrel_pct,1)+'%</td>'
+      +'<td style="color:'+clr(bat.avg_hit_speed,91,87)+'">'+f(bat.avg_hit_speed,1)+'</td>'
+      +'<td style="color:'+clr(bat.iso,0.220,0.150)+'">'+f(bat.iso,3)+'</td>'
+      +'<td><div style="display:flex;flex-wrap:wrap;gap:2px">'+sigs+'</div></td>'
+      +'<td>'+muBadge(ms)+'</td>'
+      +'</tr>';
+  });
+  return '<div style="overflow-x:auto;border-radius:8px;border:1px solid #1e293b">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:500px">'
+    +'<thead><tr style="border-bottom:1px solid #1e293b">'
+    +'<th style="padding:6px 8px;background:#060d14;color:#64748b;font-size:10px;text-transform:uppercase">#</th>'
+    +'<th style="padding:6px 8px;background:#060d14;color:#64748b;font-size:10px;text-transform:uppercase">Batter</th>'
+    +'<th style="padding:6px 8px;background:#060d14;color:#64748b;font-size:10px;text-transform:uppercase">Pos</th>'
+    +'<th style="padding:6px 8px;background:#060d14;color:#64748b;font-size:10px;text-transform:uppercase">Hand</th>'
+    +'<th style="padding:6px 8px;background:#060d14;color:#64748b;font-size:10px;text-transform:uppercase">Barrel%</th>'
+    +'<th style="padding:6px 8px;background:#060d14;color:#64748b;font-size:10px;text-transform:uppercase">EV</th>'
+    +'<th style="padding:6px 8px;background:#060d14;color:#64748b;font-size:10px;text-transform:uppercase">ISO</th>'
+    +'<th style="padding:6px 8px;background:#060d14;color:#64748b;font-size:10px;text-transform:uppercase">Signals</th>'
+    +'<th style="padding:6px 8px;background:#060d14;color:#64748b;font-size:10px;text-transform:uppercase">Matchup</th>'
+    +'</tr></thead>'
+    +'<tbody>'+rows+'</tbody></table></div>';
+}
+
+// ── SCHEDULE ──────────────────────────────────────────────────────
 function buildSlate(){
   if(!GAMES||GAMES.length===0){
-    document.getElementById('slate-body').innerHTML='<tr><td colspan="6" style="text-align:center;color:#64748b;padding:16px">No games today or schedule unavailable</td></tr>';
+    document.getElementById('slate-body').innerHTML='<tr><td colspan="6" style="text-align:center;color:#64748b;padding:16px">No games today</td></tr>';
     return;
   }
   var rows='';
@@ -463,10 +436,11 @@ function buildSlate(){
   document.getElementById('slate-body').innerHTML=rows;
 }
 
-// ── PROPS ─────────────────────────────────────────────────────────
+// ── LIVE PROPS ────────────────────────────────────────────────────
 function buildProps(){
+  var body=document.getElementById('props-body');
   if(!PROPS||PROPS.length===0){
-    document.getElementById('props-body').innerHTML='<tr><td colspan="5" style="text-align:center;color:#64748b;padding:16px">No live props &mdash; set ODDS_API_KEY in Render environment variables</td></tr>';
+    body.innerHTML='<tr><td colspan="5" style="text-align:center;color:#64748b;padding:16px">No live props &mdash; add ODDS_API_KEY in Render environment variables</td></tr>';
     return;
   }
   var seen={},rows='';
@@ -483,7 +457,7 @@ function buildProps(){
       +'<td style="color:#64748b;font-size:11px">'+p.book+'</td>'
       +'</tr>';
   });
-  document.getElementById('props-body').innerHTML=rows;
+  body.innerHTML=rows||'<tr><td colspan="5" style="text-align:center;color:#64748b;padding:16px">No HR props found</td></tr>';
 }
 
 // ── BATTERS ───────────────────────────────────────────────────────
@@ -515,15 +489,15 @@ function buildPitchers(){
   PITCHERS.forEach(function(p){
     var vs=p.vuln_score||0;
     var rc=function(v){return v>=1.5?'#f87171':v<1.0?'#4ade80':'#facc15';};
-    var role_col=p.role==='SP'?'#60a5fa':'#c084fc';
-    var role_bg =p.role==='SP'?'#1a2a3a':'#2a1a3a';
-    var era_col =p.era>4.0?'#f87171':p.era<3.0?'#4ade80':'#f1f5f9';
+    var rcol=p.role==='SP'?'#60a5fa':'#c084fc';
+    var rbg=p.role==='SP'?'#1a2a3a':'#2a1a3a';
+    var ec=p.era>4.0?'#f87171':p.era<3.0?'#4ade80':'#f1f5f9';
     rows+='<tr>'
       +'<td style="font-weight:600;color:#f1f5f9">'+p.name+'</td>'
       +'<td><span style="background:#1e293b;color:#94a3b8;padding:1px 5px;border-radius:3px;font-size:10px">'+p.team+'</span></td>'
       +'<td style="color:#94a3b8">'+(p.hand||'R')+'</td>'
-      +'<td><span style="background:'+role_bg+';color:'+role_col+';padding:1px 5px;border-radius:3px;font-size:10px">'+(p.role||'SP')+'</span></td>'
-      +'<td style="color:'+era_col+'">'+f(p.era,2)+'</td>'
+      +'<td><span style="background:'+rbg+';color:'+rcol+';padding:1px 5px;border-radius:3px;font-size:10px">'+(p.role||'SP')+'</span></td>'
+      +'<td style="color:'+ec+'">'+f(p.era,2)+'</td>'
       +'<td>'+f(p.whip,2)+'</td>'
       +'<td>'+f(p.k9,1)+'</td>'
       +'<td style="color:'+rc(p.hr9)+'">'+f(p.hr9,2)+'</td>'
@@ -597,20 +571,18 @@ function buildParks(){
   document.getElementById('parks-pitcher').innerHTML=pHTML;
 }
 
-// ── REFRESH BUTTON ────────────────────────────────────────────────
 function refreshData(){
-  fetch('/api/refresh',{method:'POST'})
-    .then(function(){
-      setTimeout(function(){
-        window.location.reload();
-      }, 3000);
-    });
+  fetch('/api/refresh',{method:'POST'}).then(function(){
+    setTimeout(function(){ window.location.reload(); }, 4000);
+  });
 }
 
-// ── INIT ──────────────────────────────────────────────────────────
-buildDash();
+// Init
+buildPicks();
 buildSlate();
 buildProps();
+buildBatters();
+buildPitchers();
 </script>
 </body>
 </html>
