@@ -13,6 +13,17 @@ app = Flask(__name__)
 
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY", "")
 
+# Debug: test odds_free import directly
+try:
+    from odds_free import get_free_props
+    print("[STARTUP] odds_free imported successfully")
+    test = get_free_props()
+    print(f"[STARTUP] Free props test returned: {len(test)} props")
+except Exception as e:
+    import traceback
+    print(f"[STARTUP] odds_free import/run failed: {e}")
+    traceback.print_exc()
+
 # Simple cache
 _data = None
 _updated = None
