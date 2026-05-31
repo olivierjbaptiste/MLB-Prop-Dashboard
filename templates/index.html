@@ -339,7 +339,7 @@ tr:last-child td{border-bottom:none}
   <div class="section-hdr"><h2>Batter Power Profiles</h2><span class="badge" id="batter-count">0</span></div>
   <div class="section-sub">Form-adjusted score — hot streaks boost ranking, cold streaks drop it — Statcast overlay for top hitters</div>
   <div class="tw"><table>
-    <thead><tr><th>Player</th><th>Team</th><th>H</th><th>Form</th><th>L14 AVG</th><th>L14 SLG</th><th>L14 HR</th><th>AVG</th><th>SLG</th><th>HR</th><th>Barrel%</th><th>EV</th><th>ISO</th><th>K%</th><th>Score</th></tr></thead>
+    <thead><tr><th>Player</th><th>Team</th><th>H</th><th>Form</th><th>Near HR</th><th>L14 AVG</th><th>L14 SLG</th><th>L14 HR</th><th>AVG</th><th>SLG</th><th>HR</th><th>Barrel%</th><th>EV</th><th>ISO</th><th>K%</th><th>Score</th></tr></thead>
     <tbody id="batters-body"></tbody>
   </table></div>
 </div>
@@ -592,6 +592,12 @@ tr:last-child td{border-bottom:none}
     </table>
   </div>
 
+  <!-- Signal breakdown -->
+  <div class="alert-box" style="margin-top:16px">
+    <div class="alert-title">&#128202; Betting Record by Signal Type</div>
+    <div id="signal-breakdown"></div>
+  </div>
+
   <div style="text-align:right;margin-top:8px">
     <button onclick="clearResults()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:4px;cursor:pointer;font-size:10px;font-family:inherit">Clear All Results</button>
   </div>
@@ -795,6 +801,11 @@ function buildPicks(){
       var formDesc = pick.form_adj>=15?'elite streak':pick.form_adj>=8?'hot last 14d':pick.form_adj>=4?'warming up':pick.form_adj<=-8?'cold last 14d':'cooling off';
       formHtml=(pick.form_emoji||'')+' '+(pick.form_label||'')+' ('+formDesc+(pick.hr_14d!=null?' &bull; '+pick.hr_14d+' HR L14':'')+')';
     }
+    var nearHrHtml = '';
+    if(pick.near_hr != null && pick.near_hr >= 3){
+      var nhc = pick.near_hr>=8?'var(--green)':pick.near_hr>=5?'var(--gold)':'var(--muted)';
+      nearHrHtml = '<span style="color:'+nhc+';font-size:9px;font-weight:700;background:rgba(255,255,255,0.05);padding:1px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.1)"> &#128308; '+pick.near_hr+' Near HR</span>';
+    }
     html+='<div class="pick-card '+cls+'">'
       +'<div class="pick-header" style="display:flex;gap:10px;align-items:flex-start">'
       +'<div style="display:flex;gap:10px;align-items:center;flex:1">'
@@ -802,6 +813,7 @@ function buildPicks(){
       +'<div><div class="pick-name">'+pick.name+'</div>'
       +'<div class="pick-meta" style="margin-top:3px">'
       +'<span style="color:var(--white);font-weight:700">'+pick.team+'</span>'
+      +nearHrHtml
       +' <span style="color:var(--muted)">vs</span> '
       +'<span style="color:var(--white);font-weight:700">'+pick.pitcher+'</span>'
       +' <span style="color:var(--muted)">('+pick.pitcher_hand+'HP)</span>'
@@ -967,11 +979,14 @@ function buildBatters(){
     var bPhoto = b.headshot
       ? '<img src="'+b.headshot+'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid var(--border);vertical-align:middle;margin-right:6px" onerror="this.style.display='none'">'
       : '';
+    var nhCol = b.near_hr>=8?'var(--green)':b.near_hr>=5?'var(--gold)':'var(--muted)';
+    var nhStr = b.near_hr!=null ? '<span style="color:'+nhCol+';font-weight:800">'+b.near_hr+'</span>' : '—';
     rows+='<tr>'
       +'<td style="font-weight:800;color:var(--white)">'+bPhoto+b.name+'</td>'
       +'<td><span class="badge-gray">'+b.team+'</span></td>'
       +'<td style="color:var(--muted)">'+b.hand+'</td>'
       +'<td style="color:'+fc+';font-weight:700">'+(b.form_emoji||'')+' '+(b.form_label||'—')+'</td>'
+      +'<td>'+nhStr+'</td>'
       +'<td style="color:'+avg14col+'">'+f(b.avg_14d,3)+'</td>'
       +'<td style="color:'+slg14col+'">'+f(b.slg_14d,3)+'</td>'
       +'<td style="color:'+(b.hr_14d>=3?'var(--green)':b.hr_14d===0?'var(--red)':'var(--white)')+'">'+((b.hr_14d!=null)?b.hr_14d:'—')+'</td>'
@@ -1307,6 +1322,29 @@ function buildResults(){
       '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">No results yet — log your first pick above</td></tr>';
     return;
   }
+
+  // Signal breakdown by confidence tier
+  var tiers = ['STRONG','GOOD','MODERATE'];
+  var breakdownHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:10px">';
+  tiers.forEach(function(tier){
+    var tResults = results.filter(function(r){ return r.confidence===tier; });
+    var tWins    = tResults.filter(function(r){ return r.outcome==='WIN'; });
+    var tLosses  = tResults.filter(function(r){ return r.outcome==='LOSS'; });
+    var tPL      = tResults.reduce(function(a,r){ return a+(r.pl||0); },0);
+    var tWR      = tResults.length>0 ? Math.round(tWins.length/(tWins.length+tLosses.length||1)*100) : 0;
+    var cls2     = tier==='STRONG'?'badge-green':tier==='GOOD'?'badge-blue':'badge-gold';
+    var plC      = tPL>=0?'var(--green)':'var(--red)';
+    var plS      = tPL>=0?'+':'';
+    breakdownHtml += '<div class="alert-box" style="text-align:center">'
+      +'<div style="margin-bottom:6px"><span class="'+cls2+'">'+tier+'</span></div>'
+      +'<div style="font-size:18px;font-weight:800;color:var(--white)">'+tWins.length+'-'+tLosses.length+'</div>'
+      +'<div style="font-size:11px;color:var(--muted)">'+tWR+'% win rate</div>'
+      +'<div style="font-size:13px;font-weight:700;color:'+plC+'">'+plS+tPL.toFixed(1)+'u P&L</div>'
+      +'</div>';
+  });
+  breakdownHtml += '</div>';
+  var sbEl = document.getElementById('signal-breakdown');
+  if(sbEl) sbEl.innerHTML = results.length>0 ? breakdownHtml : '<div style="font-size:11px;color:var(--muted)">Log picks to see signal breakdown</div>';
 
   var rows = '';
   results.forEach(function(r){

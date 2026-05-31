@@ -339,6 +339,16 @@ def matchup_score(batter, pitcher):
         if p_sw >= 18:   signals.append({"label": f"Elite whiff pitcher (SwStr {p_sw:.1f}%)", "good": False}); score -= 8
         elif p_sw <= 11: signals.append({"label": f"Hittable pitcher (SwStr {p_sw:.1f}%)",   "good": True});  score += 6
 
+    # Near HR count signal
+    near_hr = batter.get('near_hr')
+    if near_hr is not None:
+        if near_hr >= 8:
+            signals.append({"label": f"Due — {near_hr} near HRs (390ft+ outs)", "good": True}); score += 12
+        elif near_hr >= 5:
+            signals.append({"label": f"{near_hr} near HRs this season", "good": True}); score += 6
+        elif near_hr >= 3:
+            signals.append({"label": f"{near_hr} near HRs this season", "good": None})
+
     # Velocity tracker signal
     drop = velo_drop(pitcher)
     if drop is not None:
@@ -615,6 +625,7 @@ def load_live_batters():
                     # Statcast overlay for known players
                     "barrel_pct":      STATCAST_OVERLAY.get(name, {}).get("barrel_pct"),
                     "avg_hit_speed":   STATCAST_OVERLAY.get(name, {}).get("avg_hit_speed"),
+                    "near_hr":         STATCAST_OVERLAY.get(name, {}).get("near_hr"),
                     # Form overlay
                     "avg_14d":         FORM_OVERLAY.get(name, {}).get("avg_14d"),
                     "slg_14d":         FORM_OVERLAY.get(name, {}).get("slg_14d"),
@@ -928,6 +939,7 @@ def get_top_picks(matchups, props):
                     "hr_14d":      bat.get('hr_14d'),
                     "weather":     m.get('weather'),
                     "headshot":    bat.get('headshot') or get_headshot_url(bat.get('name','')),
+                    "near_hr":     bat.get('near_hr'),
                 })
 
     picks.sort(key=lambda x: (
@@ -992,6 +1004,9 @@ def build_batters():
         # Add headshot if not already set
         if not bat.get('headshot'):
             bat['headshot'] = get_headshot_url(bat.get('name',''))
+        # Add near HR from statcast overlay if not set
+        if not bat.get('near_hr'):
+            bat['near_hr'] = STATCAST_OVERLAY.get(bat.get('name',''), {}).get('near_hr')
         batters.append(bat)
     return sorted(batters, key=lambda x: x.get('batter_score_with_form', 0), reverse=True)
 
