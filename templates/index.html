@@ -741,7 +741,7 @@ function buildPicks(){
     var now = new Date();
     var hour = now.getHours();
     var msg = hour >= 18
-      ? '<div class="empty-state"><div class="icon">&#9917;</div><h3>Games In Progress</h3><p>Today&#39;s picks were generated pre-game. Click Refresh to reload, or check back tomorrow morning for tomorrow&#39;s picks.</p></div>'
+      ? '<div class="empty-state"><div class="icon">&#9917;</div><h3>Games In Progress</h3><p>Pre-game picks were generated earlier. Click Refresh or check back tomorrow morning for new picks.</p></div>'
       : '<div class="empty-state"><div class="icon">&#128197;</div><h3>No picks yet today</h3><p>Lineups post 2-3 hours before first pitch. Click Refresh after 1pm ET.</p></div>';
     el.innerHTML = msg;
     return;
