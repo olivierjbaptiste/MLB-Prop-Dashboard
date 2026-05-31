@@ -547,6 +547,14 @@ tr:last-child td{border-bottom:none}
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px" id="results-summary"></div>
 
   <!-- Add manual pick -->
+  <!-- Yesterday's auto-checker -->
+  <div class="alert-box" style="margin-bottom:14px">
+    <div class="alert-title">&#9889; Yesterday's Results — Auto Check</div>
+    <div style="font-size:11px;color:var(--muted);margin:8px 0">Check which of your logged picks hit yesterday based on MLB results.</div>
+    <button onclick="checkYesterday()" style="background:rgba(34,197,94,0.15);border:1px solid var(--green2);color:var(--green);padding:7px 16px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:800;font-family:inherit">&#9889; Check Yesterday's Results</button>
+    <div id="yesterday-output" style="margin-top:10px"></div>
+  </div>
+
   <div class="alert-box" style="margin-bottom:16px">
     <div class="alert-title">&#10133; Log a Pick Result</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin-top:10px;align-items:end;flex-wrap:wrap">
@@ -601,6 +609,8 @@ var DN       = RAW.daynight  || [];
 var PARKS    = RAW.parks     || {};
 var MATCHUPS = RAW.matchups  || [];
 var PICKS    = RAW.top_picks || [];
+var WEEK     = RAW.week_schedule     || [];
+var YESTERDAY= RAW.yesterday_results || [];
 
 // ── INIT HEADER STATS ─────────────────────────────────────────────
 document.getElementById('stat-picks').textContent    = PICKS.length;
@@ -1320,35 +1330,60 @@ function buildResults(){
 // ── ROTATION ──────────────────────────────────────────────────────
 function buildRotation(){
   var el = document.getElementById('rotation-content');
-  // Build rotation from games data + probable pitchers
-  if(!GAMES || GAMES.length === 0){
-    el.innerHTML = '<div class="empty-state"><div class="icon">&#128197;</div><h3>No games scheduled</h3><p>Check back on game days</p></div>';
+  var source = WEEK.length > 0 ? WEEK : GAMES.map(function(g){
+    return Object.assign({}, g, {date_label: 'Today'});
+  });
+  if(!source || source.length === 0){
+    el.innerHTML = '<div class="empty-state"><div class="icon">&#128197;</div><h3>No schedule available</h3><p>Check back tomorrow</p></div>';
     return;
   }
-  var html = '<div class="tw"><table><thead><tr>'
-    +'<th>Game</th><th>Venue</th><th>Park</th><th>Away Starter</th><th>Home Starter</th><th>Weather</th>'
-    +'</tr></thead><tbody>';
-  GAMES.forEach(function(g){
-    var ap = g.away_pitcher || 'TBD';
-    var hp = g.home_pitcher || 'TBD';
-    var wx = g.weather;
-    var wxStr = wx ? '<span style="color:'+(wx.rating_col||'var(--muted)')+'">'+wx.rating+'</span>' : '—';
-    // Find pitcher vulnerability
-    var apStats = PITCHERS.find(function(p){ return p.name === ap; });
-    var hpStats = PITCHERS.find(function(p){ return p.name === hp; });
-    var apVuln = apStats ? '<span style="font-size:9px;color:'+rcFn(apStats.hr9)+'"> HR/9:'+f(apStats.hr9,2)+'</span>' : '';
-    var hpVuln = hpStats ? '<span style="font-size:9px;color:'+rcFn(hpStats.hr9)+'"> HR/9:'+f(hpStats.hr9,2)+'</span>' : '';
-    html += '<tr>'
-      +'<td style="font-weight:800;color:var(--white)">'+g.away_abb+' @ '+g.home_abb+'</td>'
-      +'<td style="color:var(--muted);font-size:11px">'+g.venue+'</td>'
-      +'<td>'+parkBadge(g.park_factor,g.park_friendly)+'</td>'
-      +'<td style="color:var(--blue)">'+ap+apVuln+'</td>'
-      +'<td style="color:var(--green)">'+hp+hpVuln+'</td>'
-      +'<td>'+wxStr+'</td>'
-      +'</tr>';
+
+  // Group by date
+  var byDate = {};
+  source.forEach(function(g){
+    var lbl = g.date_label || 'Today';
+    if(!byDate[lbl]) byDate[lbl] = [];
+    byDate[lbl].push(g);
   });
-  html += '</tbody></table></div>';
-  html += '<div class="info-box" style="margin-top:12px"><strong style="color:var(--white)">How to use:</strong> Find games with vulnerable starters (high HR/9) in HR-friendly parks. Stack batters from that team in the Daily Picks tab.</div>';
+
+  var html = '';
+  Object.keys(byDate).forEach(function(day){
+    var games = byDate[day];
+    html += '<div style="margin-bottom:20px">'
+      +'<div style="font-size:11px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)">'+day+'</div>'
+      +'<div class="tw"><table><thead><tr>'
+      +'<th>Matchup</th><th>Park</th><th>Away Starter</th><th>HR/9</th><th>Velo</th><th>Home Starter</th><th>HR/9</th><th>Velo</th>'
+      +'</tr></thead><tbody>';
+
+    games.forEach(function(g){
+      var ap = g.away_pitcher || 'TBD';
+      var hp = g.home_pitcher || 'TBD';
+      var apStats = PITCHERS.find(function(p){ return p.name===ap; }) || {};
+      var hpStats = PITCHERS.find(function(p){ return p.name===hp; }) || {};
+      var aHr9 = g.away_hr9 != null ? g.away_hr9 : apStats.hr9;
+      var hHr9 = g.home_hr9 != null ? g.home_hr9 : hpStats.hr9;
+      var aVelo = g.away_velo || apStats.velo_label || '—';
+      var hVelo = g.home_velo || hpStats.velo_label || '—';
+      var aVC = g.away_velo_col || apStats.velo_col || 'var(--muted)';
+      var hVC = g.home_velo_col || hpStats.velo_col || 'var(--muted)';
+
+      html += '<tr>'
+        +'<td style="font-weight:800;color:var(--white)">'+g.away_abb+' @ '+g.home_abb+'</td>'
+        +'<td>'+parkBadge(g.park_factor,g.park_friendly)+'</td>'
+        +'<td style="color:var(--blue)">'+ap+'</td>'
+        +'<td style="color:'+rcFn(aHr9)+'">'+f(aHr9,2)+'</td>'
+        +'<td style="color:'+aVC+';font-size:10px">'+aVelo+'</td>'
+        +'<td style="color:var(--green)">'+hp+'</td>'
+        +'<td style="color:'+rcFn(hHr9)+'">'+f(hHr9,2)+'</td>'
+        +'<td style="color:'+hVC+';font-size:10px">'+hVelo+'</td>'
+        +'</tr>';
+    });
+    html += '</tbody></table></div></div>';
+  });
+
+  html += '<div class="info-box"><strong style="color:var(--white)">How to use:</strong> '
+    +'Red HR/9 values = vulnerable pitchers. Find those games in HR-friendly parks &#128293; '
+    +'and stack batters from the opposing team. Plan 2-3 days ahead for the best matchups.</div>';
   el.innerHTML = html;
 }
 
@@ -1380,6 +1415,55 @@ function buildLeaders(){
   });
   document.getElementById('leaders-body').innerHTML = rows ||
     '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:16px">No batter data available</td></tr>';
+}
+
+// ── YESTERDAY AUTO CHECKER ────────────────────────────────────────
+function checkYesterday(){
+  var el = document.getElementById('yesterday-output');
+  el.innerHTML = '<div style="font-size:11px;color:var(--muted)">Checking...</div>';
+
+  if(!YESTERDAY || YESTERDAY.length === 0){
+    el.innerHTML = '<div style="font-size:11px;color:var(--muted)">No completed games found from yesterday. Try refreshing data.</div>';
+    return;
+  }
+
+  var results = getResults();
+  if(results.length === 0){
+    el.innerHTML = '<div style="font-size:11px;color:var(--muted)">No picks logged yet. Log your first pick below then check back tomorrow.</div>';
+    return;
+  }
+
+  // Get yesterday's date string
+  var yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  var yStr = yesterday.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+
+  // Find picks from yesterday
+  var yPicks = results.filter(function(r){ return r.date === yStr; });
+  if(yPicks.length === 0){
+    el.innerHTML = '<div style="font-size:11px;color:var(--muted)">No picks logged for '+yStr+'. Log picks on game day to use auto-check.</div>';
+    return;
+  }
+
+  var html = '<div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">'+yStr+' — '+YESTERDAY.length+' games completed</div>';
+  yPicks.forEach(function(pick){
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">'
+      +'<span style="font-size:12px;font-weight:700;color:var(--white)">'+pick.player+'</span>'
+      +'<div style="display:flex;gap:8px;align-items:center">'
+      +'<span class="badge-gray">'+pick.confidence+'</span>'
+      +'<span style="font-size:11px;color:var(--muted)">Already logged: '
+      +(pick.outcome==='WIN'?'<span style="color:var(--green);font-weight:700">WIN</span>'
+       :pick.outcome==='LOSS'?'<span style="color:var(--red);font-weight:700">LOSS</span>'
+       :'<span style="color:var(--gold);font-weight:700">PUSH</span>')
+      +'</span></div></div>';
+  });
+
+  html += '<div class="info-box" style="margin-top:10px;font-size:10px">'
+    +'&#9432; Full HR data per game requires The Odds API or a paid stats source. '
+    +'For now check your sportsbook app and log results manually below. '
+    +'We show '+YESTERDAY.length+' completed games from yesterday to help you verify.</div>';
+
+  el.innerHTML = html;
 }
 
 function refreshData(){
