@@ -418,7 +418,7 @@ def get_pitcher_stats(name):
 
 
 # MLB player ID lookup for headshots
-# URL: https://img.mlb.com/headshots/current/60x60/{ID}@2x.jpg
+# URL: https://img.mlbstatic.com/mlb-photos/image/upload/.../v1/people/{ID}/headshot/67/current
 PLAYER_IDS = {
     "Aaron Judge":        592450,
     "Shohei Ohtani":      660271,
@@ -463,7 +463,11 @@ PLAYER_IDS = {
 def get_headshot_url(name, player_id=None):
     pid = player_id or PLAYER_IDS.get(name)
     if pid:
-        return f"https://img.mlb.com/headshots/current/60x60/{pid}@2x.jpg"
+        return (
+            "https://img.mlbstatic.com/mlb-photos/image/upload/"
+            "d_people:generic:headshot:67:current.png/w_120,q_auto:best/"
+            f"v1/people/{pid}/headshot/67/current"
+        )
     return None
 
 # Statcast data for top power hitters — overlaid on live roster data
