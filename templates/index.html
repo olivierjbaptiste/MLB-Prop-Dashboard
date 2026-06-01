@@ -305,6 +305,7 @@ tr:last-child td{border-bottom:none}
   <div class="picks-grid" id="picks-content">
     <div class="empty-state"><div class="icon">&#128197;</div><h3>Loading picks...</h3></div>
   </div>
+  <div id="nobet-section" style="margin-top:22px"></div>
 </div>
 
 <!-- LINEUPS -->
@@ -792,7 +793,7 @@ function go(name){
     if(tc) tc.className='tc'+(all[i]===name?' on':'');
     if(nb) nb.className='nb'+(all[i]===name?' on':'');
   }
-  if(name==='picks')       buildPicks();
+  if(name==='picks')       { buildPicks(); buildNoBet(); }
   if(name==='target')      buildTarget();
   if(name==='lineups')     buildLineups();
   if(name==='slate')       buildSlate();
@@ -960,6 +961,48 @@ function buildPicks(){
       +fairOddsHtml+propHtml+dontBet+'</div>';
   });
   el.innerHTML=html;
+}
+
+// "No Bet / Fade" — talented bats stuck in poor HR spots today. Signals discipline.
+function buildNoBet(){
+  var el=document.getElementById('nobet-section');
+  if(!el) return;
+  var seen={}, cand=[];
+  MATCHUPS.forEach(function(m){
+    var pf=m.park_factor||1.0;
+    var ws=(m.weather&&!m.weather.dome)?(m.weather.wind_score||0):0;
+    var supp = pf<=0.95 || ws<=-1;
+    function consider(bats, pitcher){
+      (bats||[]).forEach(function(b){
+        if(!b || !b.name || seen[b.name]) return;
+        var tempting = (b.barrel_pct!=null && b.barrel_pct>=10) || (b.iso!=null && b.iso>=0.18);
+        if(!tempting) return;
+        var ms=b.matchup_score||0;
+        if(!(ms<58 || supp)) return;
+        var reason = supp ? (pf<=0.95?'Pitcher-friendly park':'Wind blowing in') : 'Weak matchup';
+        seen[b.name]=1;
+        cand.push({name:b.name, headshot:b.headshot, hand:b.hand, team:b.team||'', ms:ms,
+          skill:Math.max(b.barrel_pct||0,(b.iso||0)*100), reason:reason,
+          pitcher:(pitcher&&pitcher.name)||''});
+      });
+    }
+    consider(m.away_batters, m.home_pitcher);
+    consider(m.home_batters, m.away_pitcher);
+  });
+  cand.sort(function(a,b){return b.skill-a.skill;});
+  cand=cand.slice(0,8);
+  if(!cand.length){ el.innerHTML=''; return; }
+  var rows=cand.map(function(c){
+    return '<div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid var(--border)">'
+      +pPhoto(c.name,c.headshot,30)
+      +'<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;color:var(--white)">'+c.name+' <span style="font-size:9px;color:var(--muted)">'+c.team+(c.hand?' &bull; '+c.hand:'')+'</span></div>'
+      +'<div style="font-size:9px;color:var(--gold)">&#9888; '+c.reason+(c.pitcher?' vs '+c.pitcher:'')+'</div></div>'
+      +'<div style="font-size:13px;font-weight:800;color:var(--muted)" title="matchup score">'+c.ms+'</div></div>';
+  }).join('');
+  el.innerHTML='<div class="pick-card" style="border-color:rgba(234,179,8,0.22)">'
+    +'<div style="font-size:13px;font-weight:800;color:var(--white)">&#128683; No Bet / Fade Today</div>'
+    +'<div style="font-size:10px;color:var(--muted);margin:2px 0 4px">Talented bats in poor HR spots today &mdash; discipline over chasing names.</div>'
+    +rows+'</div>';
 }
 
 // ── LINEUPS ───────────────────────────────────────────────────────
@@ -1642,6 +1685,7 @@ function refreshData(){
 
 // Init on load — wrapped in try-catch so one error doesn't break the page
 try { buildPicks();   } catch(e){ console.error('buildPicks error:', e); }
+try { buildNoBet();   } catch(e){ console.error('buildNoBet error:', e); }
 try { buildSlate();   } catch(e){ console.error('buildSlate error:', e); }
 try { buildProps();   } catch(e){ console.error('buildProps error:', e); }
 try { buildBatters(); } catch(e){ console.error('buildBatters error:', e); }
