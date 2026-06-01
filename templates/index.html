@@ -846,6 +846,9 @@ function buildPicks(){
     if(pick.confirmed !== true){
       projHtml = ' <span style="color:var(--gold);font-size:9px;font-weight:700;background:rgba(234,179,8,0.1);padding:1px 6px;border-radius:3px;border:1px solid rgba(234,179,8,0.25)">PROJECTED</span>';
     }
+    var photoHtml = pick.headshot
+      ? '<img src="' + pick.headshot + '" class="player-photo img-safe" alt="">'
+      : '<div class="player-photo" style="display:flex;align-items:center;justify-content:center;font-size:22px">&#9918;</div>';
     html+='<div class="pick-card '+cls+'">'
       +'<div class="pick-header" style="display:flex;gap:10px;align-items:flex-start">'
       +'<div style="display:flex;gap:10px;align-items:center;flex:1">'
@@ -946,6 +949,18 @@ function buildSide(batters, pit, teamAbb, pitLabel){
         + '<td>' + muBadge(ms) + '</td>'
         + '</tr>';
     });
+    rows = '<table><thead><tr>'
+      + '<th>#</th><th>Batter</th><th>Pos</th><th>B</th><th>Barrel%</th><th>EV</th><th>ISO</th><th>Sig</th><th>Match</th>'
+      + '</tr></thead><tbody>' + trows + '</tbody></table>';
+  }
+  return '<div>'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'
+    + '<span style="font-weight:800;color:var(--white);font-size:13px">' + teamAbb + '</span>'
+    + '<span style="font-size:10px;color:var(--muted)">' + pitLabel + ': '
+    + '<span style="color:var(--white);font-weight:700">' + (pit.name || 'TBD') + '</span>'
+    + (pit.hand ? ' (' + pit.hand + 'HP)' : '') + veloHtml + '</span>'
+    + '</div>' + rows + '</div>';
+}
 
 // ── SCHEDULE ──────────────────────────────────────────────────────
 function buildSlate(){
