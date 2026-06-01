@@ -302,6 +302,9 @@ tr:last-child td{border-bottom:none}
     <button class="filter-btn" onclick="setFilter('park',this)">HR Park</button>
     <button class="filter-btn" onclick="setFilter('hot',this)">&#128293; Hot Batters</button>
     <button class="filter-btn" onclick="setFilter('wind',this)">&#127787; Wind Out</button>
+    <button class="filter-btn" onclick="setFilter('value',this)">&#128142; Best Value</button>
+    <button class="filter-btn" onclick="setFilter('longshot',this)">&#127920; Longshot</button>
+    <button class="filter-btn" onclick="setFilter('safest',this)">&#128737; Safest</button>
   </div>
   <div class="picks-grid" id="picks-content">
     <div class="empty-state"><div class="icon">&#128197;</div><h3>Loading picks...</h3></div>
@@ -666,7 +669,16 @@ function boostBadge(pick){
   return '';
 }
 
-// ── INIT HEADER STATS ─────────────────────────────────────────────
+// +EV value badge — shows when the model's HR probability beats the market price.
+function valueBadge(pick){
+  if(pick.edge_pct == null || pick.prop_odds == null) return '';
+  var e = pick.edge_pct;
+  var es = (e>0?'+':'')+e+'%';
+  if(e >= 5)   return ' <span title="Model edge vs market: '+es+'" style="font-size:10px;font-weight:800;color:#052e16;background:var(--green);border:1px solid var(--green2);padding:1px 6px;border-radius:3px">&#128293; STRONG VALUE '+es+'</span>';
+  if(e >= 1.5) return ' <span title="Model edge vs market: '+es+'" style="font-size:10px;font-weight:800;color:var(--green);background:rgba(34,197,94,0.14);border:1px solid rgba(34,197,94,0.35);padding:1px 6px;border-radius:3px">&#128142; +EV VALUE '+es+'</span>';
+  if(e <= -8)  return ' <span title="Market price shorter than the model implies: '+es+'" style="font-size:9px;font-weight:800;color:var(--gold);background:rgba(234,179,8,0.10);border:1px solid rgba(234,179,8,0.30);padding:1px 5px;border-radius:3px">&#9888; OVERPRICED</span>';
+  return '';
+}
 document.getElementById('stat-picks').textContent    = PICKS.length;
 // Show freshness indicator safely
 try {
@@ -830,6 +842,10 @@ function applyFilter(picks){
   if(currentFilter === 'park')   return picks.filter(function(p){ return p.park_friendly===true&&p.park_factor>=1.10; });
   if(currentFilter === 'hot')    return picks.filter(function(p){ return p.form_adj&&p.form_adj>=8; });
   if(currentFilter === 'wind')   return picks.filter(function(p){ return p.weather&&p.weather.wind_score>=1&&!p.weather.dome; });
+  // Odds-driven tiers (only picks that have a market line)
+  if(currentFilter === 'value')    return picks.filter(function(p){ return p.edge_pct!=null && p.prop_odds!=null && p.edge_pct>0; }).sort(function(a,b){ return b.edge_pct-a.edge_pct; });
+  if(currentFilter === 'longshot') return picks.filter(function(p){ return p.prop_odds!=null && p.prop_odds>=400; }).sort(function(a,b){ return b.prop_odds-a.prop_odds; });
+  if(currentFilter === 'safest')   return picks.filter(function(p){ return p.prop_odds!=null && (p.matchup_score||0)>=58; }).sort(function(a,b){ return a.prop_odds-b.prop_odds; });
   return picks;
 }
 
@@ -1022,6 +1038,7 @@ function buildPicks(){
       +' <span style="color:var(--muted)">('+pick.pitcher_hand+'HP)</span>'
       +' <span style="color:var(--muted)">&bull; '+pick.game+'</span>'
       +projHtml
+      +valueBadge(pick)
       +boostBadge(pick)
       +(formHtml?' <span style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);padding:1px 5px;border-radius:3px;font-size:9px">'+formHtml+'</span>':'')
       +wxHtml+'</div></div></div>'
