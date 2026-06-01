@@ -1,15 +1,15 @@
 name: Daily HR Odds Pull
 
-# Runs once a day to fetch HR prop odds and commit odds_cache.json.
+# Once a day: pull HR odds, log today's picks, grade past days, commit snapshots.
 # This is the ONLY place that spends Odds API credits.
 
 on:
   schedule:
     - cron: '0 19 * * *'   # 19:00 UTC = ~3pm ET. Adjust if you want earlier/later.
-  workflow_dispatch: {}     # lets you run it manually from the Actions tab
+  workflow_dispatch: {}
 
 permissions:
-  contents: write           # needed so the job can commit odds_cache.json
+  contents: write
 
 jobs:
   pull-odds:
@@ -25,23 +25,31 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
       - name: Pull odds
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: python pull_odds.py
 
-      - name: Commit snapshot
+      - name: Log + grade results
+        continue-on-error: true
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: python log_results.py
+
+      - name: Commit snapshots
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Re-anchor onto the latest remote so the push can't be rejected,
-          # while keeping the freshly written odds_cache.json.
           git fetch origin main
           git reset --soft origin/main
           git add odds_cache.json
+          if [ -f results_log.json ]; then git add results_log.json; fi
           if git diff --staged --quiet; then
-            echo "No odds changes to commit."
+            echo "No changes to commit."
           else
-            git commit -m "Update odds snapshot [skip ci]"
+            git commit -m "Update odds + results [skip ci]"
             git push origin HEAD:main
           fi
