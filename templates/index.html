@@ -207,6 +207,7 @@ tr:last-child td{border-bottom:none}
   .pick-card{border:1px solid #ccc;break-inside:avoid}
 }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
 
@@ -832,6 +833,79 @@ function applyFilter(picks){
   return picks;
 }
 
+var renderedPicks = [];
+
+// Small stat tile used inside the shareable card.
+function shareStatBox(label, val, col){
+  return '<div style="flex:1;background:rgba(255,255,255,0.04);border:1px solid #1e3a24;border-radius:8px;padding:10px 6px;text-align:center">'
+    +'<div style="font-size:20px;font-weight:900;color:'+col+'">'+val+'</div>'
+    +'<div style="font-size:10px;color:#7a8a7e;text-transform:uppercase;letter-spacing:0.5px">'+label+'</div></div>';
+}
+
+// Build an off-screen, branded card for a pick to be rendered to an image.
+function buildShareCard(pick){
+  var d = document.createElement('div');
+  d.style.cssText = 'position:fixed;left:-9999px;top:0;width:560px;padding:28px;background:linear-gradient(160deg,#0d140d,#0a0e0a);font-family:'+(getComputedStyle(document.body).fontFamily||'sans-serif')+';color:#e9f5ec;box-sizing:border-box;border:1px solid #1e3a24;border-radius:14px';
+  var ms = pick.matchup_score||0;
+  var msCol = ms>=75?'#22c55e':ms>=60?'#eab308':'#94a3b8';
+  var photo = pick.headshot
+    ? '<img src="'+pick.headshot+'" crossorigin="anonymous" style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:3px solid #22c55e;background:#16241a">'
+    : '<div style="width:84px;height:84px;border-radius:50%;background:#16241a;border:3px solid #22c55e;display:flex;align-items:center;justify-content:center;font-size:40px">&#9918;</div>';
+  var conf = pick.confidence||'';
+  var confCol = conf==='STRONG'?'#22c55e':conf==='GOOD'?'#3b82f6':'#94a3b8';
+  var pf = pick.park_factor;
+  d.innerHTML =
+     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">'
+      +'<div style="font-size:15px;font-weight:900;letter-spacing:1px;color:#22c55e">DIAMOND ANALYTICS</div>'
+      +'<div style="font-size:11px;color:#7a8a7e;letter-spacing:1px">HR PROP PICK</div></div>'
+    +'<div style="display:flex;align-items:center;gap:16px;margin-bottom:18px">'
+      +photo
+      +'<div style="min-width:0"><div style="font-size:24px;font-weight:900;color:#fff;line-height:1.1">'+pick.name+'</div>'
+      +'<div style="font-size:13px;color:#9fb0a3;margin-top:3px">'+(pick.team||'')+' vs '+(pick.pitcher||'TBD')+' ('+(pick.pitcher_hand||'')+'HP)</div>'
+      +'<div style="margin-top:7px"><span style="font-size:12px;font-weight:800;color:'+confCol+';background:rgba(255,255,255,0.06);border:1px solid '+confCol+';padding:3px 10px;border-radius:5px">'+conf+'</span></div>'
+      +'</div></div>'
+    +'<div style="display:flex;gap:9px;margin-bottom:16px">'
+      +shareStatBox('Match', ms, msCol)
+      +shareStatBox('Barrel%', (pick.barrel_pct!=null?Number(pick.barrel_pct).toFixed(1):'\u2014'), '#e9f5ec')
+      +shareStatBox('EV', (pick.avg_hit_speed!=null?Number(pick.avg_hit_speed).toFixed(1):'\u2014'), '#e9f5ec')
+      +shareStatBox('Park', (pf!=null?Number(pf).toFixed(2):'\u2014'), (pick.park_friendly?'#22c55e':'#94a3b8'))
+      +'</div>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;border-top:1px solid #1e3a24;padding-top:12px">'
+      +'<div style="font-size:11px;color:#7a8a7e">'+(pick.game||'')+(pick.park_name?' \u2022 '+pick.park_name:'')+'</div>'
+      +'<div style="font-size:11px;color:#7a8a7e">mlb-prop-dashboard</div></div>';
+  return d;
+}
+
+// Render a pick to a PNG and share it (native share sheet on mobile, download on desktop).
+function sharePick(idx){
+  var pick = renderedPicks[idx];
+  if(!pick) return;
+  if(typeof html2canvas === 'undefined'){ alert('Share tool is still loading \u2014 try again in a second.'); return; }
+  var card = buildShareCard(pick);
+  document.body.appendChild(card);
+  html2canvas(card, {backgroundColor:'#0a0e0a', useCORS:true, scale:2, logging:false}).then(function(canvas){
+    if(card.parentNode) document.body.removeChild(card);
+    canvas.toBlob(function(blob){
+      if(!blob){ return; }
+      var fname = (pick.name||'pick').replace(/[^a-z0-9]/gi,'_')+'_HR.png';
+      var file = new File([blob], fname, {type:'image/png'});
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        navigator.share({files:[file], title:pick.name+' \u2014 HR Pick',
+          text:pick.name+' to homer ('+(pick.confidence||'')+') \u2014 via Diamond Analytics'}).catch(function(){});
+      } else {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a'); a.href=url; a.download=fname;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 1500);
+      }
+    }, 'image/png');
+  }).catch(function(e){
+    if(card.parentNode) document.body.removeChild(card);
+    console.error('share error', e);
+    alert('Could not generate the image. Please try again.');
+  });
+}
+
 function buildPicks(){
   var el=document.getElementById('picks-content');
   if(!PICKS||PICKS.length===0){
@@ -849,7 +923,8 @@ function buildPicks(){
     return;
   }
   var html='';
-  filtered.forEach(function(pick){
+  renderedPicks = filtered;
+  filtered.forEach(function(pick, pIdx){
     var conf=pick.confidence||'MODERATE';
     var cls =conf==='STRONG'?'strong':conf==='GOOD'?'good':'moderate';
     var ccls=conf==='STRONG'?'conf-strong':conf==='GOOD'?'conf-good':'conf-moderate';
@@ -958,7 +1033,9 @@ function buildPicks(){
       +'<div class="pick-stat"><div class="pick-stat-val">'+parkBadge(pick.park_factor||1.0,pick.park_friendly)+'</div><div class="pick-stat-lbl">Park</div></div>'
       +'</div>'
       +'<div class="sigs">'+sigs+'</div>'
-      +fairOddsHtml+propHtml+dontBet+'</div>';
+      +fairOddsHtml+propHtml+dontBet
+      +'<button onclick="sharePick('+pIdx+')" style="margin-top:8px;width:100%;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);color:var(--green);font-size:11px;font-weight:700;padding:6px;border-radius:6px;cursor:pointer">&#128247; Share Card</button>'
+      +'</div>';
   });
   el.innerHTML=html;
 }
