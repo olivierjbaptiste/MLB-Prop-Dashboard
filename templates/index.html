@@ -557,6 +557,9 @@ tr:last-child td{border-bottom:none}
   <div class="section-hdr"><h2>&#128200; Results Tracker</h2><span class="badge" id="results-record">0-0</span></div>
   <div class="section-sub">Track your picks — builds over time to show which signals actually work</div>
 
+  <!-- Auto-graded model track record (fed by results_log.json from the daily Action) -->
+  <div id="model-record"></div>
+
   <!-- Summary cards -->
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px" id="results-summary"></div>
 
@@ -815,7 +818,7 @@ function go(name){
   if(name==='pitchers')    buildPitchers();
   if(name==='daynight')    buildDN();
   if(name==='parks')       buildParks();
-  if(name==='results')     buildResults();
+  if(name==='results')     { buildModelRecord(); buildResults(); }
   if(name==='glossary')    {} // static content
   if(name==='rotation')    buildRotation();
   if(name==='leaders')     buildLeaders();
@@ -1558,6 +1561,59 @@ function clearResults(){
   }
 }
 
+// ── MODEL TRACK RECORD (auto-graded, shared, from results_log.json) ──
+function buildModelRecord(){
+  var el = document.getElementById('model-record');
+  if(!el) return;
+  var log = (typeof RAW!=='undefined' && RAW.results_log && RAW.results_log.entries) ? RAW.results_log.entries : [];
+  var graded = [];
+  log.forEach(function(day){
+    if(day.graded && day.picks){
+      day.picks.forEach(function(p){
+        graded.push({date:day.date, player:p.player, odds:p.odds, outcome:p.outcome, pl:p.pl, confidence:p.confidence});
+      });
+    }
+  });
+  var head = '<div class="alert-title">&#129351; Model Track Record &mdash; Auto-Graded</div>';
+  if(graded.length === 0){
+    el.innerHTML = '<div class="alert-box" style="margin-bottom:16px">'+head
+      +'<div style="font-size:11px;color:var(--muted);margin-top:8px">The tool logs its top picks every day and grades them against real MLB home-run results. '
+      +'The record appears here the day after the first picks are logged.</div></div>';
+    return;
+  }
+  function mrCard(v,l,c){ return '<div class="alert-box" style="text-align:center"><div class="pick-stat-val" style="font-size:20px;color:'+c+'">'+v+'</div><div class="pick-stat-lbl">'+l+'</div></div>'; }
+  var wins   = graded.filter(function(p){return p.outcome==='WIN';}).length;
+  var losses = graded.filter(function(p){return p.outcome==='LOSS';}).length;
+  var totalPL= graded.reduce(function(a,p){return a+(p.pl||0);},0);
+  var staked = graded.length; // 1u each
+  var roi    = staked>0 ? (totalPL/staked*100) : 0;
+  var wr     = (wins+losses)>0 ? Math.round(wins/(wins+losses)*100) : 0;
+  var plCol  = totalPL>=0?'var(--green)':'var(--red)', plS = totalPL>=0?'+':'';
+  var roiCol = roi>=0?'var(--green)':'var(--red)',     roiS= roi>=0?'+':'';
+  var summary = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin:12px 0">'
+    +mrCard(wins+'-'+losses,'Record','var(--white)')
+    +mrCard(wr+'%','HR Rate','var(--gold)')
+    +mrCard(plS+totalPL.toFixed(1)+'u','Units P/L',plCol)
+    +mrCard(roiS+roi.toFixed(1)+'%','ROI',roiCol)
+    +mrCard(''+graded.length,'Picks Graded','var(--white)')
+    +'</div>';
+  var rows = graded.slice(0,30).map(function(p){
+    var oc  = p.outcome==='WIN'?'var(--green)':'var(--red)';
+    var od  = (p.odds!=null)?(p.odds>0?'+'+p.odds:''+p.odds):'&mdash;';
+    var plc = (p.pl||0)>=0?'var(--green)':'var(--red)', pls=(p.pl||0)>=0?'+':'';
+    return '<tr><td style="color:var(--muted)">'+p.date+'</td>'
+      +'<td style="color:var(--white);font-weight:700">'+p.player+'</td>'
+      +'<td>'+od+'</td>'
+      +'<td><span style="color:'+oc+';font-weight:800">'+(p.outcome==='WIN'?'&#9989; HR':'&#10060; No')+'</span></td>'
+      +'<td style="color:'+plc+';font-weight:700">'+pls+(p.pl||0).toFixed(2)+'u</td></tr>';
+  }).join('');
+  el.innerHTML = '<div class="alert-box" style="margin-bottom:16px">'+head
+    +'<div style="font-size:11px;color:var(--muted);margin-top:6px">The tool\'s own top picks, logged daily and graded against real home-run results &mdash; 1 unit staked per pick at the listed odds.</div>'
+    +summary
+    +'<div class="tw"><table><thead><tr><th>Date</th><th>Player</th><th>Odds</th><th>Result</th><th>P/L</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+    +'</div>';
+}
+
 function buildResults(){
   var results = getResults();
   var wins   = results.filter(function(r){ return r.outcome==='WIN'; });
@@ -1784,6 +1840,7 @@ try { buildSlate();   } catch(e){ console.error('buildSlate error:', e); }
 try { buildProps();   } catch(e){ console.error('buildProps error:', e); }
 try { buildBatters(); } catch(e){ console.error('buildBatters error:', e); }
 try { buildPitchers();} catch(e){ console.error('buildPitchers error:', e); }
+try { buildModelRecord(); } catch(e){ console.error('buildModelRecord error:', e); }
 try { buildResults(); } catch(e){ console.error('buildResults error:', e); }
 </script>
 </body>

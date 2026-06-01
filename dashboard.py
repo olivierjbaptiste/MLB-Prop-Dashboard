@@ -1258,6 +1258,19 @@ def get_game_hr_leaders(game_id):
         return []
 
 
+def load_results_log():
+    """Read the auto-graded results log written by the daily Action."""
+    try:
+        p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results_log.json")
+        with open(p) as f:
+            d = json.load(f)
+        if isinstance(d, dict) and isinstance(d.get("entries"), list):
+            return d
+    except Exception:
+        pass
+    return {"entries": []}
+
+
 def build_all_data(odds_api_key=""):
     games    = get_games()
     # Read the daily odds snapshot regardless of whether a key is set in THIS
@@ -1343,4 +1356,5 @@ def build_all_data(odds_api_key=""):
         "daynight":          get_daynight_for_batters(batters) if batters else DAY_NIGHT,
         "today":             date.today().strftime("%Y-%m-%d"),
         "parks":             PARKS,
+        "results_log":       load_results_log(),
     }
