@@ -6,6 +6,9 @@ Includes lineup fetching from MLB Stats API
 
 import requests
 import json
+import os
+import time
+import tempfile
 from datetime import date, datetime
 # Lineup cache — persists confirmed lineups through game time
 _lineup_cache = {}  # {game_id: lineups_dict}
@@ -1010,6 +1013,59 @@ def get_top_picks(matchups, props):
     return picks[:15]
 
 
+# ── Credit-safe odds caching ───────────────────────────────────────────────
+# The Odds API free tier is 500 credits/month. A live pull costs ~8 credits, and
+# the data build can run many times a day (Render free-tier cold starts), so we
+# cache the odds and reuse them instead of re-pulling on every build.
+#  - odds_cache.json in the app dir is the PREFERRED source: a once-daily job can
+#    write it so the app never spends a credit itself (zero cold-start risk).
+#  - Otherwise we fall back to a short-lived local cache + a live pull.
+_ODDS_CACHE_DIR_FILE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'odds_cache.json')
+_ODDS_CACHE_TMP_FILE  = os.path.join(tempfile.gettempdir(), 'hr_odds_cache.json')
+_ODDS_CACHE_TTL       = 6 * 3600   # reuse a live pull for 6 hours
+
+def _load_odds_cache():
+    # 1) Prefer a pre-fetched snapshot committed/written by the daily job.
+    try:
+        if os.path.exists(_ODDS_CACHE_DIR_FILE):
+            with open(_ODDS_CACHE_DIR_FILE) as f:
+                data = json.load(f)
+            return data.get('props', []), 'daily-snapshot'
+    except Exception:
+        pass
+    # 2) Fall back to a recent local live-pull cache.
+    try:
+        if os.path.exists(_ODDS_CACHE_TMP_FILE):
+            with open(_ODDS_CACHE_TMP_FILE) as f:
+                data = json.load(f)
+            if (time.time() - data.get('ts', 0)) < _ODDS_CACHE_TTL:
+                return data.get('props', []), 'local-cache'
+    except Exception:
+        pass
+    return None, None
+
+def _save_odds_cache(props):
+    try:
+        with open(_ODDS_CACHE_TMP_FILE, 'w') as f:
+            json.dump({'ts': time.time(), 'props': props}, f)
+    except Exception:
+        pass
+
+def get_props_cached(api_key):
+    """Credit-safe odds: reuse a cached snapshot when available; only spend
+    Odds API credits on a genuine cache miss."""
+    cached, source = _load_odds_cache()
+    if cached is not None:
+        print(f"  Using cached odds ({len(cached)} props, source={source}) — no credits spent")
+        return cached
+    if not api_key or api_key == "YOUR_ODDS_API_KEY_HERE":
+        return []
+    props = get_props(api_key)   # live pull — costs credits
+    if props:
+        _save_odds_cache(props)
+    return props
+
+
 def get_props(api_key):
     if not api_key or api_key == "YOUR_ODDS_API_KEY_HERE":
         return []
@@ -1207,9 +1263,9 @@ def build_all_data(odds_api_key=""):
     # Try paid API first, fall back to free DraftKings endpoint
     props = []
     if odds_api_key and odds_api_key != "YOUR_ODDS_API_KEY_HERE":
-        props = get_props(odds_api_key)
+        props = get_props_cached(odds_api_key)
         if not props:
-            print("  Paid API returned 0 props — trying free endpoint...")
+            print("  Odds API returned 0 props — trying free endpoint...")
     if not props:
         props = get_free_props()
     batters  = build_batters()
