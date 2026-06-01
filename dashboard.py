@@ -1260,12 +1260,11 @@ def get_game_hr_leaders(game_id):
 
 def build_all_data(odds_api_key=""):
     games    = get_games()
-    # Try paid API first, fall back to free DraftKings endpoint
-    props = []
-    if odds_api_key and odds_api_key != "YOUR_ODDS_API_KEY_HERE":
-        props = get_props_cached(odds_api_key)
-        if not props:
-            print("  Odds API returned 0 props — trying free endpoint...")
+    # Read the daily odds snapshot regardless of whether a key is set in THIS
+    # environment. In bulletproof mode the key lives only in GitHub, so the app
+    # has no key locally — but it should still read odds_cache.json. The cached
+    # fetch only spends credits on a genuine cache miss WITH a key present.
+    props = get_props_cached(odds_api_key)
     if not props:
         props = get_free_props()
     batters  = build_batters()
