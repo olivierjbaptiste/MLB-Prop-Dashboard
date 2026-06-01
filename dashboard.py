@@ -797,7 +797,34 @@ def get_games():
         return []
 
 
-def get_game_matchups(games):
+def build_projected_lineup(team_abb, batter_pool):
+    """Projected lineup for when the official batting order hasn't posted yet.
+    Pulls the team's regulars from the season batter pool, ranks them by power
+    (HR, then SLG), assigns a projected order, and tags them confirmed=False so
+    the UI clearly marks them PROJECTED. Lets the slate populate at any hour
+    instead of sitting empty until lineups post."""
+    if not batter_pool:
+        return []
+    team_bats = [b for b in batter_pool if b.get('team') == team_abb]
+    if not team_bats:
+        return []
+    team_bats = sorted(
+        team_bats,
+        key=lambda b: ((b.get('hr') or 0), (b.get('slg') or 0)),
+        reverse=True
+    )
+    lineup = []
+    for i, b in enumerate(team_bats[:9]):
+        bb = dict(b)
+        bb['order']        = i + 1
+        bb['confirmed']    = False
+        bb['position']     = b.get('position', b.get('pos', ''))
+        bb['batter_score'] = batter_score(bb)
+        lineup.append(bb)
+    return lineup
+
+
+def get_game_matchups(games, batter_pool=None):
     global _lineup_cache, _picks_cache, _matchups_cache
     """
     For each game fetch the lineup and calculate matchup scores
@@ -820,6 +847,11 @@ def get_game_matchups(games):
 
         # Away batters vs Home pitcher
         away_lineup = lineups.get('away', {}).get('lineup', [])
+        if len(away_lineup) < 5:
+            proj = build_projected_lineup(g.get('away_abb',''), batter_pool)
+            if proj:
+                print(f"    Using projected away lineup for {g.get('away_abb','')} ({len(proj)} batters)")
+                away_lineup = proj
         home_pit    = g['home_pitcher_stats']
 
         away_scored = []
@@ -834,6 +866,11 @@ def get_game_matchups(games):
 
         # Home batters vs Away pitcher
         home_lineup = lineups.get('home', {}).get('lineup', [])
+        if len(home_lineup) < 5:
+            proj = build_projected_lineup(g.get('home_abb',''), batter_pool)
+            if proj:
+                print(f"    Using projected home lineup for {g.get('home_abb','')} ({len(proj)} batters)")
+                home_lineup = proj
         away_pit    = g['away_pitcher_stats']
 
         home_scored = []
@@ -1169,7 +1206,7 @@ def build_all_data(odds_api_key=""):
     pitchers = build_pitchers()
 
     print("  Building game matchups from lineups...")
-    matchups = get_game_matchups(games)
+    matchups = get_game_matchups(games, batters)
 
     print("  Building top picks...")
     top_picks = get_top_picks(matchups, props)
