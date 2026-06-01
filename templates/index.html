@@ -266,6 +266,7 @@ tr:last-child td{border-bottom:none}
 <!-- NAV -->
 <div class="nav">
   <button class="nb on" id="btn-picks"      onclick="go('picks')">&#127919; Daily Picks</button>
+  <button class="nb"    id="btn-target"     onclick="go('target')">&#128165; Attack</button>
   <button class="nb"    id="btn-lineups"    onclick="go('lineups')">&#128200; Lineups</button>
   <button class="nb"    id="btn-slate"      onclick="go('slate')">&#128197; Schedule</button>
   <button class="nb"    id="btn-props"      onclick="go('props')">&#128176; Props</button>
@@ -307,6 +308,12 @@ tr:last-child td{border-bottom:none}
 </div>
 
 <!-- LINEUPS -->
+<div id="tc-target" class="tc">
+  <div class="section-hdr"><h2>&#128165; Attack This Pitcher</h2></div>
+  <div class="section-sub">Today's most vulnerable starters and the bats that profile best against them &mdash; sorted by attackability.</div>
+  <div id="target-content" style="margin-top:12px"><div style="padding:40px;text-align:center;color:var(--muted)">Loading...</div></div>
+</div>
+
 <div id="tc-lineups" class="tc">
   <div class="section-hdr"><h2>Tonight's Lineups</h2></div>
   <div class="section-sub">Confirmed batting orders vs starting pitchers — green stats = batter edge, red = pitcher edge</div>
@@ -644,6 +651,19 @@ function pPhoto(name, url, size){
   return '<span style="'+wrap+'">'+ph+'</span>';
 }
 
+// Weather/park boost badge: rocket for HR-friendly conditions, warning for suppressors.
+function boostBadge(pick){
+  var pf = pick.park_factor || 1.0;
+  var ws = (pick.weather && !pick.weather.dome) ? (pick.weather.wind_score || 0) : 0;
+  if(pf >= 1.10 || ws >= 1){
+    return ' <span title="Park/weather boost" style="font-size:9px;font-weight:800;color:var(--green);background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.28);padding:1px 5px;border-radius:3px">&#128640; BOOST</span>';
+  }
+  if(pf <= 0.95 || ws <= -1){
+    return ' <span title="Park/weather suppressor" style="font-size:9px;font-weight:800;color:var(--gold);background:rgba(234,179,8,0.10);border:1px solid rgba(234,179,8,0.28);padding:1px 5px;border-radius:3px">&#9888; SUPP</span>';
+  }
+  return '';
+}
+
 // ── INIT HEADER STATS ─────────────────────────────────────────────
 document.getElementById('stat-picks').textContent    = PICKS.length;
 // Show freshness indicator safely
@@ -717,8 +737,55 @@ function muBadge(ms){
 function rcFn(v){ return v>=1.5?'var(--red)':v<1.0?'var(--green)':'var(--gold)'; }
 
 // ── TAB NAV ───────────────────────────────────────────────────────
+function buildTarget(){
+  var el=document.getElementById('target-content');
+  if(!el) return;
+  var entries=[];
+  MATCHUPS.forEach(function(m){
+    if(m.home_pitcher) entries.push({pit:m.home_pitcher, pitTeam:m.home_abb, oppTeam:m.away_abb, bats:m.away_batters||[], m:m});
+    if(m.away_pitcher) entries.push({pit:m.away_pitcher, pitTeam:m.away_abb, oppTeam:m.home_abb, bats:m.home_batters||[], m:m});
+  });
+  entries.forEach(function(e){
+    var bats=(e.bats||[]).slice().sort(function(a,b){return (b.matchup_score||0)-(a.matchup_score||0);});
+    e.top=bats.slice(0,4);
+    e.score=(e.pit&&e.pit.vuln_score||0) + (e.top[0]?(e.top[0].matchup_score||0)*0.25:0);
+  });
+  entries=entries.filter(function(e){return e.pit && e.pit.name && e.pit.name!=='TBD' && e.top.length;});
+  entries.sort(function(a,b){return b.score-a.score;});
+  if(!entries.length){ el.innerHTML='<div style="padding:40px;text-align:center;color:var(--muted)">No matchups loaded yet &mdash; check back once probable pitchers and lineups post.</div>'; return; }
+  var html='';
+  entries.forEach(function(e){
+    var p=e.pit;
+    var v=p.vuln_score||0;
+    var vc=(v>=70)?'var(--red)':(v>=55)?'var(--gold)':'var(--green)';
+    var vlabel=(v>=70)?'PRIME TARGET':(v>=55)?'ATTACKABLE':'TOUGH';
+    var velo=p.velo_label?' <span style="font-size:9px;color:'+(p.velo_col||'var(--muted)')+'">&bull; '+p.velo_label+'</span>':'';
+    var batsHtml=e.top.map(function(b){
+      var bs=b.matchup_score||0;
+      var bcol=bs>=75?'var(--green)':bs>=60?'var(--gold)':'var(--muted)';
+      var sig=(b.signals||[]).filter(function(s){return s.good===true;})[0];
+      var sigTxt=sig?'<div style="font-size:9px;color:var(--muted)">'+sig.label+'</div>':'';
+      return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--border)">'
+        +pPhoto(b.name,b.headshot,30)
+        +'<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;color:var(--white)">'+b.name+' <span style="font-size:9px;color:var(--muted)">('+(b.hand||'')+')</span></div>'+sigTxt+'</div>'
+        +'<div style="font-size:15px;font-weight:800;color:'+bcol+'">'+bs+'</div></div>';
+    }).join('');
+    html+='<div class="pick-card" style="margin-bottom:12px">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+      +pPhoto(p.name,p.headshot,44)
+      +'<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800;color:var(--white)">'+p.name+' <span style="font-size:10px;color:var(--muted)">('+(p.hand||'')+'HP &bull; '+e.pitTeam+')</span></div>'
+      +'<div style="font-size:10px;color:var(--muted)">'+e.m.game+' &bull; '+(e.m.venue||'')+velo+'</div></div>'
+      +'<div style="text-align:right"><span style="font-size:9px;font-weight:800;color:'+vc+';background:rgba(255,255,255,0.05);border:1px solid var(--border);padding:2px 7px;border-radius:4px">'+vlabel+'</span>'
+      +'<div style="font-size:9px;color:var(--muted);margin-top:2px">Vuln '+f(v,0)+'</div></div></div>'
+      +'<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Best bats to attack ('+e.oppTeam+')</div>'
+      +batsHtml
+      +'</div>';
+  });
+  el.innerHTML=html;
+}
+
 function go(name){
-  var all=['picks','lineups','slate','props','batters','pitchers','daynight','framework','parks','cheatsheet','results','glossary','rotation','leaders'];
+  var all=['picks','target','lineups','slate','props','batters','pitchers','daynight','framework','parks','cheatsheet','results','glossary','rotation','leaders'];
   for(var i=0;i<all.length;i++){
     var tc=document.getElementById('tc-'+all[i]);
     var nb=document.getElementById('btn-'+all[i]);
@@ -726,6 +793,7 @@ function go(name){
     if(nb) nb.className='nb'+(all[i]===name?' on':'');
   }
   if(name==='picks')       buildPicks();
+  if(name==='target')      buildTarget();
   if(name==='lineups')     buildLineups();
   if(name==='slate')       buildSlate();
   if(name==='props')       buildProps();
@@ -878,6 +946,7 @@ function buildPicks(){
       +' <span style="color:var(--muted)">('+pick.pitcher_hand+'HP)</span>'
       +' <span style="color:var(--muted)">&bull; '+pick.game+'</span>'
       +projHtml
+      +boostBadge(pick)
       +(formHtml?' <span style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);padding:1px 5px;border-radius:3px;font-size:9px">'+formHtml+'</span>':'')
       +wxHtml+'</div></div></div>'
       +'<span class="conf-badge '+ccls+'">'+conf+'</span></div>'
