@@ -760,8 +760,12 @@ def get_games():
                 ht  = g.get("teams",{}).get("home",{}).get("team",{}).get("name","")
                 aa  = TEAM_ABB.get(at, at[:3].upper())
                 ha  = TEAM_ABB.get(ht, ht[:3].upper())
-                ap  = g.get("teams",{}).get("away",{}).get("probablePitcher",{}).get("fullName","TBD")
-                hp  = g.get("teams",{}).get("home",{}).get("probablePitcher",{}).get("fullName","TBD")
+                ap_pp = g.get("teams",{}).get("away",{}).get("probablePitcher",{})
+                hp_pp = g.get("teams",{}).get("home",{}).get("probablePitcher",{})
+                ap  = ap_pp.get("fullName","TBD")
+                hp  = hp_pp.get("fullName","TBD")
+                ap_id = ap_pp.get("id")
+                hp_id = hp_pp.get("id")
                 ve  = g.get("venue",{}).get("name","")
                 gid = g.get("gamePk")
                 pk  = PARKS.get(ha, {"name": ve, "factor": 1.00, "friendly": None})
@@ -773,6 +777,8 @@ def get_games():
                 home_pit_stats = dict(home_pit_stats)
                 away_pit_stats['vuln_score'] = pitcher_vuln(away_pit_stats)
                 home_pit_stats['vuln_score'] = pitcher_vuln(home_pit_stats)
+                away_pit_stats['headshot'] = get_headshot_url(ap, ap_id)
+                home_pit_stats['headshot'] = get_headshot_url(hp, hp_id)
 
                 games.append({
                     "game_id":          gid,
@@ -1247,6 +1253,23 @@ def build_all_data(odds_api_key=""):
     print("  Loading yesterday's results...")
     yesterday_results = get_yesterdays_results()
 
+    # Global name -> headshot URL map so any tab can show a player photo
+    headshots = {}
+    for b in batters:
+        nm = b.get('name'); hs = b.get('headshot')
+        if nm and hs:
+            headshots[nm] = hs
+    for nm, pid in PLAYER_IDS.items():
+        if nm not in headshots:
+            u = get_headshot_url(nm, pid)
+            if u:
+                headshots[nm] = u
+    for g in games:
+        for nm, st in [(g.get('away_pitcher'), g.get('away_pitcher_stats')),
+                       (g.get('home_pitcher'), g.get('home_pitcher_stats'))]:
+            if nm and st and st.get('headshot'):
+                headshots[nm] = st['headshot']
+
     return {
         "games":             games,
         "props":             props,
@@ -1257,6 +1280,7 @@ def build_all_data(odds_api_key=""):
         "weather":           weather,
         "week_schedule":     week_schedule,
         "yesterday_results": yesterday_results,
+        "headshots":         headshots,
         "daynight":          get_daynight_for_batters(batters) if batters else DAY_NIGHT,
         "today":             date.today().strftime("%Y-%m-%d"),
         "parks":             PARKS,

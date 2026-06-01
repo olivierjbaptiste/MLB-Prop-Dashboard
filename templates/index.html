@@ -628,6 +628,21 @@ var MATCHUPS = RAW.matchups  || [];
 var PICKS    = RAW.top_picks || [];
 var WEEK     = RAW.week_schedule     || [];
 var YESTERDAY= RAW.yesterday_results || [];
+var HEADSHOTS= RAW.headshots || {};
+
+// Shared player photo helper — circular headshot with a clean fallback.
+// Uses a fixed-size inline wrapper so rows never shift if an image is missing.
+function pPhoto(name, url, size){
+  size = size || 28;
+  var src = url || HEADSHOTS[name] || '';
+  var common = 'width:'+size+'px;height:'+size+'px;border-radius:50%;border:1px solid var(--border);background:var(--surface2)';
+  var wrap   = 'display:inline-block;'+'width:'+size+'px;height:'+size+'px;vertical-align:middle;margin-right:7px;flex-shrink:0';
+  var ph = '<span style="'+common+';align-items:center;justify-content:center;font-size:'+Math.round(size*0.55)+'px;'+(src?'display:none':'display:flex')+'">&#9918;</span>';
+  if(src){
+    return '<span style="'+wrap+'"><img src="'+src+'" class="img-safe" style="'+common+';object-fit:cover" alt="">'+ph+'</span>';
+  }
+  return '<span style="'+wrap+'">'+ph+'</span>';
+}
 
 // ── INIT HEADER STATS ─────────────────────────────────────────────
 document.getElementById('stat-picks').textContent    = PICKS.length;
@@ -1003,7 +1018,7 @@ function buildProps(){
     var oc=p.odds>0?'var(--green)':p.odds<-150?'var(--red)':'var(--gold)';
     var os=p.odds>0?'+'+p.odds:''+p.odds;
     rows+='<tr>'
-      +'<td style="font-weight:800;color:var(--white)">'+p.player+'</td>'
+      +'<td style="font-weight:800;color:var(--white)">'+pPhoto(p.player)+p.player+'</td>'
       +'<td style="color:var(--gold);font-weight:800">'+p.line+'</td>'
       +'<td><span class="badge-blue">'+p.side+'</span></td>'
       +'<td style="color:'+oc+';font-weight:800">'+os+'</td>'
@@ -1060,7 +1075,7 @@ function buildPitchers(){
     var vsCol=p.velo_season>=96?'var(--green)':p.velo_season>=92?'var(--blue)':'var(--white)';
     var vrCol=drop!=null&&drop>=1.0?'var(--red)':drop!=null&&drop<=-1.0?'var(--green)':'var(--white)';
     rows+='<tr>'
-      +'<td style="font-weight:800;color:var(--white)">'+p.name+'</td>'
+      +'<td style="font-weight:800;color:var(--white)">'+pPhoto(p.name,p.headshot)+p.name+'</td>'
       +'<td><span class="badge-gray">'+p.team+'</span></td>'
       +'<td style="color:var(--muted)">'+p.hand+'</td>'
       +'<td><span style="color:'+rcol+';font-weight:700">'+(p.role||'SP')+'</span></td>'
@@ -1087,13 +1102,13 @@ function buildDN(){
   var ds=DN.filter(function(p){return p.pref==='Day'&&p.gap!=='Small';}).sort(function(a,b){return b.day_barrel-a.day_barrel;}).slice(0,6);
   var ns=DN.filter(function(p){return p.pref==='Night'&&p.gap!=='Small';}).sort(function(a,b){return b.night_barrel-a.night_barrel;}).slice(0,6);
   document.getElementById('day-list').innerHTML=ds.map(function(p){
-    return '<div class="alert-row"><div><div style="font-size:11px;font-weight:700;color:var(--white)">'+p.name+'</div>'
-      +'<div style="font-size:9px;color:var(--muted)">'+p.team+' &bull; Day Barrel '+p.day_barrel.toFixed(1)+'% vs Night '+p.night_barrel.toFixed(1)+'%</div></div>'
+    return '<div class="alert-row"><div style="display:flex;align-items:center;gap:6px"><div style="display:flex;align-items:center">'+pPhoto(p.name,null,32)+'</div><div><div style="font-size:11px;font-weight:700;color:var(--white)">'+p.name+'</div>'
+      +'<div style="font-size:9px;color:var(--muted)">'+p.team+' &bull; Day Barrel '+p.day_barrel.toFixed(1)+'% vs Night '+p.night_barrel.toFixed(1)+'%</div></div></div>'
       +'<span class="badge-green">'+p.gap+'</span></div>';
   }).join('');
   document.getElementById('night-list').innerHTML=ns.map(function(p){
-    return '<div class="alert-row"><div><div style="font-size:11px;font-weight:700;color:var(--white)">'+p.name+'</div>'
-      +'<div style="font-size:9px;color:var(--muted)">'+p.team+' &bull; Night Barrel '+p.night_barrel.toFixed(1)+'% vs Day '+p.day_barrel.toFixed(1)+'%</div></div>'
+    return '<div class="alert-row"><div style="display:flex;align-items:center;gap:6px"><div style="display:flex;align-items:center">'+pPhoto(p.name,null,32)+'</div><div><div style="font-size:11px;font-weight:700;color:var(--white)">'+p.name+'</div>'
+      +'<div style="font-size:9px;color:var(--muted)">'+p.team+' &bull; Night Barrel '+p.night_barrel.toFixed(1)+'% vs Day '+p.day_barrel.toFixed(1)+'%</div></div></div>'
       +'<span class="badge-blue">'+p.gap+'</span></div>';
   }).join('');
   var sorted=DN.slice().sort(function(a,b){return go(a)-go(b);});
@@ -1101,7 +1116,7 @@ function buildDN(){
     var d=p.pref==='Day';
     var gc=p.gap==='Large'?'var(--green)':p.gap==='Moderate'?'var(--gold)':'var(--muted)';
     return '<tr>'
-      +'<td style="font-weight:800;color:var(--white)">'+p.name+'</td>'
+      +'<td style="font-weight:800;color:var(--white)">'+pPhoto(p.name)+p.name+'</td>'
       +'<td><span class="badge-gray">'+p.team+'</span></td>'
       +'<td style="color:'+(d?'var(--gold)':'var(--blue)')+';font-weight:700">'+(d?'&#9728; Day':'&#127769; Night')+'</td>'
       +'<td style="color:'+gc+';font-weight:700">'+p.gap+'</td>'
@@ -1454,10 +1469,10 @@ function buildRotation(){
       html += '<tr>'
         +'<td style="font-weight:800;color:var(--white)">'+g.away_abb+' @ '+g.home_abb+'</td>'
         +'<td>'+parkBadge(g.park_factor,g.park_friendly)+'</td>'
-        +'<td style="color:var(--blue)">'+ap+'</td>'
+        +'<td style="color:var(--blue)">'+pPhoto(ap,apStats.headshot)+ap+'</td>'
         +'<td style="color:'+rcFn(aHr9)+'">'+f(aHr9,2)+'</td>'
         +'<td style="color:'+aVC+';font-size:10px">'+aVelo+'</td>'
-        +'<td style="color:var(--green)">'+hp+'</td>'
+        +'<td style="color:var(--green)">'+pPhoto(hp,hpStats.headshot)+hp+'</td>'
         +'<td style="color:'+rcFn(hHr9)+'">'+f(hHr9,2)+'</td>'
         +'<td style="color:'+hVC+';font-size:10px">'+hVelo+'</td>'
         +'</tr>';
@@ -1485,7 +1500,7 @@ function buildLeaders(){
     var fc = b.form_col || 'var(--muted)';
     rows += '<tr>'
       +'<td style="color:var(--muted);font-weight:700">'+(i+1)+'</td>'
-      +'<td style="font-weight:800;color:var(--white)">'+b.name+'</td>'
+      +'<td style="font-weight:800;color:var(--white)">'+pPhoto(b.name,b.headshot)+b.name+'</td>'
       +'<td><span class="badge-gray">'+b.team+'</span></td>'
       +'<td style="color:var(--green);font-weight:800;font-size:14px">'+f(b.hr,0)+'</td>'
       +'<td style="color:'+clr(b.avg,0.285,0.250)+'">'+f(b.avg,3)+'</td>'
