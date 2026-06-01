@@ -295,6 +295,8 @@ tr:last-child td{border-bottom:none}
     <button class="filter-btn" onclick="setFilter('GOOD',this)">Good+</button>
     <button class="filter-btn" onclick="setFilter('vs_lhp',this)">vs LHP</button>
     <button class="filter-btn" onclick="setFilter('vs_rhp',this)">vs RHP</button>
+    <button class="filter-btn" onclick="setFilter('top5',this)">Top 5 Order</button>
+    <button class="filter-btn" onclick="setFilter('confirmed',this)">&#9989; Confirmed</button>
     <button class="filter-btn" onclick="setFilter('park',this)">HR Park</button>
     <button class="filter-btn" onclick="setFilter('hot',this)">&#128293; Hot Batters</button>
     <button class="filter-btn" onclick="setFilter('wind',this)">&#127787; Wind Out</button>
@@ -738,6 +740,8 @@ function applyFilter(picks){
   if(currentFilter === 'GOOD')   return picks.filter(function(p){ return p.confidence==='STRONG'||p.confidence==='GOOD'; });
   if(currentFilter === 'vs_lhp') return picks.filter(function(p){ return p.pitcher_hand==='L'; });
   if(currentFilter === 'vs_rhp') return picks.filter(function(p){ return p.pitcher_hand==='R'; });
+  if(currentFilter === 'top5')      return picks.filter(function(p){ return p.order!=null && p.order>=1 && p.order<=5; });
+  if(currentFilter === 'confirmed') return picks.filter(function(p){ return p.confirmed===true; });
   if(currentFilter === 'park')   return picks.filter(function(p){ return p.park_friendly===true&&p.park_factor>=1.10; });
   if(currentFilter === 'hot')    return picks.filter(function(p){ return p.form_adj&&p.form_adj>=8; });
   if(currentFilter === 'wind')   return picks.filter(function(p){ return p.weather&&p.weather.wind_score>=1&&!p.weather.dome; });
@@ -834,6 +838,14 @@ function buildPicks(){
       var nhc = pick.near_hr>=8?'var(--green)':pick.near_hr>=5?'var(--gold)':'var(--muted)';
       nearHrHtml = '<span style="color:'+nhc+';font-size:9px;font-weight:700;background:rgba(255,255,255,0.05);padding:1px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.1)"> &#128308; '+pick.near_hr+' Near HR</span>';
     }
+    var orderHtml = '';
+    if(pick.order != null){
+      orderHtml = ' <span style="color:var(--muted);font-size:9px;font-weight:700;background:rgba(255,255,255,0.05);padding:1px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.1)">#'+pick.order+' bat</span>';
+    }
+    var projHtml = '';
+    if(pick.confirmed !== true){
+      projHtml = ' <span style="color:var(--gold);font-size:9px;font-weight:700;background:rgba(234,179,8,0.1);padding:1px 6px;border-radius:3px;border:1px solid rgba(234,179,8,0.25)">PROJECTED</span>';
+    }
     html+='<div class="pick-card '+cls+'">'
       +'<div class="pick-header" style="display:flex;gap:10px;align-items:flex-start">'
       +'<div style="display:flex;gap:10px;align-items:center;flex:1">'
@@ -841,11 +853,13 @@ function buildPicks(){
       +'<div><div class="pick-name">'+pick.name+'</div>'
       +'<div class="pick-meta" style="margin-top:3px">'
       +'<span style="color:var(--white);font-weight:700">'+pick.team+'</span>'
+      +orderHtml
       +nearHrHtml
       +' <span style="color:var(--muted)">vs</span> '
       +'<span style="color:var(--white);font-weight:700">'+pick.pitcher+'</span>'
       +' <span style="color:var(--muted)">('+pick.pitcher_hand+'HP)</span>'
       +' <span style="color:var(--muted)">&bull; '+pick.game+'</span>'
+      +projHtml
       +(formHtml?' <span style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);padding:1px 5px;border-radius:3px;font-size:9px">'+formHtml+'</span>':'')
       +wxHtml+'</div></div></div>'
       +'<span class="conf-badge '+ccls+'">'+conf+'</span></div>'

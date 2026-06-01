@@ -670,13 +670,17 @@ def get_game_lineup(game_id):
             team_abb  = TEAM_ABB.get(team_name, team_name[:3].upper())
             players   = team_data.get('players', {})
 
-            # Try batting order first
-            bat_order = team_data.get('batters', [])
+            # Try batting order first — the official 'batters' array is only
+            # populated once the lineup is officially posted, so use it as the
+            # "confirmed" signal.
+            official_order = team_data.get('batters', [])
+            bat_order = official_order
 
             # If no batting order yet try battingOrder from team info
             if not bat_order:
                 bat_order = team_data.get('battingOrder', [])
 
+            confirmed = bool(official_order)
             lineup = []
 
             if bat_order:
@@ -698,6 +702,7 @@ def get_game_lineup(game_id):
                         stats['name']      = pname
                         stats['position']  = pos
                         stats['order']     = bat_order.index(pid) + 1
+                        stats['confirmed'] = confirmed
                         stats['player_id'] = pid_int
                         stats['headshot']  = get_headshot_url(pname, pid_int)
                         stats['batter_score'] = batter_score(stats)
@@ -727,6 +732,7 @@ def get_game_lineup(game_id):
                     stats['name']      = pname
                     stats['position']  = pos
                     stats['order']     = int(str(bo)[0]) if bo < 100 else int(bo/100)
+                    stats['confirmed'] = confirmed
                     stats['player_id'] = pid_int
                     stats['headshot']  = get_headshot_url(pname, pid_int)
                     stats['batter_score'] = batter_score(stats)
@@ -919,6 +925,8 @@ def get_top_picks(matchups, props):
                 picks.append({
                     "name":        bat['name'],
                     "team":        bat.get('team',''),
+                    "order":       bat.get('order'),
+                    "confirmed":   bat.get('confirmed', False),
                     "game":        m['game'],
                     "pitcher":     pitcher.get('name',''),
                     "pitcher_hand": pitcher.get('hand','R'),
