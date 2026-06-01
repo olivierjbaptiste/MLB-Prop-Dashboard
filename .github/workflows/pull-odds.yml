@@ -1,8 +1,7 @@
 name: Daily HR Odds Pull
 
 # Runs once a day to fetch HR prop odds and commit odds_cache.json.
-# This is the ONLY place that spends Odds API credits, so cost is fixed at
-# ~12 credits/day regardless of how often the app wakes.
+# This is the ONLY place that spends Odds API credits.
 
 on:
   schedule:
@@ -18,6 +17,8 @@ jobs:
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -33,10 +34,14 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Re-anchor onto the latest remote so the push can't be rejected,
+          # while keeping the freshly written odds_cache.json.
+          git fetch origin main
+          git reset --soft origin/main
           git add odds_cache.json
           if git diff --staged --quiet; then
             echo "No odds changes to commit."
           else
             git commit -m "Update odds snapshot [skip ci]"
-            git push
+            git push origin HEAD:main
           fi
