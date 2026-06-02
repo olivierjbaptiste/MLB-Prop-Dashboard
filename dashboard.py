@@ -9,6 +9,9 @@ import json
 import os
 import time
 import tempfile
+import csv
+import io
+import unicodedata
 from datetime import date, datetime
 # Lineup cache — persists confirmed lineups through game time
 _lineup_cache = {}  # {game_id: lineups_dict}
@@ -353,6 +356,20 @@ def matchup_score(batter, pitcher):
     b_mev = batter.get('max_ev')
     if b_mev is not None and b_mev >= 116:
         signals.append({"label": f"Huge EV ceiling ({b_mev:.0f} mph)", "good": True}); score += 3
+
+    b_la = batter.get('launch_angle')
+    if b_la is not None:
+        if 12 <= b_la <= 24:
+            signals.append({"label": f"HR-optimal launch angle ({b_la:.0f}\u00b0)", "good": True}); score += 4
+        elif b_la < 6:
+            signals.append({"label": f"Low launch angle ({b_la:.0f}\u00b0)", "good": False}); score -= 5
+
+    b_xslg = batter.get('xslg')
+    if b_xslg is not None:
+        if b_xslg >= 0.500:
+            signals.append({"label": f"Elite xSLG ({b_xslg:.3f})", "good": True}); score += 5
+        elif b_xslg >= 0.430:
+            signals.append({"label": f"Strong xSLG ({b_xslg:.3f})", "good": True}); score += 2
 
     b_k = batter.get('k_pct'); p_k = pitcher.get('k_pct')
     if b_k is not None and p_k is not None:
@@ -1029,6 +1046,9 @@ def get_top_picks(matchups, props):
                     "fb_pct":      bat.get('fb_pct'),
                     "pull_pct":    bat.get('pull_pct'),
                     "max_ev":      bat.get('max_ev'),
+                    "launch_angle": bat.get('launch_angle'),
+                    "xslg":        bat.get('xslg'),
+                    "savant":      bat.get('savant', False),
                     "park_factor": m['park_factor'],
                     "park_friendly": m['park_friendly'],
                     "park_name":   m['park_name'],
@@ -1202,6 +1222,151 @@ def add_batted_ball(bat):
     return bat
 
 
+# ──────────────────────────────────────────────────────────────────────────
+# Real batted-ball data from Baseball Savant (replaces curated estimates).
+# Pulls the public leaderboard CSVs once per process (cached), matches players
+# by MLBAM id (fallback: normalized name), and overlays REAL values. Any fetch
+# or parse failure leaves the curated/derived values untouched — no regression.
+# ──────────────────────────────────────────────────────────────────────────
+SAVANT_TTL   = 6 * 3600          # refetch at most every 6h per process
+_savant_cache = {"ts": 0.0, "by_id": {}, "by_name": {}}
+
+# Target field -> candidate CSV column names (lowercased). First match wins,
+# so header variations across Savant leaderboards degrade gracefully.
+_SAVANT_FIELDS = {
+    "barrel_pct":    ["brl_percent", "barrel_batted_rate"],
+    "hard_hit_pct":  ["ev95percent", "hard_hit_percent"],
+    "avg_hit_speed": ["avg_hit_speed", "exit_velocity_avg"],
+    "max_ev":        ["max_hit_speed", "exit_velocity_max"],
+    "launch_angle":  ["avg_hit_angle", "launch_angle_avg"],
+    "sweet_spot":    ["anglesweetspotpercent", "sweet_spot_percent"],
+    "xslg":          ["est_slg", "xslg"],
+    "xwoba":         ["est_woba", "xwoba"],
+    "fb_pct":        ["fb_percent", "flyballs_percent", "air_percent"],
+    "pull_pct":      ["pull_percent", "pull_pct"],
+}
+
+def _norm_name(s):
+    s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode()
+    s = s.lower().replace(".", "").replace(",", "")
+    toks = [t for t in s.split() if t not in ("jr", "sr", "ii", "iii", "iv")]
+    return " ".join(toks)
+
+def _to_float(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+def _fetch_savant_csv(url):
+    r = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0 (compatible; DiamondAnalytics/1.0)"})
+    r.raise_for_status()
+    text = r.text or ""
+    if text.lstrip()[:6].lower().startswith("<html") or "<!doctype" in text[:200].lower():
+        return []  # got the HTML page, not a CSV download
+    return list(csv.DictReader(io.StringIO(text)))
+
+def _savant_row_id_name(low):
+    pid = None
+    for k in ("player_id", "mlbam_id", "mlb_id", "key_mlbam"):
+        if k in low:
+            try:
+                pid = int(float(low[k])); break
+            except (TypeError, ValueError):
+                pass
+    name = None
+    for k in ("last_name, first_name", "player_name", "name"):
+        if k in low and low[k]:
+            v = low[k]
+            if "," in v:
+                last, first = [x.strip() for x in v.split(",", 1)]
+                name = f"{first} {last}"
+            else:
+                name = v
+            break
+    if not name:
+        fn = low.get("first_name") or low.get("name_first") or ""
+        ln = low.get("last_name") or low.get("name_last") or ""
+        if fn or ln:
+            name = f"{fn} {ln}".strip()
+    return pid, name
+
+def _savant_extract(low):
+    out = {}
+    for field, cands in _SAVANT_FIELDS.items():
+        for c in cands:
+            if c in low and low[c] not in (None, "", "null"):
+                val = _to_float(low[c])
+                if val is not None:
+                    out[field] = val
+                    break
+    return out
+
+def load_savant_statcast():
+    """Fetch + cache real batted-ball data keyed by MLBAM id and normalized name."""
+    now = time.time()
+    if _savant_cache["by_id"] and (now - _savant_cache["ts"]) < SAVANT_TTL:
+        return _savant_cache
+    if os.environ.get("SAVANT_DISABLE"):
+        return _savant_cache
+
+    by_id, by_name = {}, {}
+    this_year = datetime.now().year
+    for yr in (this_year, this_year - 1):   # current season, fall back to last
+        urls = [
+            f"https://baseballsavant.mlb.com/leaderboard/statcast?type=batter&year={yr}&position=&team=&min=q&csv=true",
+            f"https://baseballsavant.mlb.com/leaderboard/expected_statistics?type=batter&year={yr}&position=&team=&min=q&csv=true",
+            f"https://baseballsavant.mlb.com/leaderboard/batted-ball?type=batter&year={yr}&min=q&csv=true",
+        ]
+        for url in urls:
+            try:
+                rows = _fetch_savant_csv(url)
+            except Exception as e:
+                print(f"  Savant fetch failed ({url.split('?')[0]}): {e}")
+                continue
+            for row in rows:
+                low = {(k or "").strip().lower(): v for k, v in row.items()}
+                pid, name = _savant_row_id_name(low)
+                stats = _savant_extract(low)
+                if not stats:
+                    continue
+                if pid is not None:
+                    by_id.setdefault(pid, {}).update(stats)
+                if name:
+                    by_name.setdefault(_norm_name(name), {}).update(stats)
+        if by_id or by_name:
+            break  # this season returned data; don't fall back
+
+    if by_id or by_name:
+        _savant_cache.update({"ts": now, "by_id": by_id, "by_name": by_name})
+        print(f"  Savant data loaded: {len(by_id)} players by id, {len(by_name)} by name")
+    else:
+        print("  Savant returned no rows — keeping curated/derived batted-ball data")
+    return _savant_cache
+
+def apply_savant(bat):
+    """Overlay real Savant values onto a batter. Only overwrites fields Savant
+    actually provides; everything else keeps its curated/derived value."""
+    cache = load_savant_statcast()
+    rec = None
+    pid = bat.get("player_id")
+    if pid is not None:
+        try:
+            rec = cache["by_id"].get(int(pid))
+        except (TypeError, ValueError):
+            rec = None
+    if rec is None:
+        rec = cache["by_name"].get(_norm_name(bat.get("name", "")))
+    if not rec:
+        return bat
+    for k, v in rec.items():
+        if v is None:
+            continue
+        bat[k] = round(v, 3) if k in ("xslg", "xwoba") else round(v, 1)
+    bat["savant"] = True
+    return bat
+
+
 def build_batters():
     # Try live MLB Stats API first — falls back to sample data
     live = load_live_batters()
@@ -1211,6 +1376,7 @@ def build_batters():
     for b in source:
         bat = dict(b)
         add_batted_ball(bat)
+        apply_savant(bat)
         bat['batter_score'] = batter_score(bat)
         fl, fe, fc, fa = form_trend(bat)
         bat['form_label']  = fl

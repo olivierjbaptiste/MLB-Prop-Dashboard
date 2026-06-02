@@ -728,10 +728,18 @@ function powerProfile(pick){
   if(pick.hard_hit_pct!=null) parts.push('HH '+pick.hard_hit_pct+'%');
   if(pick.fb_pct!=null)       parts.push('FB '+pick.fb_pct+'%');
   if(pick.pull_pct!=null)     parts.push('Pull '+pick.pull_pct+'%');
+  if(pick.launch_angle!=null) parts.push('LA '+pick.launch_angle+'\u00b0');
   if(pick.max_ev!=null)       parts.push('Max '+pick.max_ev);
+  if(pick.xslg!=null){
+    var xs=(typeof pick.xslg==='number')?pick.xslg.toFixed(3).replace(/^0/,''):pick.xslg;
+    parts.push('xSLG '+xs);
+  }
   if(!parts.length) return '';
+  var tag = pick.savant
+    ? '<span style="color:var(--green);font-weight:700">\u25cf Statcast</span> &middot; '
+    : '<span style="color:var(--white);font-weight:700">Power: </span>';
   return '<div style="font-size:10px;color:var(--muted);margin-top:6px;letter-spacing:0.3px">'
-    +'<span style="color:var(--white);font-weight:700">Power: </span>'+parts.join(' &middot; ')+'</div>';
+    +tag+parts.join(' &middot; ')+'</div>';
 }
 
 document.getElementById('stat-picks').textContent    = PICKS.length;
