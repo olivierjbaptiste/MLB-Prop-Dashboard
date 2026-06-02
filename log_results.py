@@ -95,16 +95,23 @@ def todays_picks(dashboard):
     key = os.environ.get("ODDS_API_KEY", "")
     data = dashboard.build_all_data(key)
     out = []
-    for p in (data.get("top_picks", []) or [])[:TOP_N]:
+    for p in (data.get("top_picks", []) or []):
+        odds = p.get("prop_odds")
+        # Only track picks that actually had a (realistic) market line — keeps the
+        # record to genuine priced bets, so wins/losses and P/L are meaningful.
+        if odds is None:
+            continue
         out.append({
             "player":     p.get("name", ""),
             "team":       p.get("team", ""),
             "pitcher":    p.get("pitcher", ""),
             "confidence": p.get("confidence", ""),
             "line":       p.get("prop_line"),
-            "odds":       p.get("prop_odds"),
+            "odds":       odds,
             "edge":       p.get("edge_pct"),
         })
+        if len(out) >= TOP_N:
+            break
     return out
 
 

@@ -939,13 +939,19 @@ def get_top_picks(matchups, props):
                 if ms < 60:
                     continue
 
-                # Find prop line
+                # Find prop line — ignore junk/suspended lines (e.g. +10000) and
+                # take the best realistic price across books.
+                MAX_SANE_ODDS = 1000   # drop anything longer than +1000 as not a real line
                 bat_props = prop_lookup.get(bat['name'].lower(), [])
                 best_prop = None
                 for p in bat_props:
-                    if p.get('side','').lower() == 'over':
+                    if p.get('side','').lower() != 'over':
+                        continue
+                    o = p.get('odds')
+                    if o is None or o > MAX_SANE_ODDS:
+                        continue
+                    if best_prop is None or o > best_prop.get('odds', -99999):
                         best_prop = p
-                        break
 
                 # Confidence rating
                 signals_good = sum(1 for s in bat.get('signals',[]) if s.get('good') is True)
