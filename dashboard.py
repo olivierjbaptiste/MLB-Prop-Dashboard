@@ -637,7 +637,7 @@ def load_live_batters():
 
                 try:
                     avg = float(st.get("avg", 0) or 0)
-                    slg = float(st.get("sluggingPct", 0) or 0)
+                    slg = float(st.get("slg", st.get("sluggingPct", 0)) or 0)
                     obp = float(st.get("obp", 0) or 0)
                     hr  = int(st.get("homeRuns", 0) or 0)
                     ab  = int(st.get("atBats", 0) or 0)
@@ -1207,18 +1207,25 @@ def _clamp(v, lo, hi):
 
 def add_batted_ball(bat):
     """Attach hard_hit_pct / fb_pct / pull_pct / max_ev. Uses curated values when
-    known, otherwise derives sensible estimates from the batter's power profile."""
+    known. For others, only DERIVES estimates when the batter has at least one
+    real power input (barrel% or EV) — otherwise leaves them blank so we never
+    show a fabricated, identical value on hitters we have no data for."""
     name = bat.get('name', '')
     if name in BATTED_BALL:
         bat.update(BATTED_BALL[name])
         return bat
-    bp  = bat.get('barrel_pct') or 10.0
-    ev  = bat.get('avg_hit_speed') or 88.0
-    iso = bat.get('iso') or 0.16
-    bat.setdefault('hard_hit_pct', round(_clamp((ev - 84) * 4 + 30, 28, 60)))
-    bat.setdefault('max_ev',       round(_clamp(ev + 17 + bp * 0.45, 106, 120)))
-    bat.setdefault('fb_pct',       round(_clamp(30 + (iso - 0.18) * 55, 24, 45)))
-    bat.setdefault('pull_pct',     round(_clamp(40 + (bp - 12) * 0.7, 36, 52)))
+    bp  = bat.get('barrel_pct')
+    ev  = bat.get('avg_hit_speed')
+    iso = bat.get('iso')
+    if bp is None and ev is None:
+        return bat  # no real signal — leave blank, don't invent numbers
+    bpv  = bp if bp is not None else 10.0
+    evv  = ev if ev is not None else 88.0
+    isov = iso if iso is not None else 0.16
+    bat.setdefault('hard_hit_pct', round(_clamp((evv - 84) * 4 + 30, 28, 60)))
+    bat.setdefault('max_ev',       round(_clamp(evv + 17 + bpv * 0.45, 106, 120)))
+    bat.setdefault('fb_pct',       round(_clamp(30 + (isov - 0.18) * 55, 24, 45)))
+    bat.setdefault('pull_pct',     round(_clamp(40 + (bpv - 12) * 0.7, 36, 52)))
     return bat
 
 
