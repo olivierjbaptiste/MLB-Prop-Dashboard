@@ -18,6 +18,38 @@ _lineup_cache = {}  # {game_id: lineups_dict}
 _picks_cache  = []  # Last known picks
 _matchups_cache = [] # Last known matchups
 
+# ── Daily snapshots ───────────────────────────────────────────────
+# The GitHub Action does the heavy fetching once a day and commits JSON
+# snapshots next to this file. At request time the app reads those snapshots
+# (fast, no network) and only falls back to live fetching if a snapshot is
+# missing. pull_stats.py sets _FORCE_LIVE so the Action always fetches fresh.
+_FORCE_LIVE = False
+_SNAP_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def _snap_path(name):
+    return os.path.join(_SNAP_DIR, name)
+
+def _read_snapshot(name):
+    """Return the parsed snapshot dict, or None if absent/unreadable."""
+    try:
+        with open(_snap_path(name), "r") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+def _write_snapshot(name, payload):
+    payload = dict(payload)
+    payload["ts"] = time.time()
+    with open(_snap_path(name), "w") as f:
+        json.dump(payload, f)
+    return _snap_path(name)
+
+def _snapshot_age_h(snap):
+    try:
+        return round((time.time() - float(snap.get("ts", 0))) / 3600, 1)
+    except Exception:
+        return None
+
 try:
     from odds_free import get_free_props
     FREE_ODDS_AVAILABLE = True
@@ -593,6 +625,11 @@ def load_live_batters():
     Returns list of batter dicts with live stats.
     Falls back to sample data if API fails.
     """
+    if not _FORCE_LIVE:
+        snap = _read_snapshot("live_batters.json")
+        if snap and snap.get("batters"):
+            print(f"  Using committed batter snapshot ({len(snap['batters'])} batters, {_snapshot_age_h(snap)}h old)")
+            return snap["batters"]
     try:
         print("  Loading live batter stats from MLB Stats API...")
 
@@ -1358,6 +1395,16 @@ def load_savant_statcast():
     now = time.time()
     if _savant_cache["by_id"] and (now - _savant_cache["ts"]) < SAVANT_TTL:
         return _savant_cache
+    if not _FORCE_LIVE:
+        snap = _read_snapshot("savant_batters.json")
+        if snap and snap.get("by_id"):
+            _savant_cache.update({
+                "ts": now,
+                "by_id": {int(k): v for k, v in snap["by_id"].items()},
+                "by_name": snap.get("by_name", {}),
+            })
+            print(f"  Using committed Savant batter snapshot ({len(_savant_cache['by_id'])} players, {_snapshot_age_h(snap)}h old)")
+            return _savant_cache
     if os.environ.get("SAVANT_DISABLE"):
         return _savant_cache
 
@@ -1465,6 +1512,11 @@ def load_savant_pitchers():
 def load_live_pitchers():
     """All pitchers' real season stats from the MLB Stats API, enriched with
     Savant contact-allowed data. Returns a list of pitcher dicts, or [] on failure."""
+    if not _FORCE_LIVE:
+        snap = _read_snapshot("live_pitchers.json")
+        if snap and snap.get("pitchers"):
+            print(f"  Using committed pitcher snapshot ({len(snap['pitchers'])} pitchers, {_snapshot_age_h(snap)}h old)")
+            return snap["pitchers"]
     try:
         print("  Loading live pitcher stats from MLB Stats API...")
         bio = {}
