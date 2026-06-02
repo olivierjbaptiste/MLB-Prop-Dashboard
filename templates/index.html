@@ -362,11 +362,8 @@ tr:last-child td{border-bottom:none}
 <!-- PITCHERS -->
 <div id="tc-pitchers" class="tc">
   <div class="section-hdr"><h2>Pitcher Vulnerability</h2></div>
-  <div class="section-sub">Red = target, Green = avoid — Velo trend shows recent vs season average</div>
-  <div class="tw"><table>
-    <thead><tr><th>Player</th><th>Team</th><th>H</th><th>Role</th><th>ERA</th><th>WHIP</th><th>K/9</th><th>HR/9</th><th>Risk RHB</th><th>Risk LHB</th><th>Barrel%</th><th>SwStr%</th><th>Velo Ssn</th><th>Velo Rec</th><th>Velo Trend</th><th>Vuln</th></tr></thead>
-    <tbody id="pitchers-body"></tbody>
-  </table></div>
+  <div class="section-sub">Ranked by HR vulnerability — red = target, green = avoid. Real season stats + Statcast contact allowed.</div>
+  <div class="picks-grid" id="pitchers-body"></div>
 </div>
 
 <!-- DAY/NIGHT -->
@@ -1396,34 +1393,52 @@ function buildBatters(){
 
 // ── PITCHERS ──────────────────────────────────────────────────────
 function buildPitchers(){
-  var rows='';
+  var cards='';
   PITCHERS.forEach(function(p){
     var vs=p.vuln_score||0;
+    var vCol = vs>=65?'var(--red)':vs<=40?'var(--green)':'var(--gold)';
+    var vLbl = vs>=65?'TARGET':vs<=40?'AVOID':'NEUTRAL';
     var rcol=p.role==='SP'?'var(--blue)':'#a855f7';
-    var ec=p.era>4.0?'var(--red)':p.era<3.0?'var(--green)':'var(--white)';
-    var drop=p.velo_drop_val;
-    var vsCol=p.velo_season>=96?'var(--green)':p.velo_season>=92?'var(--blue)':'var(--white)';
-    var vrCol=drop!=null&&drop>=1.0?'var(--red)':drop!=null&&drop<=-1.0?'var(--green)':'var(--white)';
-    rows+='<tr>'
-      +'<td style="font-weight:800;color:var(--white)">'+pPhoto(p.name,p.headshot)+p.name+'</td>'
-      +'<td><span class="badge-gray">'+p.team+'</span></td>'
-      +'<td style="color:var(--muted)">'+p.hand+'</td>'
-      +'<td><span style="color:'+rcol+';font-weight:700">'+(p.role||'SP')+'</span></td>'
-      +'<td style="color:'+ec+'">'+f(p.era,2)+'</td>'
-      +'<td>'+f(p.whip,2)+'</td>'
-      +'<td>'+f(p.k9,1)+'</td>'
-      +'<td style="color:'+rcFn(p.hr9)+'">'+f(p.hr9,2)+'</td>'
-      +'<td style="color:'+rcFn(p.hr_risk_rhb)+'">'+f(p.hr_risk_rhb,2)+'</td>'
-      +'<td style="color:'+rcFn(p.hr_risk_lhb)+'">'+f(p.hr_risk_lhb,2)+'</td>'
-      +'<td style="color:'+clr(p.barrel_pct,10,5)+'">'+f(p.barrel_pct,1)+'%</td>'
-      +'<td style="color:'+clr(p.swstr,18,10)+'">'+f(p.swstr,1)+'%</td>'
-      +'<td style="color:'+vsCol+'">'+f(p.velo_season,1)+'</td>'
-      +'<td style="color:'+vrCol+'">'+f(p.velo_recent,1)+'</td>'
-      +'<td style="color:'+(p.velo_col||'var(--muted)');+';font-weight:700">'+(p.velo_label||'—')+'</td>'
-      +'<td>'+pbar(vs)+'</td>'
-      +'</tr>';
+    var ec=(p.era!=null&&p.era>4.0)?'var(--red)':(p.era!=null&&p.era<3.0)?'var(--green)':'var(--white)';
+    var savTag = p.savant ? ' <span style="color:var(--green);font-weight:700;font-size:10px">\u25cf Statcast</span>' : '';
+
+    var extra=[];
+    if(p.ev_allowed!=null)   extra.push('EV allowed '+f(p.ev_allowed,1));
+    if(p.xslg_allowed!=null)  extra.push('xSLG allowed '+f(p.xslg_allowed,3).replace(/^0/,''));
+    if(p.velo_label && p.velo_label!=='N/A' && p.velo_label!=='—')
+      extra.push(p.velo_label.replace(/&#\d+;/g,'').trim());
+    var footer = extra.length
+      ? '<div style="font-size:10px;color:var(--muted);margin-top:8px;border-top:1px solid var(--border);padding-top:6px">'+extra.join(' &middot; ')+'</div>'
+      : '';
+
+    var stats=''
+      +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+ec+'">'+f(p.era,2)+'</div><div class="pick-stat-lbl">ERA</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val">'+f(p.whip,2)+'</div><div class="pick-stat-lbl">WHIP</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val">'+f(p.k9,1)+'</div><div class="pick-stat-lbl">K/9</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+clr(p.hr9,1.0,1.5,true)+'">'+f(p.hr9,2)+'</div><div class="pick-stat-lbl">HR/9</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+clr(p.hr_risk_rhb,1.0,1.5,true)+'">'+f(p.hr_risk_rhb,2)+'</div><div class="pick-stat-lbl">Risk RHB</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+clr(p.hr_risk_lhb,1.0,1.5,true)+'">'+f(p.hr_risk_lhb,2)+'</div><div class="pick-stat-lbl">Risk LHB</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+clr(p.barrel_pct,7,11,true)+'">'+(p.barrel_pct!=null?f(p.barrel_pct,1)+'%':'\u2014')+'</div><div class="pick-stat-lbl">Barrel%</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val">'+(p.k_pct!=null?f(p.k_pct,1)+'%':'\u2014')+'</div><div class="pick-stat-lbl">K%</div></div>';
+
+    cards+='<div class="pick-card">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px">'
+        +'<div style="min-width:0">'
+          +'<div class="pick-name">'+pPhoto(p.name,p.headshot)+p.name+savTag+'</div>'
+          +'<div style="font-size:11px;color:var(--muted);margin-top:3px">'
+            +'<span class="badge-gray">'+p.team+'</span> &middot; '+(p.hand||'R')+'HP &middot; <span style="color:'+rcol+';font-weight:700">'+(p.role||'SP')+'</span>'
+          +'</div>'
+        +'</div>'
+        +'<div style="text-align:right;flex-shrink:0">'
+          +'<div style="font-size:22px;font-weight:800;color:'+vCol+'">'+f(vs,0)+'</div>'
+          +'<div style="font-size:9px;color:'+vCol+';text-transform:uppercase;letter-spacing:0.5px;font-weight:700">'+vLbl+'</div>'
+        +'</div>'
+      +'</div>'
+      +'<div class="pick-stats">'+stats+'</div>'
+      +footer
+      +'</div>';
   });
-  document.getElementById('pitchers-body').innerHTML=rows;
+  document.getElementById('pitchers-body').innerHTML=cards;
 }
 
 // ── DAY/NIGHT ─────────────────────────────────────────────────────
