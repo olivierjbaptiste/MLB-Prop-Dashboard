@@ -351,10 +351,10 @@ tr:last-child td{border-bottom:none}
 
 <!-- BATTERS -->
 <div id="tc-batters" class="tc">
-  <div class="section-hdr"><h2>Batter Power Profiles</h2><span class="badge" id="batter-count">0</span></div>
-  <div class="section-sub">Form-adjusted score — hot streaks boost ranking, cold streaks drop it — Statcast overlay for top hitters</div>
+  <div class="section-hdr"><h2>Batter Power Profiles</h2><span class="badge" id="batter-count">0</span><span id="savant-status" style="font-size:11px;font-weight:700;margin-left:10px"></span></div>
+  <div class="section-sub">Form-adjusted score — hot streaks boost ranking, cold streaks drop it. Real Statcast data (HH%, launch angle, xSLG) is overlaid when available.</div>
   <div class="tw"><table>
-    <thead><tr><th>Player</th><th>Team</th><th>H</th><th>Form</th><th>Near HR</th><th>L14 AVG</th><th>L14 SLG</th><th>L14 HR</th><th>AVG</th><th>SLG</th><th>HR</th><th>Barrel%</th><th>EV</th><th>ISO</th><th>K%</th><th>Score</th></tr></thead>
+    <thead><tr><th>Player</th><th>Team</th><th>H</th><th>Form</th><th>Near HR</th><th>L14 AVG</th><th>L14 SLG</th><th>L14 HR</th><th>AVG</th><th>SLG</th><th>HR</th><th>Barrel%</th><th>EV</th><th>HH%</th><th>LA</th><th>xSLG</th><th>ISO</th><th>K%</th><th>Score</th></tr></thead>
     <tbody id="batters-body"></tbody>
   </table></div>
 </div>
@@ -1377,12 +1377,21 @@ function buildBatters(){
       +'<td>'+f(b.hr,0)+'</td>'
       +'<td style="color:'+clr(b.barrel_pct,15,8)+'">'+f(b.barrel_pct,1)+'%</td>'
       +'<td style="color:'+clr(b.avg_hit_speed,91,87)+'">'+f(b.avg_hit_speed,1)+'</td>'
+      +'<td style="color:'+clr(b.hard_hit_pct,48,38)+'">'+(b.hard_hit_pct!=null?f(b.hard_hit_pct,0)+'%':'—')+'</td>'
+      +'<td style="color:var(--white)">'+(b.launch_angle!=null?f(b.launch_angle,0)+'\u00b0':'—')+'</td>'
+      +'<td style="color:'+clr(b.xslg,0.450,0.380)+'">'+(b.xslg!=null?f(b.xslg,3):'—')+'</td>'
       +'<td style="color:'+clr(b.iso,0.220,0.150)+'">'+f(b.iso,3)+'</td>'
       +'<td style="color:'+clr(b.k_pct,17,25,true)+'">'+f(b.k_pct,1)+'%</td>'
       +'<td>'+pbar(sc)+'</td>'
       +'</tr>';
   });
   document.getElementById('batters-body').innerHTML=rows;
+  var savantN = BATTERS.filter(function(b){return b.savant;}).length;
+  var ss=document.getElementById('savant-status');
+  if(ss){
+    if(savantN>0){ ss.textContent='\u25cf Statcast live · '+savantN+' players'; ss.style.color='var(--green)'; }
+    else { ss.textContent='\u25cf Statcast: estimates (live data unavailable)'; ss.style.color='var(--muted)'; }
+  }
 }
 
 // ── PITCHERS ──────────────────────────────────────────────────────

@@ -1259,12 +1259,25 @@ def _to_float(v):
         return None
 
 def _fetch_savant_csv(url):
-    r = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0 (compatible; DiamondAnalytics/1.0)"})
-    r.raise_for_status()
+    tag = url.split("/leaderboard/")[-1].split("?")[0]
+    try:
+        r = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0 (compatible; DiamondAnalytics/1.0)"})
+    except Exception as e:
+        print(f"  Savant request error [{tag}]: {e}")
+        return []
+    ctype = (r.headers.get("content-type") or "").lower()
+    if r.status_code != 200:
+        print(f"  Savant HTTP {r.status_code} [{tag}] ctype={ctype}")
+        return []
     text = r.text or ""
-    if text.lstrip()[:6].lower().startswith("<html") or "<!doctype" in text[:200].lower():
-        return []  # got the HTML page, not a CSV download
-    return list(csv.DictReader(io.StringIO(text)))
+    head = text.lstrip()[:80].replace("\n", " ")
+    if head[:5].lower() in ("<html", "<!doc") or "<!doctype" in text[:200].lower() or "text/html" in ctype:
+        print(f"  Savant returned HTML not CSV [{tag}] ctype={ctype} head='{head[:50]}'")
+        return []
+    rows = list(csv.DictReader(io.StringIO(text)))
+    cols = list(rows[0].keys())[:8] if rows else []
+    print(f"  Savant CSV ok [{tag}]: {len(rows)} rows, cols={cols}")
+    return rows
 
 def _savant_row_id_name(low):
     pid = None
