@@ -722,6 +722,18 @@ function whyLine(pick){
     +'</div>';
 }
 
+// Compact batted-ball power profile: hard-hit%, fly-ball%, pull%, max EV.
+function powerProfile(pick){
+  var parts=[];
+  if(pick.hard_hit_pct!=null) parts.push('HH '+pick.hard_hit_pct+'%');
+  if(pick.fb_pct!=null)       parts.push('FB '+pick.fb_pct+'%');
+  if(pick.pull_pct!=null)     parts.push('Pull '+pick.pull_pct+'%');
+  if(pick.max_ev!=null)       parts.push('Max '+pick.max_ev);
+  if(!parts.length) return '';
+  return '<div style="font-size:10px;color:var(--muted);margin-top:6px;letter-spacing:0.3px">'
+    +'<span style="color:var(--white);font-weight:700">Power: </span>'+parts.join(' &middot; ')+'</div>';
+}
+
 document.getElementById('stat-picks').textContent    = PICKS.length;
 // Show freshness indicator safely
 try {
@@ -1143,6 +1155,7 @@ function buildPicks(){
       +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+clr(pick.avg_hit_speed,91,87)+'">'+f(pick.avg_hit_speed,1)+'</div><div class="pick-stat-lbl">EV mph</div></div>'
       +'<div class="pick-stat"><div class="pick-stat-val">'+parkBadge(pick.park_factor||1.0,pick.park_friendly)+'</div><div class="pick-stat-lbl">Park</div></div>'
       +'</div>'
+      +powerProfile(pick)
       +'<div class="sigs">'+sigs+'</div>'
       +fairOddsHtml+dontBet
       +'<button onclick="sharePick('+pIdx+')" style="margin-top:8px;width:100%;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);color:var(--green);font-size:11px;font-weight:700;padding:6px;border-radius:6px;cursor:pointer">&#128247; Share Card</button>'

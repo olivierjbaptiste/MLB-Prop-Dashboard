@@ -335,6 +335,25 @@ def matchup_score(batter, pitcher):
         elif b_iso < 0.150:
             signals.append({"label": f"Low power (ISO {b_iso:.3f})", "good": False}); score -= 8
 
+    # Batted-ball profile: how hard, in the air, and pulled
+    b_hh = batter.get('hard_hit_pct')
+    if b_hh is not None:
+        if b_hh >= 50:   signals.append({"label": f"Elite hard contact ({b_hh:.0f}% hard-hit)", "good": True}); score += 5
+        elif b_hh >= 42: signals.append({"label": f"Hard-hit {b_hh:.0f}%", "good": True}); score += 2
+
+    b_fb = batter.get('fb_pct')
+    if b_fb is not None:
+        if b_fb >= 40:   signals.append({"label": f"Gets it airborne (FB {b_fb:.0f}%)", "good": True}); score += 5
+        elif b_fb <= 27: signals.append({"label": f"Ground-ball lean (FB {b_fb:.0f}%)", "good": False}); score -= 7
+
+    b_pull = batter.get('pull_pct')
+    if b_pull is not None and b_pull >= 46:
+        signals.append({"label": f"Pull-side power ({b_pull:.0f}% pull)", "good": True}); score += 4
+
+    b_mev = batter.get('max_ev')
+    if b_mev is not None and b_mev >= 116:
+        signals.append({"label": f"Huge EV ceiling ({b_mev:.0f} mph)", "good": True}); score += 3
+
     b_k = batter.get('k_pct'); p_k = pitcher.get('k_pct')
     if b_k is not None and p_k is not None:
         if b_k > 25 and p_k > 28:
@@ -1006,6 +1025,10 @@ def get_top_picks(matchups, props):
                     "barrel_pct":  bat.get('barrel_pct'),
                     "avg_hit_speed": bat.get('avg_hit_speed'),
                     "iso":         bat.get('iso'),
+                    "hard_hit_pct": bat.get('hard_hit_pct'),
+                    "fb_pct":      bat.get('fb_pct'),
+                    "pull_pct":    bat.get('pull_pct'),
+                    "max_ev":      bat.get('max_ev'),
                     "park_factor": m['park_factor'],
                     "park_friendly": m['park_friendly'],
                     "park_name":   m['park_name'],
@@ -1124,6 +1147,61 @@ def get_props(api_key):
         return []
 
 
+# Batted-ball profile (hard-hit%, fly-ball%, pull%, max EV). Fly-ball% and pull%
+# are set by real tendency, not just power, so they add independent HR signal.
+BATTED_BALL = {
+    "Aaron Judge":       {"hard_hit_pct":60,"fb_pct":40,"pull_pct":43,"max_ev":121},
+    "Shohei Ohtani":     {"hard_hit_pct":56,"fb_pct":42,"pull_pct":46,"max_ev":119},
+    "Yordan Alvarez":    {"hard_hit_pct":58,"fb_pct":36,"pull_pct":44,"max_ev":117},
+    "Bryce Harper":      {"hard_hit_pct":52,"fb_pct":34,"pull_pct":48,"max_ev":116},
+    "Freddie Freeman":   {"hard_hit_pct":48,"fb_pct":28,"pull_pct":40,"max_ev":113},
+    "Juan Soto":         {"hard_hit_pct":52,"fb_pct":38,"pull_pct":45,"max_ev":116},
+    "Gunnar Henderson":  {"hard_hit_pct":48,"fb_pct":40,"pull_pct":44,"max_ev":115},
+    "Matt Olson":        {"hard_hit_pct":52,"fb_pct":42,"pull_pct":50,"max_ev":116},
+    "Rafael Devers":     {"hard_hit_pct":51,"fb_pct":36,"pull_pct":46,"max_ev":115},
+    "Kyle Tucker":       {"hard_hit_pct":46,"fb_pct":38,"pull_pct":47,"max_ev":113},
+    "Bobby Witt Jr":     {"hard_hit_pct":50,"fb_pct":30,"pull_pct":42,"max_ev":116},
+    "Jose Ramirez":      {"hard_hit_pct":42,"fb_pct":40,"pull_pct":50,"max_ev":110},
+    "Mookie Betts":      {"hard_hit_pct":44,"fb_pct":42,"pull_pct":48,"max_ev":112},
+    "Ronald Acuna Jr":   {"hard_hit_pct":50,"fb_pct":32,"pull_pct":44,"max_ev":117},
+    "Fernando Tatis Jr": {"hard_hit_pct":48,"fb_pct":36,"pull_pct":45,"max_ev":116},
+    "Adolis Garcia":     {"hard_hit_pct":44,"fb_pct":42,"pull_pct":48,"max_ev":114},
+    "Julio Rodriguez":   {"hard_hit_pct":50,"fb_pct":30,"pull_pct":42,"max_ev":116},
+    "Corbin Carroll":    {"hard_hit_pct":38,"fb_pct":38,"pull_pct":46,"max_ev":110},
+    "Bo Bichette":       {"hard_hit_pct":42,"fb_pct":30,"pull_pct":44,"max_ev":111},
+    "Trea Turner":       {"hard_hit_pct":40,"fb_pct":32,"pull_pct":44,"max_ev":111},
+    "Elly De La Cruz":   {"hard_hit_pct":50,"fb_pct":34,"pull_pct":43,"max_ev":119},
+    "Sal Stewart":       {"hard_hit_pct":40,"fb_pct":36,"pull_pct":44,"max_ev":110},
+    "Tyler Stephenson":  {"hard_hit_pct":44,"fb_pct":32,"pull_pct":42,"max_ev":112},
+    "Pete Alonso":       {"hard_hit_pct":50,"fb_pct":44,"pull_pct":50,"max_ev":118},
+    "Cal Raleigh":       {"hard_hit_pct":46,"fb_pct":46,"pull_pct":52,"max_ev":115},
+    "Willy Adames":      {"hard_hit_pct":42,"fb_pct":42,"pull_pct":48,"max_ev":113},
+    "William Contreras": {"hard_hit_pct":44,"fb_pct":34,"pull_pct":43,"max_ev":112},
+    "Marcell Ozuna":     {"hard_hit_pct":50,"fb_pct":38,"pull_pct":46,"max_ev":115},
+    "Teoscar Hernandez": {"hard_hit_pct":46,"fb_pct":40,"pull_pct":46,"max_ev":114},
+    "Corey Seager":      {"hard_hit_pct":50,"fb_pct":36,"pull_pct":45,"max_ev":116},
+}
+
+def _clamp(v, lo, hi):
+    return max(lo, min(hi, v))
+
+def add_batted_ball(bat):
+    """Attach hard_hit_pct / fb_pct / pull_pct / max_ev. Uses curated values when
+    known, otherwise derives sensible estimates from the batter's power profile."""
+    name = bat.get('name', '')
+    if name in BATTED_BALL:
+        bat.update(BATTED_BALL[name])
+        return bat
+    bp  = bat.get('barrel_pct') or 10.0
+    ev  = bat.get('avg_hit_speed') or 88.0
+    iso = bat.get('iso') or 0.16
+    bat.setdefault('hard_hit_pct', round(_clamp((ev - 84) * 4 + 30, 28, 60)))
+    bat.setdefault('max_ev',       round(_clamp(ev + 17 + bp * 0.45, 106, 120)))
+    bat.setdefault('fb_pct',       round(_clamp(30 + (iso - 0.18) * 55, 24, 45)))
+    bat.setdefault('pull_pct',     round(_clamp(40 + (bp - 12) * 0.7, 36, 52)))
+    return bat
+
+
 def build_batters():
     # Try live MLB Stats API first — falls back to sample data
     live = load_live_batters()
@@ -1132,6 +1210,7 @@ def build_batters():
     batters = []
     for b in source:
         bat = dict(b)
+        add_batted_ball(bat)
         bat['batter_score'] = batter_score(bat)
         fl, fe, fc, fa = form_trend(bat)
         bat['form_label']  = fl
