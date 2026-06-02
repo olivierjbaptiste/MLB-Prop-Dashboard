@@ -434,25 +434,37 @@ def get_batter_stats(name):
     return None
 
 
-def get_pitcher_stats(name):
-    """Look up a pitcher's stats from our sample data by name"""
+def get_pitcher_stats(name, pid=None):
+    """Real live stats for a pitcher, matched by MLBAM id first, then name.
+    Falls back to the static sample list, then None."""
+    def _finish(rec):
+        result = dict(rec)
+        vl, vc, _ = velo_status(result)
+        result['velo_label']    = vl
+        result['velo_col']      = vc
+        result['velo_drop_val'] = velo_drop(result)
+        return result
+
+    pool = get_live_pitcher_pool()
+    if pid is not None:
+        try:
+            rec = pool["by_id"].get(int(pid))
+        except (TypeError, ValueError):
+            rec = None
+        if rec:
+            return _finish(rec)
+    if name:
+        rec = pool["by_name"].get(_norm_name(name))
+        if rec:
+            return _finish(rec)
+
     name_lower = name.lower()
     for p in SAMPLE_PITCHERS:
         if p['name'].lower() == name_lower:
-            result = dict(p)
-            vl, vc, _ = velo_status(result)
-            result['velo_label']    = vl
-            result['velo_col']      = vc
-            result['velo_drop_val'] = velo_drop(result)
-            return result
+            return _finish(p)
         last = p['name'].split()[-1].lower()
         if last == name_lower.split()[-1]:
-            result = dict(p)
-            vl, vc, _ = velo_status(result)
-            result['velo_label']    = vl
-            result['velo_col']      = vc
-            result['velo_drop_val'] = velo_drop(result)
-            return result
+            return _finish(p)
     return None
 
 
@@ -814,8 +826,8 @@ def get_games():
                 pk  = PARKS.get(ha, {"name": ve, "factor": 1.00, "friendly": None})
 
                 # Get pitcher stats
-                away_pit_stats = get_pitcher_stats(ap) or {"name": ap, "team": aa, "hand": "R", "role": "SP"}
-                home_pit_stats = get_pitcher_stats(hp) or {"name": hp, "team": ha, "hand": "R", "role": "SP"}
+                away_pit_stats = get_pitcher_stats(ap, ap_id) or {"name": ap, "team": aa, "hand": "R", "role": "SP"}
+                home_pit_stats = get_pitcher_stats(hp, hp_id) or {"name": hp, "team": ha, "hand": "R", "role": "SP"}
                 away_pit_stats = dict(away_pit_stats)
                 home_pit_stats = dict(home_pit_stats)
                 away_pit_stats['vuln_score'] = pitcher_vuln(away_pit_stats)
@@ -1265,6 +1277,25 @@ def _to_float(v):
     except (TypeError, ValueError):
         return None
 
+def _to_int(v):
+    try:
+        return int(float(v))
+    except (TypeError, ValueError):
+        return 0
+
+def _parse_ip(v):
+    """MLB innings pitched like '45.2' = 45 innings + 2 outs = 45.667."""
+    if v in (None, ""):
+        return None
+    try:
+        s = str(v)
+        if "." in s:
+            whole, frac = s.split(".", 1)
+            return int(whole or 0) + int(frac[0]) / 3.0
+        return float(s)
+    except (TypeError, ValueError):
+        return None
+
 def _fetch_savant_csv(url):
     tag = url.split("/leaderboard/")[-1].split("?")[0]
     try:
@@ -1387,6 +1418,145 @@ def apply_savant(bat):
     return bat
 
 
+# ──────────────────────────────────────────────────────────────────────────
+# Live PITCHER data. Real season stats (ERA/WHIP/K9/HR9/K%) for every pitcher
+# from the MLB Stats API, plus contact-quality-allowed (barrel%, EV, xSLG) from
+# Baseball Savant. HR-risk by batter hand is derived from the real HR rate with
+# a platoon adjustment. Falls back to SAMPLE_PITCHERS on any failure.
+# ──────────────────────────────────────────────────────────────────────────
+_savant_pitcher_cache = {"ts": 0.0, "by_id": {}, "by_name": {}}
+
+def load_savant_pitchers():
+    now = time.time()
+    if _savant_pitcher_cache["by_id"] and (now - _savant_pitcher_cache["ts"]) < SAVANT_TTL:
+        return _savant_pitcher_cache
+    if os.environ.get("SAVANT_DISABLE"):
+        return _savant_pitcher_cache
+    by_id, by_name = {}, {}
+    this_year = datetime.now().year
+    for yr in (this_year, this_year - 1):
+        urls = [
+            f"https://baseballsavant.mlb.com/leaderboard/statcast?type=pitcher&year={yr}&position=&team=&min=q&csv=true",
+            f"https://baseballsavant.mlb.com/leaderboard/expected_statistics?type=pitcher&year={yr}&position=&team=&min=q&csv=true",
+        ]
+        for url in urls:
+            try:
+                rows = _fetch_savant_csv(url)
+            except Exception as e:
+                print(f"  Savant pitcher fetch failed: {e}")
+                continue
+            for row in rows:
+                low = {(k or "").strip().lower(): v for k, v in row.items()}
+                pid, name = _savant_row_id_name(low)
+                stats = _savant_extract(low)
+                if not stats:
+                    continue
+                if pid is not None:
+                    by_id.setdefault(pid, {}).update(stats)
+                if name:
+                    by_name.setdefault(_norm_name(name), {}).update(stats)
+        if by_id or by_name:
+            break
+    if by_id or by_name:
+        _savant_pitcher_cache.update({"ts": now, "by_id": by_id, "by_name": by_name})
+        print(f"  Savant pitcher data loaded: {len(by_id)} by id")
+    return _savant_pitcher_cache
+
+def load_live_pitchers():
+    """All pitchers' real season stats from the MLB Stats API, enriched with
+    Savant contact-allowed data. Returns a list of pitcher dicts, or [] on failure."""
+    try:
+        print("  Loading live pitcher stats from MLB Stats API...")
+        bio = {}
+        rb = requests.get("https://statsapi.mlb.com/api/v1/sports/1/players",
+                          params={"season": str(datetime.now().year)}, timeout=15)
+        if rb.status_code == 200:
+            for p in rb.json().get("people", []):
+                pid = p.get("id")
+                if pid:
+                    bio[pid] = {
+                        "hand": p.get("pitchHand", {}).get("code", "R"),
+                        "team": p.get("currentTeam", {}).get("abbreviation", ""),
+                    }
+        savant = load_savant_pitchers()
+        pitchers, seen = [], set()
+        for offset in [0, 250, 500, 750]:
+            rs = requests.get("https://statsapi.mlb.com/api/v1/stats",
+                              params={"stats": "season", "group": "pitching",
+                                      "season": str(datetime.now().year), "sportId": "1",
+                                      "limit": "250", "offset": str(offset)}, timeout=15)
+            if rs.status_code != 200:
+                break
+            splits = rs.json().get("stats", [{}])[0].get("splits", [])
+            if not splits:
+                break
+            for s in splits:
+                st = s.get("stat", {}); p = s.get("player", {})
+                pid = p.get("id"); name = p.get("fullName", "")
+                if not pid or pid in seen or not name:
+                    continue
+                ip = _parse_ip(st.get("inningsPitched"))
+                if ip is None or ip < 5:
+                    continue
+                seen.add(pid)
+                so  = _to_int(st.get("strikeOuts")); bb = _to_int(st.get("baseOnBalls"))
+                hr  = _to_int(st.get("homeRuns"));   tbf = _to_int(st.get("battersFaced"))
+                gs  = _to_int(st.get("gamesStarted")); gp = _to_int(st.get("gamesPlayed"))
+                era = _to_float(st.get("era")); whip = _to_float(st.get("whip"))
+                baa = _to_float(st.get("avg"))
+                bm  = bio.get(pid, {})
+                k9     = round(so * 9 / ip, 1) if ip else None
+                hr9    = round(hr * 9 / ip, 2) if ip else None
+                k_pct  = round(so / tbf * 100, 1) if tbf else None
+                bb_pct = round(bb / tbf * 100, 1) if tbf else None
+                role   = "SP" if (gs >= 5 or (gp and gs / gp >= 0.5)) else "RP"
+                pit = {
+                    "name": name, "team": bm.get("team", "") or "", "hand": bm.get("hand", "R"),
+                    "role": role, "era": era, "whip": whip, "k9": k9, "hr9": hr9,
+                    "k_pct": k_pct, "bb_pct": bb_pct, "baa": baa, "player_id": pid,
+                    "barrel_pct": None, "ev_allowed": None, "iso_allowed": None, "xslg_allowed": None,
+                    "swstr": None, "gb_pct": None, "velo_season": None, "velo_recent": None,
+                }
+                rec = savant.get("by_id", {}).get(pid) or savant.get("by_name", {}).get(_norm_name(name))
+                if rec:
+                    if rec.get("barrel_pct") is not None:    pit["barrel_pct"]  = round(rec["barrel_pct"], 1)
+                    if rec.get("avg_hit_speed") is not None: pit["ev_allowed"]  = round(rec["avg_hit_speed"], 1)
+                    if rec.get("xslg") is not None:          pit["xslg_allowed"] = round(rec["xslg"], 3)
+                    pit["savant"] = True
+                # HR-risk by hand from real HR rate (+ a platoon adjustment)
+                base = (hr9 / 1.3) if hr9 is not None else (
+                    pit["barrel_pct"] / 11.0 if pit["barrel_pct"] is not None else None)
+                if base is not None:
+                    if pit["hand"] == "L":
+                        pit["hr_risk_rhb"] = round(base * 1.08, 2)
+                        pit["hr_risk_lhb"] = round(base * 0.90, 2)
+                    else:
+                        pit["hr_risk_rhb"] = round(base * 0.96, 2)
+                        pit["hr_risk_lhb"] = round(base * 1.10, 2)
+                pitchers.append(pit)
+        if pitchers:
+            print(f"  {len(pitchers)} live pitchers loaded")
+            return pitchers
+    except Exception as e:
+        print(f"  load_live_pitchers failed: {e}")
+    return []
+
+_live_pitchers_cache = {"ts": 0.0, "pool": [], "by_id": {}, "by_name": {}}
+
+def get_live_pitcher_pool():
+    now = time.time()
+    if _live_pitchers_cache["pool"] and (now - _live_pitchers_cache["ts"]) < SAVANT_TTL:
+        return _live_pitchers_cache
+    pool = load_live_pitchers()
+    if pool:
+        _live_pitchers_cache.update({
+            "ts": now, "pool": pool,
+            "by_id": {p["player_id"]: p for p in pool if p.get("player_id")},
+            "by_name": {_norm_name(p["name"]): p for p in pool},
+        })
+    return _live_pitchers_cache
+
+
 def build_batters():
     # Try live MLB Stats API first — falls back to sample data
     live = load_live_batters()
@@ -1415,8 +1585,10 @@ def build_batters():
 
 
 def build_pitchers():
+    pool = get_live_pitcher_pool()["pool"]
+    source = pool if pool else SAMPLE_PITCHERS
     pitchers = []
-    for p in SAMPLE_PITCHERS:
+    for p in source:
         pit = dict(p)
         pit['vuln_score']   = pitcher_vuln(pit)
         vl, vc, vs_score    = velo_status(pit)
