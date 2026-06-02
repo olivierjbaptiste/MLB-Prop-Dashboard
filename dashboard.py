@@ -787,6 +787,17 @@ def get_games():
                 away_pit_stats['headshot'] = get_headshot_url(ap, ap_id)
                 home_pit_stats['headshot'] = get_headshot_url(hp, hp_id)
 
+                # Live score / game state from the hydrated linescore
+                ls      = g.get("linescore", {}) or {}
+                a_score = g.get("teams",{}).get("away",{}).get("score")
+                h_score = g.get("teams",{}).get("home",{}).get("score")
+                abstate = g.get("status",{}).get("abstractGameState","")  # Preview / Live / Final
+                _stmap  = {"Top":"Top","Bottom":"Bot","Middle":"Mid","End":"End"}
+                cur_inn = ls.get("currentInning")
+                inn_str = ""
+                if abstate == "Live" and cur_inn:
+                    inn_str = (_stmap.get(ls.get("inningState",""), ls.get("inningState","")) + " " + str(cur_inn)).strip()
+
                 games.append({
                     "game_id":          gid,
                     "away":             at,
@@ -802,6 +813,10 @@ def get_games():
                     "park_name":        pk["name"],
                     "park_friendly":    pk.get("friendly"),
                     "status":           g.get("status",{}).get("detailedState",""),
+                    "away_score":       a_score,
+                    "home_score":       h_score,
+                    "game_state":       abstate,
+                    "inning":           inn_str,
                 })
         print(f"  {len(games)} games loaded")
         return games

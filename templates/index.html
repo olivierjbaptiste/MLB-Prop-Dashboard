@@ -738,6 +738,18 @@ document.getElementById('picks-count').textContent  = PICKS.length;
 document.getElementById('batter-count').textContent = BATTERS.length;
 
 // ── TICKER ────────────────────────────────────────────────────────
+function tickDyn(g){
+  var st = (g.game_state||'').toLowerCase();
+  if(st==='live' && g.away_score!=null && g.home_score!=null){
+    var inn = g.inning ? ' <span style="color:var(--gold)">'+g.inning+'</span>' : '';
+    return '<span class="live">&#9679; LIVE</span> <span>'+g.away_abb+'</span> <b style="color:var(--white)">'+g.away_score+'</b> @ <span>'+g.home_abb+'</span> <b style="color:var(--white)">'+g.home_score+'</b>'+inn;
+  }
+  if(st==='final' && g.away_score!=null && g.home_score!=null){
+    return '<span style="color:var(--muted);font-weight:800">FINAL</span> <span>'+g.away_abb+'</span> <b style="color:var(--white)">'+g.away_score+'</b> @ <span>'+g.home_abb+'</span> <b style="color:var(--white)">'+g.home_score+'</b>';
+  }
+  return '<span>'+g.away_abb+'</span> @ <span>'+g.home_abb+'</span>';
+}
+
 function buildTicker(){
   if(!GAMES || GAMES.length===0) return;
   var items = '';
@@ -746,14 +758,50 @@ function buildTicker(){
     var pf = g.park_factor || 1.0;
     var pkStr = pf>=1.15 ? ' &#128293;'+pf.toFixed(2)+'x' : pf<=0.85 ? ' &#10060;'+pf.toFixed(2)+'x' : ' &#9898;'+pf.toFixed(2)+'x';
     var wx = g.weather && !g.weather.dome ? ' &middot; '+g.weather.temp_f+'&#176;F' : '';
-    var statusStr = g.status && g.status.toLowerCase().indexOf('progress')>=0 ? '<span class="live">&#9679; LIVE</span> ' : '';
-    items += '<span class="tick-item">'+statusStr+'<span>'+g.away_abb+'</span> @ <span>'+g.home_abb+'</span>'+pkStr+wx+'</span>';
+    items += '<span class="tick-item"><span class="tdyn" data-gid="'+g.game_id+'">'+tickDyn(g)+'</span>'+pkStr+wx+'</span>';
   }
   // Duplicate for seamless loop
   var inner = document.getElementById('ticker-inner');
   inner.innerHTML = items + items;
 }
+
+// Live score auto-refresh — pulls current scores client-side and updates the
+// ticker IN PLACE (no marquee rebuild, so the scroll never jumps). Fully
+// fault-tolerant: if the fetch is blocked/fails, the baked-in scores remain.
+var _scoreTimer = null;
+function pollScores(){
+  try{
+    if(!GAMES || GAMES.length===0) return;
+    var allFinal = GAMES.every(function(g){ return (g.game_state||'').toLowerCase()==='final'; });
+    if(allFinal){ if(_scoreTimer){ clearInterval(_scoreTimer); _scoreTimer=null; } return; }
+    var today = new Date().toISOString().slice(0,10);
+    fetch('https://statsapi.mlb.com/api/v1/schedule?sportId=1&date='+today+'&hydrate=linescore')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        var byId = {}, stmap = {Top:'Top',Bottom:'Bot',Middle:'Mid',End:'End'};
+        (data.dates||[]).forEach(function(d){ (d.games||[]).forEach(function(g){ byId[g.gamePk]=g; }); });
+        GAMES.forEach(function(g){
+          var lv = byId[g.game_id]; if(!lv) return;
+          var ls = lv.linescore||{}, st = (lv.status||{}).abstractGameState||'';
+          if(lv.teams&&lv.teams.away&&lv.teams.away.score!=null) g.away_score = lv.teams.away.score;
+          if(lv.teams&&lv.teams.home&&lv.teams.home.score!=null) g.home_score = lv.teams.home.score;
+          g.game_state = st;
+          g.inning = (st==='Live' && ls.currentInning) ? ((stmap[ls.inningState]||ls.inningState||'')+' '+ls.currentInning).trim() : '';
+        });
+        var spans = document.querySelectorAll('.tdyn');
+        for(var i=0;i<spans.length;i++){
+          var gid = spans[i].getAttribute('data-gid'), g=null;
+          for(var j=0;j<GAMES.length;j++){ if(String(GAMES[j].game_id)===String(gid)){ g=GAMES[j]; break; } }
+          if(g) spans[i].innerHTML = tickDyn(g);
+        }
+      })
+      .catch(function(){});
+  }catch(e){}
+}
+
 buildTicker();
+pollScores();
+if(!_scoreTimer){ _scoreTimer = setInterval(pollScores, 60000); }
 
 // ── HELPERS ───────────────────────────────────────────────────────
 function f(v,d){
