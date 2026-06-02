@@ -1,16 +1,17 @@
 name: Daily HR Odds Pull
-
-# Once a day: pull HR odds, log today's picks, grade past days, commit snapshots.
-# This is the ONLY place that spends Odds API credits.
-
+ 
+# Once a day: pull HR odds, log/grade picks, refresh stat snapshots, commit.
+# This is the ONLY place that spends Odds API credits AND the only place that
+# does the heavy stat fetching — the live app just reads the committed snapshots.
+ 
 on:
   schedule:
     - cron: '0 19 * * *'   # 19:00 UTC = ~3pm ET. Adjust if you want earlier/later.
   workflow_dispatch: {}
-
+ 
 permissions:
   contents: write
-
+ 
 jobs:
   pull-odds:
     runs-on: ubuntu-latest
@@ -19,26 +20,30 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
+ 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
+ 
       - name: Install dependencies
         run: pip install -r requirements.txt
-
+ 
       - name: Pull odds
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: python pull_odds.py
-
+ 
       - name: Log + grade results
         continue-on-error: true
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: python log_results.py
-
+ 
+      - name: Pull data snapshots
+        continue-on-error: true
+        run: python pull_stats.py
+ 
       - name: Commit snapshots
         run: |
           git config user.name  "github-actions[bot]"
@@ -46,10 +51,13 @@ jobs:
           git fetch origin main
           git reset --soft origin/main
           git add odds_cache.json
-          if [ -f results_log.json ]; then git add results_log.json; fi
+          if [ -f results_log.json ];    then git add results_log.json;    fi
+          if [ -f live_batters.json ];   then git add live_batters.json;   fi
+          if [ -f savant_batters.json ]; then git add savant_batters.json; fi
+          if [ -f live_pitchers.json ];  then git add live_pitchers.json;  fi
           if git diff --staged --quiet; then
             echo "No changes to commit."
           else
-            git commit -m "Update odds + results [skip ci]"
+            git commit -m "Update odds + results + stat snapshots [skip ci]"
             git push origin HEAD:main
           fi
