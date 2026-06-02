@@ -333,7 +333,7 @@ tr:last-child td{border-bottom:none}
   <div class="section-hdr"><h2>Tonight's Schedule</h2></div>
   <div class="section-sub">Probable starters and park factors — live from MLB Stats API</div>
   <div class="tw"><table>
-    <thead><tr><th>Matchup</th><th>Venue</th><th>Park</th><th>Weather</th><th>Away Starter</th><th>Home Starter</th><th>Status</th></tr></thead>
+    <thead><tr><th>Matchup</th><th>Time (ET)</th><th>Venue</th><th>Park</th><th>Weather</th><th>Away Starter</th><th>Home Starter</th><th>Status</th></tr></thead>
     <tbody id="slate-body"></tbody>
   </table></div>
 </div>
@@ -748,9 +748,20 @@ try {
 } catch(e){}
 document.getElementById('stat-games').textContent    = GAMES.length;
 document.getElementById('stat-batters').textContent  = BATTERS.length;
-var updTime = '{{ updated }}';
-if(updTime){ document.getElementById('stat-updated').textContent = updTime.split(' ').slice(3).join(' ') || updTime; }
-try { var pu = document.getElementById('picks-updated'); if(pu && updTime) pu.textContent = '\uD83D\uDD52 Updated ' + updTime; } catch(e){}
+var updTime = new Date().toLocaleString('en-US', {timeZone:'America/New_York', month:'long', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit'}) + ' ET';
+var updTimeShort = new Date().toLocaleTimeString('en-US', {timeZone:'America/New_York', hour:'numeric', minute:'2-digit'}) + ' ET';
+document.getElementById('stat-updated').textContent = updTimeShort;
+try { var pu = document.getElementById('picks-updated'); if(pu) pu.textContent = '\uD83D\uDD52 Updated ' + updTime; } catch(e){}
+
+// Format a UTC ISO game time as Eastern, e.g. "7:10 PM ET"
+function gameTimeET(iso){
+  if(!iso) return 'TBD';
+  try {
+    var d = new Date(iso);
+    if(isNaN(d.getTime())) return 'TBD';
+    return d.toLocaleTimeString('en-US', {timeZone:'America/New_York', hour:'numeric', minute:'2-digit'}) + ' ET';
+  } catch(e){ return 'TBD'; }
+}
 document.getElementById('picks-count').textContent  = PICKS.length;
 document.getElementById('batter-count').textContent = BATTERS.length;
 
@@ -1298,7 +1309,7 @@ function buildSide(batters, pit, teamAbb, pitLabel){
 // ── SCHEDULE ──────────────────────────────────────────────────────
 function buildSlate(){
   if(!GAMES||GAMES.length===0){
-    document.getElementById('slate-body').innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:16px">No games today</td></tr>';
+    document.getElementById('slate-body').innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:16px">No games today</td></tr>';
     return;
   }
   var rows='';
@@ -1311,6 +1322,7 @@ function buildSlate(){
       :'<span style="color:var(--muted)">—</span>';
     rows+='<tr>'
       +'<td style="font-weight:800;color:var(--white)">'+g.away_abb+' @ '+g.home_abb+'</td>'
+      +'<td style="color:var(--white);font-weight:700;white-space:nowrap">'+gameTimeET(g.game_time_utc)+'</td>'
       +'<td style="color:var(--muted)">'+g.venue+'</td>'
       +'<td>'+parkBadge(g.park_factor,g.park_friendly)+'</td>'
       +'<td>'+wxHtml+'</td>'

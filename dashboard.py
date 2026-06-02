@@ -902,6 +902,7 @@ def get_games():
                     "home_score":       h_score,
                     "game_state":       abstate,
                     "inning":           inn_str,
+                    "game_time_utc":    g.get("gameDate", ""),
                 })
         print(f"  {len(games)} games loaded")
         return games
