@@ -719,6 +719,48 @@ function whyLine(pick){
     +'</div>';
 }
 
+// The "explain itself fast" formula: distills the pick's good signals into a few
+// punchy, prioritized tokens (barrel / platoon / pitcher-vulnerability / park / weather…).
+function pickFormula(pick){
+  var sigs = (pick.signals||[]).filter(function(s){return s && s.good===true && s.label;});
+  function has(re){ return sigs.some(function(s){return re.test(s.label);}); }
+  var out = [], used = {};
+  function add(cat, icon, text){ if(!used[cat]){ used[cat]=1; out.push({icon:icon, text:text}); } }
+
+  // Priority order mirrors how a sharp reads a card: contact, platoon, pitcher, park, weather.
+  if(has(/barrel/i))                       add('barrel','&#127919;','Barrels');
+  if(has(/platoon advantage/i))            add('platoon','&#9876;&#65039;','Platoon edge');
+  if(has(/HR Risk vs/i))                   add('pitcher','&#128163;','Pitcher gives up bombs');
+  else if(has(/hittable pitcher|whiff/i))  add('pitcher','&#128163;','Hittable arm');
+  if(has(/hitter-friendly park/i)){
+    var pf = pick.park_factor;
+    var pct = (pf!=null) ? Math.round((pf-1)*100) : null;
+    add('park','&#127967;&#65039;', pct!=null && pct>0 ? 'Park +'+pct+'%' : 'Park boost');
+  }
+  if(has(/wind blowing out/i))             add('wind','&#128168;','Wind out');
+  if(has(/hot.*carries/i))                 add('temp','&#127777;&#65039;','Hot night');
+  if(has(/hard contact|hard-hit/i))        add('hard','&#128170;','Hard contact');
+  if(has(/power vs vulnerable|ISO/i))      add('power','&#128165;','Power edge');
+  if(has(/airborne/i))                     add('fb','&#9992;&#65039;','Flyball bat');
+  if(has(/pull-side/i))                    add('pull','&#8617;&#65039;','Pull power');
+  if(has(/near HR/i))                      add('due','&#128293;','Due to go deep');
+  if(has(/velo (drop|down)/i))             add('velo','&#128201;','Pitcher velo down');
+  if(has(/xSLG/i))                         add('xslg','&#128200;','Elite xSLG');
+  if(has(/last 14 days/i))                 add('form','&#128293;','Hot bat (14d)');
+  return out.slice(0,5);
+}
+function formulaBar(pick, hero){
+  var t = pickFormula(pick);
+  if(!t.length) return '';
+  var sep = ' <span style="color:var(--muted);font-weight:700">+</span> ';
+  if(hero){
+    var big = t.map(function(x){ return '<span style="color:var(--gold);font-weight:800">'+x.icon+' '+x.text+'</span>'; }).join(sep);
+    return '<div style="margin:8px 0 2px;padding:9px 11px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.3);border-radius:8px;font-size:13px;line-height:1.5">'+big+'</div>';
+  }
+  var small = t.map(function(x){ return '<span style="color:var(--white);font-weight:700">'+x.icon+' '+x.text+'</span>'; }).join(sep);
+  return '<div style="font-size:11px;margin-top:7px;line-height:1.5"><span style="color:var(--green);font-weight:800">Why: </span>'+small+'</div>';
+}
+
 // Compact batted-ball power profile: hard-hit%, fly-ball%, pull%, max EV.
 function powerProfile(pick){
   var parts=[];
@@ -1159,7 +1201,14 @@ function buildPicks(){
     var photoHtml = pick.headshot
       ? '<img src="' + pick.headshot + '" class="player-photo img-safe" alt="">'
       : '<div class="player-photo" style="display:flex;align-items:center;justify-content:center;font-size:22px">&#9918;</div>';
-    html+='<div class="pick-card '+cls+'">'
+    var isTop = (pIdx === 0);
+    var topRibbon = isTop
+      ? '<div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;flex-wrap:wrap">'
+        +'<span style="background:linear-gradient(90deg,var(--gold),#f59e0b);color:#1a1207;font-size:10px;font-weight:900;letter-spacing:0.5px;padding:2px 9px;border-radius:4px">&#11088; TOP PICK</span>'
+        +'<span style="color:var(--muted);font-size:10px">highest-rated bet on the board</span></div>'
+      : '';
+    html+='<div class="pick-card '+cls+'"'+(isTop?' style="border-color:rgba(234,179,8,0.55);box-shadow:0 0 0 1px rgba(234,179,8,0.35)"':'')+'>'
+      +topRibbon
       +'<div class="pick-header" style="display:flex;gap:10px;align-items:flex-start">'
       +'<div style="display:flex;gap:10px;align-items:center;flex:1">'
       +photoHtml
@@ -1178,7 +1227,7 @@ function buildPicks(){
       +(formHtml?' <span style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);padding:1px 5px;border-radius:3px;font-size:9px">'+formHtml+'</span>':'')
       +wxHtml+'</div></div></div>'
       +'<span class="conf-badge '+ccls+'">'+conf+'</span></div>'
-      +betLine(pick)+whyLine(pick)
+      +betLine(pick)+(isTop?formulaBar(pick,true):formulaBar(pick))
       +'<div class="pick-stats">'
       +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+msCol+'">'+ms+'</div><div class="pick-stat-lbl">Match</div></div>'
       +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+clr(pick.barrel_pct,15,8)+'">'+f(pick.barrel_pct,1)+'%</div><div class="pick-stat-lbl">Barrel%</div></div>'
