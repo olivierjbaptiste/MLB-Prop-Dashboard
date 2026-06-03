@@ -34,6 +34,7 @@ def _et_today():
 _lineup_cache = {}  # {game_id: lineups_dict}
 _picks_cache  = []  # Last known picks
 _matchups_cache = [] # Last known matchups
+_pitcher_splits_cache = {}  # {pid: {hr_risk_rhb, hr_risk_lhb} | None}
 
 # ── Daily snapshots ───────────────────────────────────────────────
 # The GitHub Action does the heavy fetching once a day and commits JSON
@@ -483,15 +484,65 @@ def get_batter_stats(name):
     return None
 
 
+def get_pitcher_hand_splits(pid, season=None):
+    """Real HR-risk by batter hand from the pitcher's vs-L / vs-R splits.
+    Returns {hr_risk_rhb, hr_risk_lhb} (either may be None on small samples),
+    or None if unavailable. Cached per pid for the process. Bounded in practice
+    to the day's ~30 starters since only they are looked up with a pid."""
+    if pid is None:
+        return None
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return None
+    if pid in _pitcher_splits_cache:
+        return _pitcher_splits_cache[pid]
+
+    LEAGUE_HR_PER_PA = 0.030   # ~league-average HR rate; risk is expressed relative to it
+    result = None
+    yr = season or _et_now().year
+    for y in (yr, yr - 1):
+        try:
+            url = (f"https://statsapi.mlb.com/api/v1/people/{pid}/stats"
+                   f"?stats=statSplits&group=pitching&season={y}&sitCodes=vr,vl")
+            data = requests.get(url, timeout=8).json()
+            stats = data.get("stats") or []
+            splits = stats[0].get("splits", []) if stats else []
+            by = {}
+            for s in splits:
+                code = (s.get("split") or {}).get("code")
+                st   = s.get("stat") or {}
+                hr   = _to_int(st.get("homeRuns"))
+                pa   = _to_int(st.get("plateAppearances")) or _to_int(st.get("battersFaced"))
+                if code in ("vr", "vl") and pa and pa >= 25:
+                    by[code] = round(max(0.3, min(3.0, (hr / pa) / LEAGUE_HR_PER_PA)), 2)
+            if by:
+                result = {"hr_risk_rhb": by.get("vr"), "hr_risk_lhb": by.get("vl")}
+                break
+        except Exception:
+            continue
+
+    _pitcher_splits_cache[pid] = result
+    return result
+
+
 def get_pitcher_stats(name, pid=None):
     """Real live stats for a pitcher, matched by MLBAM id first, then name.
     Falls back to the static sample list, then None."""
-    def _finish(rec):
+    def _finish(rec, pid_for_splits=None):
         result = dict(rec)
         vl, vc, _ = velo_status(result)
         result['velo_label']    = vl
         result['velo_col']      = vc
         result['velo_drop_val'] = velo_drop(result)
+        # Replace derived platoon HR-risk with real vs-L / vs-R splits when we
+        # have the pitcher's id (the day's starters).
+        if pid_for_splits is not None:
+            sp = get_pitcher_hand_splits(pid_for_splits)
+            if sp:
+                if sp.get("hr_risk_rhb") is not None: result["hr_risk_rhb"] = sp["hr_risk_rhb"]
+                if sp.get("hr_risk_lhb") is not None: result["hr_risk_lhb"] = sp["hr_risk_lhb"]
+                result["splits_real"] = True
         return result
 
     pool = get_live_pitcher_pool()
@@ -501,19 +552,19 @@ def get_pitcher_stats(name, pid=None):
         except (TypeError, ValueError):
             rec = None
         if rec:
-            return _finish(rec)
+            return _finish(rec, pid)
     if name:
         rec = pool["by_name"].get(_norm_name(name))
         if rec:
-            return _finish(rec)
+            return _finish(rec, pid)
 
     name_lower = name.lower()
     for p in SAMPLE_PITCHERS:
         if p['name'].lower() == name_lower:
-            return _finish(p)
+            return _finish(p, pid)
         last = p['name'].split()[-1].lower()
         if last == name_lower.split()[-1]:
-            return _finish(p)
+            return _finish(p, pid)
     return None
 
 
@@ -1045,8 +1096,33 @@ def get_top_picks(matchups, props):
         prop_lookup[key].append(p)
 
     for m in matchups:
-        park_boost = m['park_factor'] >= 1.10
-        park_neg   = m['park_factor'] <= 0.85
+        pf = m.get('park_factor', 1.0) or 1.0
+        # Park: convert the factor into points (1.15 -> +4, 0.85 -> -4), capped.
+        park_pts = max(-6, min(6, round((pf - 1.0) * 28)))
+
+        # Weather: wind out / heat help, wind in / cold / rain hurt. Dome = neutral.
+        wx = m.get('weather') or {}
+        weather_pts = 0
+        env_sigs = []
+        if park_pts >= 3:
+            env_sigs.append({"label": "Hitter-friendly park", "good": True})
+        elif park_pts <= -3:
+            env_sigs.append({"label": "Pitcher-friendly park", "good": False})
+        if wx and not wx.get('dome'):
+            ws = wx.get('wind_score', 0) or 0
+            weather_pts += ws * 2
+            tf = wx.get('temp_f', 70)
+            tf = 70 if tf is None else tf
+            if tf >= 80:   weather_pts += 1
+            elif tf <= 50: weather_pts -= 1
+            cond = (wx.get('conditions', '') or '').lower()
+            if 'rain' in cond or 'drizzle' in cond: weather_pts -= 2
+            if ws >= 1:    env_sigs.append({"label": "Wind blowing out", "good": True})
+            elif ws <= -1: env_sigs.append({"label": "Wind blowing in", "good": False})
+            if tf >= 80:   env_sigs.append({"label": "Hot \u2014 ball carries", "good": True})
+            elif tf <= 50: env_sigs.append({"label": "Cold \u2014 suppresses HR", "good": False})
+        weather_pts = max(-5, min(5, weather_pts))
+        env_adj = park_pts + weather_pts
 
         for side, batters, pitcher in [
             ('away', m['away_batters'], m['home_pitcher']),
@@ -1056,6 +1132,8 @@ def get_top_picks(matchups, props):
                 ms = bat.get('matchup_score', 50)
                 if ms < 60:
                     continue
+                # Park + weather folded into the score that drives the pick.
+                adj_ms = max(0, min(100, ms + env_adj))
 
                 # Find prop line — ignore junk/suspended lines (e.g. +10000) and
                 # take the best realistic price across books.
@@ -1071,20 +1149,14 @@ def get_top_picks(matchups, props):
                     if best_prop is None or o > best_prop.get('odds', -99999):
                         best_prop = p
 
-                # Confidence rating
+                # Confidence rating (park + weather now baked into adj_ms)
                 signals_good = sum(1 for s in bat.get('signals',[]) if s.get('good') is True)
-                confidence = "STRONG" if (ms >= 75 and park_boost and signals_good >= 3) else \
-                             "GOOD"   if (ms >= 70 and signals_good >= 2) else \
+                confidence = "STRONG" if (adj_ms >= 78 and signals_good >= 3) else \
+                             "GOOD"   if (adj_ms >= 70 and signals_good >= 2) else \
                              "MODERATE"
 
-                if park_neg:
-                    confidence = "MODERATE" if confidence == "STRONG" else confidence
-
-                # Calculate fair odds from matchup score
-                # matchup score 70 = ~15% HR probability = roughly +570 fair odds
-                # matchup score 80 = ~18% HR probability = roughly +455 fair odds
-                # matchup score 90 = ~22% HR probability = roughly +355 fair odds
-                hr_prob = max(0.08, min(0.35, (ms - 40) * 0.005 + 0.10))
+                # Calculate fair odds from the environment-adjusted score
+                hr_prob = max(0.08, min(0.35, (adj_ms - 40) * 0.005 + 0.10))
                 fair_odds = round(-(hr_prob / (1 - hr_prob)) * 100) if hr_prob >= 0.5 else round((1 - hr_prob) / hr_prob * 100)
                 # Edge % vs prop line (positive = value bet)
                 prop_odds_val = best_prop.get('odds') if best_prop else None
@@ -1105,6 +1177,7 @@ def get_top_picks(matchups, props):
                     "pitcher":     pitcher.get('name',''),
                     "pitcher_hand": pitcher.get('hand','R'),
                     "matchup_score": ms,
+                    "pick_score":  adj_ms,
                     "batter_score": bat.get('batter_score', 0),
                     "barrel_pct":  bat.get('barrel_pct'),
                     "avg_hit_speed": bat.get('avg_hit_speed'),
@@ -1120,7 +1193,7 @@ def get_top_picks(matchups, props):
                     "park_friendly": m['park_friendly'],
                     "park_name":   m['park_name'],
                     "confidence":  confidence,
-                    "signals":     bat.get('signals', []),
+                    "signals":     list(bat.get('signals', [])) + env_sigs,
                     "prop_line":   best_prop.get('line') if best_prop else None,
                     "prop_odds":   best_prop.get('odds') if best_prop else None,
                     "prop_book":   best_prop.get('book') if best_prop else None,
@@ -1814,26 +1887,20 @@ def build_all_data(odds_api_key=""):
     print("  Building game matchups from lineups...")
     matchups = get_game_matchups(games, batters)
 
-    print("  Building top picks...")
-    top_picks = get_top_picks(matchups, props)
-    print(f"  {len(top_picks)} top picks generated")
-
     print("  Fetching weather data...")
     weather = get_all_weather(games)
     print(f"  Weather loaded for {len(weather)} stadiums")
 
-    # Attach weather to each game and matchup
+    # Attach weather to each game and matchup BEFORE scoring picks, so park +
+    # weather can be folded into the pick score (not just shown).
     for g in games:
         g['weather'] = weather.get(g.get('home_abb',''), None)
     for m in matchups:
         m['weather'] = weather.get(m.get('home_abb',''), None)
 
-    # Add weather boost to top picks
-    for pick in top_picks:
-        for g in games:
-            if g.get('away_abb') == pick.get('team') or g.get('home_abb') == pick.get('team'):
-                pick['weather'] = g.get('weather')
-                break
+    print("  Building top picks...")
+    top_picks = get_top_picks(matchups, props)
+    print(f"  {len(top_picks)} top picks generated")
 
     # Cache matchups and picks so they persist through game time
     if matchups:
