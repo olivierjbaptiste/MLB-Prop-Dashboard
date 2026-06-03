@@ -36,6 +36,7 @@ _picks_cache  = []  # Last known picks
 _matchups_cache = [] # Last known matchups
 _pitcher_splits_cache = {}  # {pid: {hr_risk_rhb, hr_risk_lhb} | None}
 _h2h_cache = {}  # {(batter_id, pitcher_id): {pa,ab,h,hr,...} | None}
+_form_cache = {}  # {(batter_id, season, window): {games,hr,slg,last_hr_ago,...} | None}
 
 # ── Daily snapshots ───────────────────────────────────────────────
 # The GitHub Action does the heavy fetching once a day and commits JSON
@@ -526,6 +527,58 @@ def get_batter_vs_pitcher(batter_id, pitcher_id):
         result = None
 
     _h2h_cache[key] = result
+    return result
+
+
+def get_recent_form(batter_id, season=None, window=15):
+    """Recent-form line from the game log: last-N HR, recent SLG/ISO, and how many
+    games since the hitter last homered. Cached per (id, season, window)."""
+    if not batter_id:
+        return None
+    try:
+        batter_id = int(batter_id)
+    except (TypeError, ValueError):
+        return None
+    yr = season or _et_now().year
+    key = (batter_id, yr, window)
+    if key in _form_cache:
+        return _form_cache[key]
+
+    result = None
+    try:
+        url = (f"https://statsapi.mlb.com/api/v1/people/{batter_id}/stats"
+               f"?stats=gameLog&group=hitting&season={yr}")
+        data = requests.get(url, timeout=8).json()
+        stats = data.get("stats") or []
+        splits = stats[0].get("splits", []) if stats else []
+        splits = sorted([s for s in splits if s.get("stat")], key=lambda s: s.get("date", ""))
+        if splits:
+            recent = splits[-window:]
+            ab = h = tb = hr = pa = 0
+            for s in recent:
+                st = s["stat"]
+                ab += _to_int(st.get("atBats"))
+                h  += _to_int(st.get("hits"))
+                tb += _to_int(st.get("totalBases"))
+                hr += _to_int(st.get("homeRuns"))
+                pa += _to_int(st.get("plateAppearances"))
+            # Games since the last HR (scan the full season from newest game backward).
+            last_hr_ago = None
+            for i, s in enumerate(reversed(splits)):
+                if _to_int(s["stat"].get("homeRuns")) >= 1:
+                    last_hr_ago = i
+                    break
+            result = {
+                "games": len(recent), "hr": hr, "ab": ab, "pa": pa,
+                "slg": round(tb / ab, 3) if ab else None,
+                "avg": round(h / ab, 3) if ab else None,
+                "iso": round((tb - h) / ab, 3) if ab else None,
+                "last_hr_ago": last_hr_ago,   # 0 = homered most recent game; None = none this season
+            }
+    except Exception:
+        result = None
+
+    _form_cache[key] = result
     return result
 
 
@@ -1266,6 +1319,7 @@ def get_top_picks(matchups, props):
     for p in top:
         p['h2h']       = get_batter_vs_pitcher(p.get('player_id'), p.get('_pitcher_id'))
         p['pitch_mix'] = pitch_matchup(p.get('player_id'), p.get('_pitcher_id'))
+        p['form']      = get_recent_form(p.get('player_id'))
         p.pop('_pitcher_id', None)
     return top
 
