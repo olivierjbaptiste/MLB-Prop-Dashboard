@@ -35,6 +35,7 @@ _lineup_cache = {}  # {game_id: lineups_dict}
 _picks_cache  = []  # Last known picks
 _matchups_cache = [] # Last known matchups
 _pitcher_splits_cache = {}  # {pid: {hr_risk_rhb, hr_risk_lhb} | None}
+_h2h_cache = {}  # {(batter_id, pitcher_id): {pa,ab,h,hr,...} | None}
 
 # ── Daily snapshots ───────────────────────────────────────────────
 # The GitHub Action does the heavy fetching once a day and commits JSON
@@ -482,6 +483,50 @@ def get_batter_stats(name):
         if last == name_lower.split()[-1]:
             return b
     return None
+
+
+def get_batter_vs_pitcher(batter_id, pitcher_id):
+    """Career batter-vs-pitcher line (PA/AB/H/HR/AVG/SLG). Cached per pair.
+    Bounded in practice to the day's ~15 top picks. Returns dict or None."""
+    if not batter_id or not pitcher_id:
+        return None
+    try:
+        batter_id = int(batter_id); pitcher_id = int(pitcher_id)
+    except (TypeError, ValueError):
+        return None
+    key = (batter_id, pitcher_id)
+    if key in _h2h_cache:
+        return _h2h_cache[key]
+
+    result = None
+    try:
+        url = (f"https://statsapi.mlb.com/api/v1/people/{batter_id}/stats"
+               f"?stats=vsPlayerTotal&group=hitting&opposingPlayerId={pitcher_id}")
+        data = requests.get(url, timeout=8).json()
+        for blk in (data.get("stats") or []):
+            for sp in blk.get("splits", []):
+                st = sp.get("stat") or {}
+                ab = _to_int(st.get("atBats"))
+                pa = _to_int(st.get("plateAppearances")) or ab
+                if pa and pa > 0:
+                    result = {
+                        "pa":  pa,
+                        "ab":  ab,
+                        "h":   _to_int(st.get("hits")),
+                        "hr":  _to_int(st.get("homeRuns")),
+                        "rbi": _to_int(st.get("rbi")),
+                        "avg": st.get("avg"),
+                        "slg": st.get("slg"),
+                        "ops": st.get("ops"),
+                    }
+                    break
+            if result:
+                break
+    except Exception:
+        result = None
+
+    _h2h_cache[key] = result
+    return result
 
 
 def get_pitcher_hand_splits(pid, season=None):
@@ -1208,13 +1253,20 @@ def get_top_picks(matchups, props):
                     "weather":     m.get('weather'),
                     "headshot":    bat.get('headshot') or get_headshot_url(bat.get('name','')),
                     "near_hr":     bat.get('near_hr'),
+                    "player_id":   bat.get('player_id'),
+                    "_pitcher_id": pitcher.get('player_id'),
                 })
 
     picks.sort(key=lambda x: (
         0 if x['confidence']=='STRONG' else 1 if x['confidence']=='GOOD' else 2,
         -x['matchup_score']
     ))
-    return picks[:15]
+    top = picks[:15]
+    # Career batter-vs-pitcher line for the picks shown (bounded + cached).
+    for p in top:
+        p['h2h'] = get_batter_vs_pitcher(p.get('player_id'), p.get('_pitcher_id'))
+        p.pop('_pitcher_id', None)
+    return top
 
 
 # ── Credit-safe odds caching ───────────────────────────────────────────────
