@@ -719,46 +719,67 @@ function whyLine(pick){
     +'</div>';
 }
 
+// Custom icon set for the why-formula — hand-built SVG glyphs (not system emojis),
+// inherit the surrounding text color via currentColor so they render identically everywhere.
+var ICONS = {
+  barrel:  '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.7"/><circle cx="8" cy="8" r="0.7" fill="currentColor" stroke="none"/></svg>',
+  platoon: '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5 L2 8 L5 11"/><path d="M2 8 H7.5"/><path d="M11 5 L14 8 L11 11"/><path d="M8.5 8 H14"/></svg>',
+  pitcher: '<svg viewBox="0 0 16 16" width="13" height="13" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"><line x1="8" y1="1.5" x2="8" y2="4"/><line x1="8" y1="12" x2="8" y2="14.5"/><line x1="1.5" y1="8" x2="4" y2="8"/><line x1="12" y1="8" x2="14.5" y2="8"/><line x1="3.6" y1="3.6" x2="5.4" y2="5.4"/><line x1="10.6" y1="10.6" x2="12.4" y2="12.4"/><line x1="3.6" y1="12.4" x2="5.4" y2="10.6"/><line x1="10.6" y1="5.4" x2="12.4" y2="3.6"/><circle cx="8" cy="8" r="1.9" fill="currentColor" stroke="none"/></svg>',
+  park:    '<svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" stroke="none"><path d="M3 3.5 H13 V9 L8 13.5 L3 9 Z"/></svg>',
+  wind:    '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M2 5.5 H9 A2 2 0 1 0 7 3.5"/><path d="M2 8.5 H12 A2 2 0 1 1 10 10.5"/><path d="M2 11.5 H7"/></svg>',
+  temp:    '<svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" stroke="none"><path d="M8 1.5 C10.5 4.5 12.5 6 12.5 9 A4.5 4.5 0 0 1 3.5 9 C3.5 7.3 4.4 6.1 5.4 5.3 C5.4 6.6 6.1 7.3 7 7.6 C6.5 5.5 7.4 3.2 8 1.5 Z"/></svg>',
+  hard:    '<svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" stroke="none"><path d="M8 1 L9.4 6.6 L15 8 L9.4 9.4 L8 15 L6.6 9.4 L1 8 L6.6 6.6 Z"/></svg>',
+  power:   '<svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" stroke="none"><path d="M9 1 L3.5 9 H6.8 L6 15 L12.5 6.2 H8.7 Z"/></svg>',
+  fb:      '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13 C5 5.5 9 3 14 3"/><path d="M10.5 3 H14 V6.5"/></svg>',
+  pull:    '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M13 10 A6 6 0 0 0 3.5 6.5"/><path d="M3.5 6.5 L2.5 9.8 M3.5 6.5 L6.8 5.6"/></svg>',
+  due:     '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M2 13 C2 4.5 14 4.5 14 13"/><circle cx="2" cy="13" r="1.1" fill="currentColor" stroke="none"/><circle cx="14" cy="13" r="1.1" fill="currentColor" stroke="none"/></svg>',
+  velo:    '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4 L6.5 8.5 L9.5 5.5 L14 10"/><path d="M14 10 V6.5 M14 10 H10.5"/></svg>',
+  xslg:    '<svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" stroke="none"><rect x="2" y="9" width="2.7" height="5" rx="0.6"/><rect x="6.65" y="6" width="2.7" height="8" rx="0.6"/><rect x="11.3" y="2.5" width="2.7" height="11.5" rx="0.6"/></svg>',
+  form:    '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2 11 L6.5 6.5 L9.5 9.5 L14 5"/><path d="M14 5 V8.5 M14 5 H10.5"/></svg>'
+};
+
 // The "explain itself fast" formula: distills the pick's good signals into a few
 // punchy, prioritized tokens (barrel / platoon / pitcher-vulnerability / park / weather…).
 function pickFormula(pick){
   var sigs = (pick.signals||[]).filter(function(s){return s && s.good===true && s.label;});
   function has(re){ return sigs.some(function(s){return re.test(s.label);}); }
   var out = [], used = {};
-  function add(cat, icon, text){ if(!used[cat]){ used[cat]=1; out.push({icon:icon, text:text}); } }
+  function add(cat, text){ if(!used[cat]){ used[cat]=1; out.push({cat:cat, text:text}); } }
 
-  // Priority order mirrors how a sharp reads a card: contact, platoon, pitcher, park, weather.
-  if(has(/barrel/i))                       add('barrel','&#127919;','Barrels');
-  if(has(/platoon advantage/i))            add('platoon','&#9876;&#65039;','Platoon edge');
-  if(has(/HR Risk vs/i))                   add('pitcher','&#128163;','Pitcher gives up bombs');
-  else if(has(/hittable pitcher|whiff/i))  add('pitcher','&#128163;','Hittable arm');
+  if(has(/barrel/i))                       add('barrel','Barrels');
+  if(has(/platoon advantage/i))            add('platoon','Platoon edge');
+  if(has(/HR Risk vs/i))                   add('pitcher','Pitcher gives up bombs');
+  else if(has(/hittable pitcher|whiff/i))  add('pitcher','Hittable arm');
   if(has(/hitter-friendly park/i)){
     var pf = pick.park_factor;
     var pct = (pf!=null) ? Math.round((pf-1)*100) : null;
-    add('park','&#127967;&#65039;', pct!=null && pct>0 ? 'Park +'+pct+'%' : 'Park boost');
+    add('park', pct!=null && pct>0 ? 'Park +'+pct+'%' : 'Park boost');
   }
-  if(has(/wind blowing out/i))             add('wind','&#128168;','Wind out');
-  if(has(/hot.*carries/i))                 add('temp','&#127777;&#65039;','Hot night');
-  if(has(/hard contact|hard-hit/i))        add('hard','&#128170;','Hard contact');
-  if(has(/power vs vulnerable|ISO/i))      add('power','&#128165;','Power edge');
-  if(has(/airborne/i))                     add('fb','&#9992;&#65039;','Flyball bat');
-  if(has(/pull-side/i))                    add('pull','&#8617;&#65039;','Pull power');
-  if(has(/near HR/i))                      add('due','&#128293;','Due to go deep');
-  if(has(/velo (drop|down)/i))             add('velo','&#128201;','Pitcher velo down');
-  if(has(/xSLG/i))                         add('xslg','&#128200;','Elite xSLG');
-  if(has(/last 14 days/i))                 add('form','&#128293;','Hot bat (14d)');
+  if(has(/wind blowing out/i))             add('wind','Wind out');
+  if(has(/hot.*carries/i))                 add('temp','Hot night');
+  if(has(/hard contact|hard-hit/i))        add('hard','Hard contact');
+  if(has(/power vs vulnerable|ISO/i))      add('power','Power edge');
+  if(has(/airborne/i))                     add('fb','Flyball bat');
+  if(has(/pull-side/i))                    add('pull','Pull power');
+  if(has(/near HR/i))                      add('due','Due to go deep');
+  if(has(/velo (drop|down)/i))             add('velo','Pitcher velo down');
+  if(has(/xSLG/i))                         add('xslg','Elite xSLG');
+  if(has(/last 14 days/i))                 add('form','Hot bat (14d)');
   return out.slice(0,5);
 }
 function formulaBar(pick, hero){
   var t = pickFormula(pick);
   if(!t.length) return '';
-  var sep = ' <span style="color:var(--muted);font-weight:700">+</span> ';
-  if(hero){
-    var big = t.map(function(x){ return '<span style="color:var(--gold);font-weight:800">'+x.icon+' '+x.text+'</span>'; }).join(sep);
-    return '<div style="margin:8px 0 2px;padding:9px 11px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.3);border-radius:8px;font-size:13px;line-height:1.5">'+big+'</div>';
-  }
-  var small = t.map(function(x){ return '<span style="color:var(--white);font-weight:700">'+x.icon+' '+x.text+'</span>'; }).join(sep);
-  return '<div style="font-size:11px;margin-top:7px;line-height:1.5"><span style="color:var(--green);font-weight:800">Why: </span>'+small+'</div>';
+  var col = hero?'var(--gold)':'var(--white)', fw = hero?'800':'700', fs = hero?'13px':'11px';
+  var parts = [];
+  if(!hero) parts.push('<span style="color:var(--green);font-weight:800">Why:</span>');
+  t.forEach(function(x,i){
+    if(i>0) parts.push('<span style="color:var(--muted);font-weight:700">+</span>');
+    parts.push('<span style="display:inline-flex;align-items:center;gap:3px;color:'+col+';font-weight:'+fw+'">'+(ICONS[x.cat]||'')+'<span>'+x.text+'</span></span>');
+  });
+  var body = '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:'+fs+';line-height:1.5">'+parts.join('')+'</div>';
+  if(hero) return '<div style="margin:8px 0 2px;padding:9px 11px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.3);border-radius:8px">'+body+'</div>';
+  return '<div style="margin-top:7px">'+body+'</div>';
 }
 
 // Compact batted-ball power profile: hard-hit%, fly-ball%, pull%, max EV.
