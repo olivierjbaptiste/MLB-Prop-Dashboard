@@ -1193,6 +1193,11 @@ def get_top_picks(matchups, props):
             prop_lookup[key] = []
         prop_lookup[key].append(p)
 
+    try:
+        bullpen_map = get_bullpen_map()
+    except Exception:
+        bullpen_map = {}
+
     for m in matchups:
         pf = m.get('park_factor', 1.0) or 1.0
         # Park: convert the factor into points (1.15 -> +4, 0.85 -> -4), capped.
@@ -1276,6 +1281,7 @@ def get_top_picks(matchups, props):
                     "pitcher_hand": pitcher.get('hand','R'),
                     "matchup_score": ms,
                     "pick_score":  adj_ms,
+                    "opp_bullpen": bullpen_map.get((pitcher or {}).get('team')),
                     "batter_score": bat.get('batter_score', 0),
                     "barrel_pct":  bat.get('barrel_pct'),
                     "avg_hit_speed": bat.get('avg_hit_speed'),
@@ -1764,6 +1770,7 @@ def load_live_pitchers():
                     "name": name, "team": bm.get("team", "") or "", "hand": bm.get("hand", "R"),
                     "role": role, "era": era, "whip": whip, "k9": k9, "hr9": hr9,
                     "k_pct": k_pct, "bb_pct": bb_pct, "baa": baa, "player_id": pid,
+                    "ip": round(ip, 1) if ip else None, "hr": hr,
                     "barrel_pct": None, "ev_allowed": None, "iso_allowed": None, "xslg_allowed": None,
                     "swstr": None, "gb_pct": None, "velo_season": None, "velo_recent": None,
                 }
@@ -1805,6 +1812,59 @@ def get_live_pitcher_pool():
             "by_name": {_norm_name(p["name"]): p for p in pool},
         })
     return _live_pitchers_cache
+
+
+# ── BULLPEN HR/9 ────────────────────────────────────────────────────────────
+# Aggregate each team's relievers (from the live pool, no extra calls) into a
+# bullpen HR/9 — context for once the starter exits and for the HR environment.
+_bullpen_cache = {"ts": -1, "map": {}}
+
+def get_bullpen_map():
+    global _bullpen_cache
+    pool = get_live_pitcher_pool()
+    ts = pool.get("ts", 0)
+    if _bullpen_cache["map"] and _bullpen_cache["ts"] == ts:
+        return _bullpen_cache["map"]
+
+    agg = {}
+    for p in pool.get("pool", []) or []:
+        if p.get("role") != "RP":
+            continue
+        team = p.get("team") or ""
+        if not team:
+            continue
+        a = agg.setdefault(team, {"hr_sum": 0.0, "ip_sum": 0.0, "hr9s": [], "n": 0})
+        ip, hr, hr9 = p.get("ip"), p.get("hr"), p.get("hr9")
+        if ip and hr is not None:
+            a["hr_sum"] += hr; a["ip_sum"] += ip
+        if hr9 is not None:
+            a["hr9s"].append(hr9)
+        a["n"] += 1
+
+    bmap = {}
+    for team, a in agg.items():
+        if a["ip_sum"] >= 20:                       # innings-weighted (accurate)
+            hr9 = round(a["hr_sum"] / a["ip_sum"] * 9, 2)
+        elif a["hr9s"]:                             # fallback: unweighted mean
+            hr9 = round(sum(a["hr9s"]) / len(a["hr9s"]), 2)
+        else:
+            continue
+        bmap[team] = {"hr9": hr9, "n": a["n"]}
+
+    vals = [v["hr9"] for v in bmap.values()]
+    if vals:
+        avg = round(sum(vals) / len(vals), 2)
+        for v in bmap.values():
+            v["lg_avg"] = avg
+            if v["hr9"] >= avg + 0.25:
+                v["label"], v["good"] = "homer-prone", True
+            elif v["hr9"] <= avg - 0.25:
+                v["label"], v["good"] = "lockdown", False
+            else:
+                v["label"], v["good"] = "league-avg", None
+
+    _bullpen_cache = {"ts": ts, "map": bmap}
+    return bmap
 
 
 # ── PITCH-TYPE MATCHUP (Savant pitch-arsenal-stats) ─────────────────────────
