@@ -1225,6 +1225,7 @@ function buildNoBet(){
 // ── LINEUPS ───────────────────────────────────────────────────────
 function buildLineups(){
   var el=document.getElementById('lineups-content');
+  _ldSeq = 0;
   if(!MATCHUPS||MATCHUPS.length===0){
     var now2 = new Date();
     var hour2 = now2.getHours();
@@ -1281,9 +1282,10 @@ function buildSide(batters, pit, teamAbb, pitLabel){
       var bpCol    = clr(bat.barrel_pct, 15, 8);
       var evCol    = clr(bat.avg_hit_speed, 91, 87);
       var isoCol   = clr(bat.iso, 0.220, 0.150);
-      trows += '<tr>'
+      var ldId     = 'ld_' + (_ldSeq++);
+      trows += '<tr onclick="toggleLineupDetail(\'' + ldId + '\')" style="cursor:pointer">'
         + '<td style="color:#94a3b8">' + (bat.order || '') + '</td>'
-        + '<td><div style="display:flex;align-items:center;gap:8px">' + batPhoto + '<span style="font-weight:800;color:#f0fdf4">' + bat.name + '</span></div></td>'
+        + '<td><div style="display:flex;align-items:center;gap:8px">' + batPhoto + '<span style="font-weight:800;color:#f0fdf4">' + bat.name + '</span><span style="color:var(--muted);font-size:9px">&#9662;</span></div></td>'
         + '<td style="color:#94a3b8">' + (bat.position || '') + '</td>'
         + '<td style="color:' + platCol + ';font-weight:700">' + bh + '</td>'
         + '<td style="color:' + bpCol + '">' + f(bat.barrel_pct, 1) + '%</td>'
@@ -1291,7 +1293,8 @@ function buildSide(batters, pit, teamAbb, pitLabel){
         + '<td style="color:' + isoCol + '">' + f(bat.iso, 3) + '</td>'
         + '<td>' + sigs + '</td>'
         + '<td>' + muBadge(ms) + '</td>'
-        + '</tr>';
+        + '</tr>'
+        + '<tr id="' + ldId + '" style="display:none"><td colspan="9" style="padding:4px 8px 12px">' + lineupDetailHtml(bat, pit) + '</td></tr>';
     });
     rows = '<table><thead><tr>'
       + '<th>#</th><th>Batter</th><th>Pos</th><th>B</th><th>Barrel%</th><th>EV</th><th>ISO</th><th>Sig</th><th>Match</th>'
@@ -1304,6 +1307,70 @@ function buildSide(batters, pit, teamAbb, pitLabel){
     + '<span style="color:var(--white);font-weight:700">' + (pit.name || 'TBD') + '</span>'
     + (pit.hand ? ' (' + pit.hand + 'HP)' : '') + veloHtml + '</span>'
     + '</div>' + rows + '</div>';
+}
+
+var _ldSeq = 0;
+
+// Full stat line + green Edges / red Risks vs the real pitcher, shown when a
+// lineup hitter is tapped.
+function lineupDetailHtml(bat, pit){
+  function chip(lbl, val){
+    return (val==null||val===''||val==='—') ? ''
+      : '<span style="white-space:nowrap;color:var(--muted)">'+lbl+' <b style="color:var(--white)">'+val+'</b></span>';
+  }
+  var line=[
+    chip('AVG', bat.avg!=null?f(bat.avg,3):null),
+    chip('OBP', bat.obp!=null?f(bat.obp,3):null),
+    chip('SLG', bat.slg!=null?f(bat.slg,3):null),
+    chip('ISO', bat.iso!=null?f(bat.iso,3):null),
+    chip('HR',  bat.hr!=null?bat.hr:null),
+    chip('Barrel%', bat.barrel_pct!=null?f(bat.barrel_pct,1)+'%':null),
+    chip('EV',  bat.avg_hit_speed!=null?f(bat.avg_hit_speed,1):null),
+    chip('HH%', bat.hard_hit_pct!=null?f(bat.hard_hit_pct,0)+'%':null),
+    chip('FB%', bat.fb_pct!=null?f(bat.fb_pct,0)+'%':null),
+    chip('Pull%', bat.pull_pct!=null?f(bat.pull_pct,0)+'%':null),
+    chip('LA',  bat.launch_angle!=null?f(bat.launch_angle,0)+'\u00b0':null),
+    chip('Max', bat.max_ev!=null?f(bat.max_ev,0):null),
+    chip('xSLG', bat.xslg!=null?f(bat.xslg,3).replace(/^0/,''):null),
+    chip('K%',  bat.k_pct!=null?f(bat.k_pct,1)+'%':null)
+  ].filter(Boolean).join('<span style="color:var(--border)"> &middot; </span>');
+
+  var bh = bat.hand||'R';
+  var eff = (bh==='S') ? ((pit.hand==='R')?'L':'R') : bh;   // switch hitters bat opposite the pitcher
+  var risk = (eff==='L') ? pit.hr_risk_lhb : pit.hr_risk_rhb;
+  var pc=[];
+  if(pit.hr9!=null)         pc.push('HR/9 '+f(pit.hr9,2));
+  if(pit.barrel_pct!=null)  pc.push('barrel allowed '+f(pit.barrel_pct,1)+'%');
+  if(pit.ev_allowed!=null)  pc.push('EV allowed '+f(pit.ev_allowed,1));
+  if(pit.xslg_allowed!=null) pc.push('xSLG allowed '+f(pit.xslg_allowed,3).replace(/^0/,''));
+  if(risk!=null)            pc.push('HR-risk vs '+eff+'HB '+f(risk,2));
+  var pctx = '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">Facing <b style="color:var(--white)">'
+    +(pit.name||'TBD')+'</b>'+(pit.hand?' ('+pit.hand+'HP)':'')+(pc.length?' &middot; '+pc.join(' &middot; '):'')+'</div>';
+
+  var edges = (bat.signals||[]).filter(function(s){return s.good===true;});
+  var risks = (bat.signals||[]).filter(function(s){return s.good===false;});
+  var notes = (bat.signals||[]).filter(function(s){return s.good!==true && s.good!==false;});
+  function list(arr,col){
+    return arr.length
+      ? arr.map(function(s){return '<div style="font-size:11px;color:'+col+';margin-bottom:3px">\u2022 '+s.label+'</div>';}).join('')
+      : '<div style="font-size:11px;color:var(--muted)">\u2014</div>';
+  }
+  var cols='<div style="display:flex;gap:16px;flex-wrap:wrap">'
+    +'<div style="flex:1;min-width:150px"><div style="font-size:10px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">\u2713 Edges</div>'+list(edges,'var(--green)')+'</div>'
+    +'<div style="flex:1;min-width:150px"><div style="font-size:10px;font-weight:800;color:var(--red);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">\u2715 Risks</div>'+list(risks,'var(--red)')+'</div>'
+    +'</div>';
+  var noteHtml = notes.length
+    ? '<div style="margin-top:8px;font-size:11px;color:var(--muted)">'+notes.map(function(s){return s.label;}).join(' &middot; ')+'</div>'
+    : '';
+
+  return '<div style="padding:10px;background:rgba(255,255,255,0.02);border-radius:6px;border:1px solid var(--border)">'
+    + (line?'<div style="display:flex;flex-wrap:wrap;gap:6px 10px;margin-bottom:8px;font-size:11px">'+line+'</div>':'')
+    + pctx + cols + noteHtml + '</div>';
+}
+
+function toggleLineupDetail(id){
+  var row=document.getElementById(id);
+  if(row) row.style.display = (row.style.display==='none') ? '' : 'none';
 }
 
 // ── SCHEDULE ──────────────────────────────────────────────────────
