@@ -1061,6 +1061,19 @@ function buildPicks(){
   }
   var html='';
   renderedPicks = filtered;
+  var nConf = filtered.filter(function(p){return p.confirmed===true;}).length;
+  var nProj = filtered.length - nConf;
+  if(nProj > 0){
+    html += '<div style="font-size:11px;color:var(--muted);background:rgba(234,179,8,0.06);border:1px solid rgba(234,179,8,0.2);border-radius:6px;padding:8px 10px;margin-bottom:10px">'
+      + '<span style="color:var(--green);font-weight:700">&#9989; '+nConf+' confirmed</span>'
+      + ' &middot; <span style="color:var(--gold);font-weight:700">'+nProj+' projected</span>'
+      + ' &mdash; projected hitters aren\'t in a posted lineup yet and could be rested. Lineups usually lock 2\u20133 hrs before first pitch.'
+      + '</div>';
+  } else if(filtered.length){
+    html += '<div style="font-size:11px;color:var(--green);background:rgba(34,197,94,0.06);border:1px solid var(--green2);border-radius:6px;padding:8px 10px;margin-bottom:10px">'
+      + '&#9989; All '+nConf+' picks are in confirmed lineups.'
+      + '</div>';
+  }
   filtered.forEach(function(pick, pIdx){
     var conf=pick.confidence||'MODERATE';
     var cls =conf==='STRONG'?'strong':conf==='GOOD'?'good':'moderate';
@@ -1138,10 +1151,9 @@ function buildPicks(){
     if(pick.order != null){
       orderHtml = ' <span style="color:var(--muted);font-size:9px;font-weight:700;background:rgba(255,255,255,0.05);padding:1px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.1)">#'+pick.order+' bat</span>';
     }
-    var projHtml = '';
-    if(pick.confirmed !== true){
-      projHtml = ' <span style="color:var(--gold);font-size:9px;font-weight:700;background:rgba(234,179,8,0.1);padding:1px 6px;border-radius:3px;border:1px solid rgba(234,179,8,0.25)">PROJECTED</span>';
-    }
+    var projHtml = (pick.confirmed === true)
+      ? ' <span title="In the official posted lineup" style="color:var(--green);font-size:9px;font-weight:700;background:rgba(34,197,94,0.12);padding:1px 6px;border-radius:3px;border:1px solid var(--green2)">&#9989; CONFIRMED</span>'
+      : ' <span title="Lineup not posted yet \u2014 projected from recent usage; this hitter could be rested or scratched" style="color:var(--gold);font-size:9px;font-weight:700;background:rgba(234,179,8,0.1);padding:1px 6px;border-radius:3px;border:1px solid rgba(234,179,8,0.25)">PROJECTED</span>';
     var photoHtml = pick.headshot
       ? '<img src="' + pick.headshot + '" class="player-photo img-safe" alt="">'
       : '<div class="player-photo" style="display:flex;align-items:center;justify-content:center;font-size:22px">&#9918;</div>';
@@ -1363,7 +1375,12 @@ function lineupDetailHtml(bat, pit){
     ? '<div style="margin-top:8px;font-size:11px;color:var(--muted)">'+notes.map(function(s){return s.label;}).join(' &middot; ')+'</div>'
     : '';
 
+  var statusTag = (bat.confirmed===true)
+    ? '<span style="color:var(--green);font-weight:700">&#9989; Confirmed in lineup</span>'
+    : '<span style="color:var(--gold);font-weight:700">Projected &mdash; lineup not posted yet</span>';
+
   return '<div style="padding:10px;background:rgba(255,255,255,0.02);border-radius:6px;border:1px solid var(--border)">'
+    + '<div style="font-size:11px;margin-bottom:8px">'+statusTag+'</div>'
     + (line?'<div style="display:flex;flex-wrap:wrap;gap:6px 10px;margin-bottom:8px;font-size:11px">'+line+'</div>':'')
     + pctx + cols + noteHtml + '</div>';
 }
