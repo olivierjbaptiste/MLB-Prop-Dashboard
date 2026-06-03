@@ -55,6 +55,8 @@ jobs:
           if [ -f live_batters.json ];   then git add live_batters.json;   fi
           if [ -f savant_batters.json ]; then git add savant_batters.json; fi
           if [ -f live_pitchers.json ];  then git add live_pitchers.json;  fi
+          if [ -f pitch_bat.json ];      then git add pitch_bat.json;      fi
+          if [ -f pitch_pit.json ];      then git add pitch_pit.json;      fi
           if git diff --staged --quiet; then
             echo "No changes to commit."
           else
