@@ -1796,6 +1796,12 @@ function clearResults(){
 }
 
 // ── MODEL TRACK RECORD (auto-graded, shared, from results_log.json) ──
+function tierBadge(c){
+  c=(c||'').toUpperCase();
+  if(c==='STRONG')   return '<span style="font-size:8px;font-weight:800;color:var(--green);background:rgba(34,197,94,0.15);border:1px solid var(--green2);padding:1px 5px;border-radius:3px">STRONG</span>';
+  if(c==='GOOD')     return '<span style="font-size:8px;font-weight:800;color:var(--blue);background:rgba(59,130,246,0.15);border:1px solid #1d4ed8;padding:1px 5px;border-radius:3px">GOOD</span>';
+  return '<span style="font-size:8px;font-weight:800;color:var(--gold);background:rgba(234,179,8,0.15);border:1px solid #a16207;padding:1px 5px;border-radius:3px">MODERATE</span>';
+}
 function buildModelRecord(){
   var el = document.getElementById('model-record');
   if(!el) return;
@@ -1804,47 +1810,85 @@ function buildModelRecord(){
   log.forEach(function(day){
     if(day.graded && day.picks){
       day.picks.forEach(function(p){
-        graded.push({date:day.date, player:p.player, odds:p.odds, outcome:p.outcome, pl:p.pl, confidence:p.confidence});
+        graded.push({date:day.date, player:p.player, odds:p.odds, outcome:p.outcome, pl:p.pl, confidence:(p.confidence||'').toUpperCase()});
       });
     }
   });
   var head = '<div class="alert-title">&#129351; Model Track Record &mdash; Auto-Graded</div>';
   if(graded.length === 0){
     el.innerHTML = '<div class="alert-box" style="margin-bottom:16px">'+head
-      +'<div style="font-size:11px;color:var(--muted);margin-top:8px">The tool logs its top picks every day and grades them against real MLB home-run results. '
-      +'The record appears here the day after the first picks are logged.</div></div>';
+      +'<div style="font-size:11px;color:var(--muted);margin-top:8px">The tool logs every rated pick (strong/good/moderate) each day and grades it against real MLB home-run results. '
+      +'Results appear here the day after the first picks are logged.</div></div>';
     return;
   }
   function mrCard(v,l,c){ return '<div class="alert-box" style="text-align:center"><div class="pick-stat-val" style="font-size:20px;color:'+c+'">'+v+'</div><div class="pick-stat-lbl">'+l+'</div></div>'; }
-  var wins   = graded.filter(function(p){return p.outcome==='WIN';}).length;
-  var losses = graded.filter(function(p){return p.outcome==='LOSS';}).length;
-  var totalPL= graded.reduce(function(a,p){return a+(p.pl||0);},0);
-  var staked = graded.length; // 1u each
-  var roi    = staked>0 ? (totalPL/staked*100) : 0;
-  var wr     = (wins+losses)>0 ? Math.round(wins/(wins+losses)*100) : 0;
+
+  // Hit rate = every rated pick; betting record = priced picks only.
+  var homers  = graded.filter(function(p){return p.outcome==='WIN';}).length;
+  var hitRate = graded.length>0 ? Math.round(homers/graded.length*100) : 0;
+  var bettable= graded.filter(function(p){return p.odds!=null;});
+  var bWins   = bettable.filter(function(p){return p.outcome==='WIN';}).length;
+  var bLoss   = bettable.filter(function(p){return p.outcome==='LOSS';}).length;
+  var totalPL = bettable.reduce(function(a,p){return a+(p.pl||0);},0);
+  var staked  = bettable.length;
+  var roi     = staked>0 ? (totalPL/staked*100) : 0;
   var plCol  = totalPL>=0?'var(--green)':'var(--red)', plS = totalPL>=0?'+':'';
   var roiCol = roi>=0?'var(--green)':'var(--red)',     roiS= roi>=0?'+':'';
-  var summary = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin:12px 0">'
-    +mrCard(wins+'-'+losses,'Record','var(--white)')
-    +mrCard(wr+'%','HR Rate','var(--gold)')
+  var summary = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:10px;margin:12px 0">'
+    +mrCard(homers+'/'+graded.length,'HR Hits','var(--green)')
+    +mrCard(hitRate+'%','Hit Rate','var(--gold)')
+    +mrCard(bWins+'-'+bLoss,'Bet Record','var(--white)')
     +mrCard(plS+totalPL.toFixed(1)+'u','Units P/L',plCol)
     +mrCard(roiS+roi.toFixed(1)+'%','ROI',roiCol)
-    +mrCard(''+graded.length,'Picks Graded','var(--white)')
     +'</div>';
-  var rows = graded.slice(0,30).map(function(p){
+
+  // Per-tier hit rate (shows the tiers are predictive)
+  var tiers = ['STRONG','GOOD','MODERATE'].map(function(t){
+    var g=graded.filter(function(p){return p.confidence===t;});
+    var w=g.filter(function(p){return p.outcome==='WIN';}).length;
+    return {t:t,w:w,n:g.length};
+  }).filter(function(x){return x.n>0;});
+  var tierLine = tiers.length ? '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:12px;font-size:12px">'
+    +tiers.map(function(x){ return tierBadge(x.t)+' <span style="color:var(--white);font-weight:700">'+x.w+'/'+x.n+'</span> <span style="color:var(--muted)">('+(x.n>0?Math.round(x.w/x.n*100):0)+'%)</span>'; }).join('')
+    +'</div>' : '';
+
+  // The showcase: rated batters who homered, newest first, badged by tier.
+  var hits = graded.filter(function(p){return p.outcome==='WIN';});
+  var hitsHtml = hits.length
+    ? hits.slice(0,50).map(function(p){
+        var od  = (p.odds!=null)?(p.odds>0?'+'+p.odds:''+p.odds):'';
+        var pay = (p.pl!=null&&p.pl>0)?' <span style="color:var(--green);font-weight:700">+'+p.pl.toFixed(2)+'u</span>':'';
+        return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">'
+          +'<span style="color:var(--muted);font-size:10px;min-width:52px">'+p.date+'</span>'
+          +tierBadge(p.confidence)
+          +'<span style="color:var(--white);font-weight:700;flex:1;min-width:0">'+p.player+'</span>'
+          +'<span style="color:var(--green);font-weight:800;white-space:nowrap">&#9989; HR</span>'
+          +(od?' <span style="color:var(--muted);font-size:10px">'+od+'</span>':'')+pay
+          +'</div>';
+      }).join('')
+    : '<div style="font-size:11px;color:var(--muted)">No graded home runs yet &mdash; check back the day after picks post.</div>';
+
+  // Full graded log (wins + misses) — keeps the record honest.
+  var rows = graded.slice(0,40).map(function(p){
     var oc  = p.outcome==='WIN'?'var(--green)':'var(--red)';
     var od  = (p.odds!=null)?(p.odds>0?'+'+p.odds:''+p.odds):'&mdash;';
     var plc = (p.pl||0)>=0?'var(--green)':'var(--red)', pls=(p.pl||0)>=0?'+':'';
+    var plTxt = (p.pl!=null)?(pls+p.pl.toFixed(2)+'u'):'&mdash;';
     return '<tr><td style="color:var(--muted)">'+p.date+'</td>'
       +'<td style="color:var(--white);font-weight:700">'+p.player+'</td>'
+      +'<td>'+tierBadge(p.confidence)+'</td>'
       +'<td>'+od+'</td>'
       +'<td><span style="color:'+oc+';font-weight:800">'+(p.outcome==='WIN'?'&#9989; HR':'&#10060; No')+'</span></td>'
-      +'<td style="color:'+plc+';font-weight:700">'+pls+(p.pl||0).toFixed(2)+'u</td></tr>';
+      +'<td style="color:'+plc+';font-weight:700">'+plTxt+'</td></tr>';
   }).join('');
+
   el.innerHTML = '<div class="alert-box" style="margin-bottom:16px">'+head
-    +'<div style="font-size:11px;color:var(--muted);margin-top:6px">The tool\'s own top picks, logged daily and graded against real home-run results &mdash; 1 unit staked per pick at the listed odds.</div>'
-    +summary
-    +'<div class="tw"><table><thead><tr><th>Date</th><th>Player</th><th>Odds</th><th>Result</th><th>P/L</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+    +'<div style="font-size:11px;color:var(--muted);margin-top:6px">Every rated pick is logged daily and graded against real home-run results. Hit rate counts all rated picks; Units/ROI count priced bets at 1u each.</div>'
+    +summary + tierLine
+    +'<div class="alert-title" style="margin-top:6px">&#9989; Rated Batters Who Homered</div>'
+    +'<div style="margin:6px 0 4px">'+hitsHtml+'</div>'
+    +'<div style="font-size:10px;color:var(--muted);margin:10px 0 4px;text-transform:uppercase;letter-spacing:0.5px">Full graded log</div>'
+    +'<div class="tw"><table><thead><tr><th>Date</th><th>Player</th><th>Tier</th><th>Odds</th><th>Result</th><th>P/L</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
     +'</div>';
 }
 

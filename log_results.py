@@ -84,7 +84,11 @@ def grade_entry(entry, dashboard):
     for p in entry.get("picks", []):
         hit = (p.get("player", "").strip().lower() in names)
         p["outcome"] = "WIN" if hit else "LOSS"
-        p["pl"] = round(american_profit(p.get("odds", -110)) if hit else UNIT_LOSS, 3)
+        odds = p.get("odds")
+        if odds is not None:
+            p["pl"] = round(american_profit(odds) if hit else UNIT_LOSS, 3)
+        else:
+            p["pl"] = None   # rated but not a priced bet: counts for hit rate, not P/L
         wins += 1 if hit else 0
     entry["graded"] = True
     print(f"  graded {entry.get('date')}: {wins}/{len(entry.get('picks', []))} hit")
@@ -96,21 +100,22 @@ def todays_picks(dashboard):
     data = dashboard.build_all_data(key)
     out = []
     for p in (data.get("top_picks", []) or []):
-        odds = p.get("prop_odds")
-        # Only track picks that actually had a (realistic) market line — keeps the
-        # record to genuine priced bets, so wins/losses and P/L are meaningful.
-        if odds is None:
+        conf = (p.get("confidence", "") or "").upper()
+        # Log every rated pick (strong/good/moderate) so we can show the full set
+        # of model calls that homered. Odds may be None (not a priced bet) — those
+        # still count toward hit rate, just not toward units/ROI.
+        if conf not in ("STRONG", "GOOD", "MODERATE"):
             continue
         out.append({
             "player":     p.get("name", ""),
             "team":       p.get("team", ""),
             "pitcher":    p.get("pitcher", ""),
-            "confidence": p.get("confidence", ""),
+            "confidence": conf,
             "line":       p.get("prop_line"),
-            "odds":       odds,
+            "odds":       p.get("prop_odds"),
             "edge":       p.get("edge_pct"),
         })
-        if len(out) >= TOP_N:
+        if len(out) >= 60:
             break
     return out
 
