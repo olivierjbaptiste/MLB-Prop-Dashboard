@@ -12,7 +12,24 @@ import tempfile
 import csv
 import io
 import unicodedata
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
+
+# Eastern-time date for MLB slates. MLB files games under their US date, so a
+# UTC date (the server's default) is wrong in the evening once UTC rolls past
+# midnight — which would make "today's games" point at the wrong day.
+try:
+    from zoneinfo import ZoneInfo
+    _ET_ZONE = ZoneInfo("America/New_York")
+except Exception:
+    _ET_ZONE = None
+
+def _et_now():
+    if _ET_ZONE is not None:
+        return datetime.now(_ET_ZONE)
+    return datetime.now(timezone.utc) - timedelta(hours=4)  # EDT fallback (baseball season)
+
+def _et_today():
+    return _et_now().strftime("%Y-%m-%d")
 # Lineup cache — persists confirmed lineups through game time
 _lineup_cache = {}  # {game_id: lineups_dict}
 _picks_cache  = []  # Last known picks
@@ -841,7 +858,7 @@ def get_game_lineup(game_id):
 
 
 def get_games():
-    today = date.today().strftime("%Y-%m-%d")
+    today = _et_today()
     try:
         url  = f"https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={today}&hydrate=probablePitcher,team,venue,linescore"
         data = requests.get(url, timeout=10).json()

@@ -775,7 +775,9 @@ function tickDyn(g){
   if(st==='final' && g.away_score!=null && g.home_score!=null){
     return '<span style="color:var(--muted);font-weight:800">FINAL</span> <span>'+g.away_abb+'</span> <b style="color:var(--white)">'+g.away_score+'</b> @ <span>'+g.home_abb+'</span> <b style="color:var(--white)">'+g.home_score+'</b>';
   }
-  return '<span>'+g.away_abb+'</span> @ <span>'+g.home_abb+'</span>';
+  var t = (typeof gameTimeET==='function' && g.game_time_utc) ? gameTimeET(g.game_time_utc) : '';
+  return '<span>'+g.away_abb+'</span> @ <span>'+g.home_abb+'</span>'
+    + (t && t!=='TBD' ? ' <span style="color:var(--muted)">&middot; '+t+'</span>' : '');
 }
 
 function buildTicker(){
@@ -802,7 +804,7 @@ function pollScores(){
     if(!GAMES || GAMES.length===0) return;
     var allFinal = GAMES.every(function(g){ return (g.game_state||'').toLowerCase()==='final'; });
     if(allFinal){ if(_scoreTimer){ clearInterval(_scoreTimer); _scoreTimer=null; } return; }
-    var today = new Date().toISOString().slice(0,10);
+    var today = new Date().toLocaleDateString('en-CA', {timeZone:'America/New_York'});
     fetch('https://statsapi.mlb.com/api/v1/schedule?sportId=1&date='+today+'&hydrate=linescore')
       .then(function(r){ return r.json(); })
       .then(function(data){
