@@ -1262,9 +1262,10 @@ def get_top_picks(matchups, props):
         -x['matchup_score']
     ))
     top = picks[:15]
-    # Career batter-vs-pitcher line for the picks shown (bounded + cached).
+    # Career batter-vs-pitcher line + pitch-type matchup for the picks shown (bounded + cached).
     for p in top:
-        p['h2h'] = get_batter_vs_pitcher(p.get('player_id'), p.get('_pitcher_id'))
+        p['h2h']       = get_batter_vs_pitcher(p.get('player_id'), p.get('_pitcher_id'))
+        p['pitch_mix'] = pitch_matchup(p.get('player_id'), p.get('_pitcher_id'))
         p.pop('_pitcher_id', None)
     return top
 
@@ -1750,6 +1751,125 @@ def get_live_pitcher_pool():
             "by_name": {_norm_name(p["name"]): p for p in pool},
         })
     return _live_pitchers_cache
+
+
+# ── PITCH-TYPE MATCHUP (Savant pitch-arsenal-stats) ─────────────────────────
+# Two leaderboards, long format (one row per player per pitch type):
+#   type=pitcher → how often each pitch is thrown (arsenal/usage)
+#   type=batter  → how the hitter slugs vs each pitch type
+_pitch_bat_cache = {"ts": 0, "by_id": {}}
+_pitch_pit_cache = {"ts": 0, "by_id": {}}
+PITCH_NAMES = {
+    "FF":"4-Seam","SI":"Sinker","FC":"Cutter","SL":"Slider","ST":"Sweeper",
+    "CU":"Curve","KC":"Knuckle-Curve","CH":"Changeup","FS":"Splitter",
+    "SV":"Slurve","KN":"Knuckleball","FO":"Forkball","EP":"Eephus","SC":"Screwball"
+}
+
+def _pa_f(v):
+    try: return float(v)
+    except (TypeError, ValueError): return None
+
+def _fetch_pitch_arsenal(kind):
+    """kind = 'batter' | 'pitcher'. Rows with lowercased keys, current year then prior."""
+    for yr in (_et_now().year, _et_now().year - 1):
+        url = (f"https://baseballsavant.mlb.com/leaderboard/pitch-arsenal-stats"
+               f"?type={kind}&year={yr}&min=10&csv=true")
+        rows = _fetch_savant_csv(url)
+        if rows:
+            return [{(k or '').strip().lower(): v for k, v in r.items()} for r in rows]
+    return []
+
+def load_pitch_arsenal_batters():
+    if not _FORCE_LIVE:
+        snap = _read_snapshot("pitch_bat.json")
+        if snap and snap.get("by_id"):
+            return {"ts": time.time(), "by_id": {int(k): v for k, v in snap["by_id"].items()}}
+    by_id = {}
+    for low in _fetch_pitch_arsenal("batter"):
+        pid, _ = _savant_row_id_name(low)
+        pt = (low.get("pitch_type") or "").upper()
+        if not pid or not pt:
+            continue
+        slg = _pa_f(low.get("slg"))
+        if slg is None: slg = _pa_f(low.get("est_slg"))
+        pa = _pa_f(low.get("pa")) or _pa_f(low.get("pitches"))
+        by_id.setdefault(pid, {})[pt] = {
+            "slg": slg, "woba": _pa_f(low.get("woba")),
+            "pa": int(pa) if pa else None,
+            "name": low.get("pitch_name") or PITCH_NAMES.get(pt, pt),
+        }
+    return {"ts": time.time(), "by_id": by_id}
+
+def load_pitch_arsenal_pitchers():
+    if not _FORCE_LIVE:
+        snap = _read_snapshot("pitch_pit.json")
+        if snap and snap.get("by_id"):
+            return {"ts": time.time(), "by_id": {int(k): v for k, v in snap["by_id"].items()}}
+    raw = {}
+    for low in _fetch_pitch_arsenal("pitcher"):
+        pid, _ = _savant_row_id_name(low)
+        pt = (low.get("pitch_type") or "").upper()
+        if not pid or not pt:
+            continue
+        cnt = _pa_f(low.get("pitches")) or _pa_f(low.get("n")) or 0
+        raw.setdefault(pid, []).append({
+            "pitch_type": pt,
+            "name": low.get("pitch_name") or PITCH_NAMES.get(pt, pt),
+            "count": cnt,
+            "slg_allowed": _pa_f(low.get("slg")),
+        })
+    by_id = {}
+    for pid, arr in raw.items():
+        total = sum(p["count"] for p in arr) or 1
+        for p in arr:
+            p["usage"] = round(p["count"] / total * 100, 1)
+        arr.sort(key=lambda p: -p["usage"])
+        by_id[pid] = arr
+    return {"ts": time.time(), "by_id": by_id}
+
+def get_pitch_bat_pool():
+    global _pitch_bat_cache
+    if not _pitch_bat_cache["by_id"] or (time.time() - _pitch_bat_cache["ts"]) > SAVANT_TTL:
+        try:
+            _pitch_bat_cache = load_pitch_arsenal_batters()
+        except Exception as e:
+            print("  pitch-arsenal batters load failed:", e)
+    return _pitch_bat_cache
+
+def get_pitch_pit_pool():
+    global _pitch_pit_cache
+    if not _pitch_pit_cache["by_id"] or (time.time() - _pitch_pit_cache["ts"]) > SAVANT_TTL:
+        try:
+            _pitch_pit_cache = load_pitch_arsenal_pitchers()
+        except Exception as e:
+            print("  pitch-arsenal pitchers load failed:", e)
+    return _pitch_pit_cache
+
+def pitch_matchup(batter_id, pitcher_id, top_n=3):
+    """Pitcher's most-used pitches + how the hitter slugs vs each.
+    Returns {pitches:[{name,pitch_type,usage,slg,pa}], edge: bool} or None."""
+    if not batter_id or not pitcher_id:
+        return None
+    try:
+        batter_id = int(batter_id); pitcher_id = int(pitcher_id)
+    except (TypeError, ValueError):
+        return None
+    arsenal = get_pitch_pit_pool()["by_id"].get(pitcher_id)
+    bat     = get_pitch_bat_pool()["by_id"].get(batter_id)
+    if not arsenal or not bat:
+        return None
+    out = []
+    for p in arsenal[:top_n]:
+        bp = bat.get(p["pitch_type"]) or {}
+        out.append({
+            "name": p["name"], "pitch_type": p["pitch_type"], "usage": p["usage"],
+            "slg": bp.get("slg"), "pa": bp.get("pa"),
+        })
+    if not out:
+        return None
+    top = out[0]
+    edge = (top.get("slg") is not None and top["slg"] >= 0.450 and top["usage"] >= 25)
+    return {"pitches": out, "edge": edge}
 
 
 def build_batters():

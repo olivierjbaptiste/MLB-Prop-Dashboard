@@ -799,6 +799,32 @@ function h2hLine(pick){
     +'</div>';
 }
 
+// Pitch-type matchup — the starter's top pitches vs how this hitter slugs against them.
+function pitchMixLine(pick){
+  var m = pick.pitch_mix;
+  if(!m || !m.pitches || !m.pitches.length) return '';
+  var last = (pick.pitcher||'').split(' ').slice(-1)[0] || 'Pitcher';
+  var rows = m.pitches.map(function(p){
+    var slg = (p.slg!=null) ? p.slg.toFixed(3).replace(/^0/,'') : null;
+    var hot = (p.slg!=null && p.slg>=0.500);
+    var slgTxt = (slg!=null)
+      ? '<span style="color:'+(hot?'var(--green)':'var(--white)')+';font-weight:700">'+slg+' SLG</span>'
+        + (p.pa!=null && p.pa<15 ? ' <span style="font-size:9px;color:var(--muted);opacity:0.75">'+p.pa+' PA</span>' : '')
+      : '<span style="color:var(--muted)">no data</span>';
+    return '<div style="display:flex;align-items:center;gap:6px;font-size:11px;padding:2px 0">'
+      +'<span style="min-width:118px;color:var(--muted)">'+p.name+' <span style="color:var(--white);font-weight:700">'+(p.usage!=null?Math.round(p.usage)+'%':'')+'</span></span>'
+      +'<span style="color:var(--muted)">&rarr;</span>'+slgTxt
+      +'</div>';
+  }).join('');
+  var edgeTag = m.edge
+    ? '<span style="margin-left:6px;font-size:9px;font-weight:800;color:var(--green);background:rgba(34,197,94,0.12);border:1px solid var(--green2);border-radius:3px;padding:1px 5px">CRUSHES HIS GO-TO</span>'
+    : '';
+  return '<div style="margin-top:8px;padding:8px 10px;background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:7px">'
+    +'<div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px">'+last+'\u2019s arsenal vs this hitter'+edgeTag+'</div>'
+    +rows
+    +'</div>';
+}
+
 // Compact batted-ball power profile: hard-hit%, fly-ball%, pull%, max EV.
 function powerProfile(pick){
   var parts=[];
@@ -1265,7 +1291,7 @@ function buildPicks(){
       +(formHtml?' <span style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);padding:1px 5px;border-radius:3px;font-size:9px">'+formHtml+'</span>':'')
       +wxHtml+'</div></div></div>'
       +'<span class="conf-badge '+ccls+'">'+conf+'</span></div>'
-      +betLine(pick)+(isTop?formulaBar(pick,true):formulaBar(pick))+h2hLine(pick)
+      +betLine(pick)+(isTop?formulaBar(pick,true):formulaBar(pick))+h2hLine(pick)+pitchMixLine(pick)
       +'<div class="pick-stats">'
       +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+msCol+'">'+ms+'</div><div class="pick-stat-lbl">Match</div></div>'
       +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+clr(pick.barrel_pct,15,8)+'">'+f(pick.barrel_pct,1)+'%</div><div class="pick-stat-lbl">Barrel%</div></div>'

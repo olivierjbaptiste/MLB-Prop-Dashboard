@@ -55,6 +55,29 @@ def main():
     else:
         print("  No live pitchers fetched — keeping existing snapshot")
 
+    # 4) Pitch-arsenal: hitter SLG by pitch type + pitcher usage by pitch type
+    try:
+        pbat = d.load_pitch_arsenal_batters()
+    except Exception as e:
+        pbat = {"by_id": {}}
+        print("  pitch-arsenal batters fetch error:", e)
+    if pbat.get("by_id"):
+        d._write_snapshot("pitch_bat.json", {"by_id": pbat["by_id"]})
+        wrote.append(f"pitch_bat.json ({len(pbat['by_id'])} hitters)")
+    else:
+        print("  No pitch-arsenal batter data — keeping existing snapshot")
+
+    try:
+        ppit = d.load_pitch_arsenal_pitchers()
+    except Exception as e:
+        ppit = {"by_id": {}}
+        print("  pitch-arsenal pitchers fetch error:", e)
+    if ppit.get("by_id"):
+        d._write_snapshot("pitch_pit.json", {"by_id": ppit["by_id"]})
+        wrote.append(f"pitch_pit.json ({len(ppit['by_id'])} pitchers)")
+    else:
+        print("  No pitch-arsenal pitcher data — keeping existing snapshot")
+
     print("Snapshots written:", ", ".join(wrote) if wrote else "none")
 
 
