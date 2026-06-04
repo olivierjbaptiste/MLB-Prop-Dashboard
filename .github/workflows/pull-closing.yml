@@ -1,10 +1,12 @@
 name: Closing Line Pull (CLV)
 on:
   schedule:
-    - cron: '40 22 * * *'   # ~6:40 PM ET — before most first pitches
-    permissions:
-  contents: write
+    - cron: '40 22 * * *'   # ~6:40 PM ET, before most first pitches
   workflow_dispatch:
+
+permissions:
+  contents: write
+
 jobs:
   close:
     runs-on: ubuntu-latest
