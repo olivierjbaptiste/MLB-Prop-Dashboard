@@ -1956,7 +1956,7 @@ function buildModelRecord(){
   log.forEach(function(day){
     if(day.graded && day.picks){
       day.picks.forEach(function(p){
-        graded.push({date:day.date, player:p.player, odds:p.odds, outcome:p.outcome, pl:p.pl, confidence:(p.confidence||'').toUpperCase()});
+        graded.push({date:day.date, player:p.player, odds:p.odds, outcome:p.outcome, pl:p.pl, confidence:(p.confidence||'').toUpperCase(), close_odds:p.close_odds, clv_pct:p.clv_pct, beat_close:p.beat_close});
       });
     }
   });
@@ -1980,12 +1980,22 @@ function buildModelRecord(){
   var roi     = staked>0 ? (totalPL/staked*100) : 0;
   var plCol  = totalPL>=0?'var(--green)':'var(--red)', plS = totalPL>=0?'+':'';
   var roiCol = roi>=0?'var(--green)':'var(--red)',     roiS= roi>=0?'+':'';
+
+  // CLV — only picks that got a recorded closing line.
+  var clvable = graded.filter(function(p){return p.clv_pct!=null;});
+  var beat    = clvable.filter(function(p){return p.beat_close===true;}).length;
+  var avgClv  = clvable.length ? clvable.reduce(function(a,p){return a+p.clv_pct;},0)/clvable.length : 0;
+
   var summary = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:10px;margin:12px 0">'
     +mrCard(homers+'/'+graded.length,'HR Hits','var(--green)')
     +mrCard(hitRate+'%','Hit Rate','var(--gold)')
     +mrCard(bWins+'-'+bLoss,'Bet Record','var(--white)')
     +mrCard(plS+totalPL.toFixed(1)+'u','Units P/L',plCol)
     +mrCard(roiS+roi.toFixed(1)+'%','ROI',roiCol)
+    +(clvable.length
+        ? mrCard(beat+'/'+clvable.length,'Beat Close', beat*2>=clvable.length?'var(--green)':'var(--white)')
+          +mrCard((avgClv>=0?'+':'')+avgClv.toFixed(1)+'%','Avg CLV', avgClv>=0?'var(--green)':'var(--red)')
+        : '')
     +'</div>';
 
   // Per-tier hit rate (shows the tiers are predictive)
