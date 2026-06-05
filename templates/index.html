@@ -815,6 +815,24 @@ function bullpenLine(pick){
     +'</div>';
 }
 
+// Starter's recent HR vulnerability — high HR/9 lately is a tailwind for our HR pick.
+function pitcherFormLine(pick){
+  var f = pick.pitcher_form;
+  if(!f || f.hr9==null) return '';
+  var last = (pick.pitcher||'').split(' ').slice(-1)[0] || 'Starter';
+  var col = f.hr9>=1.6 ? 'var(--green)' : (f.hr9<=0.7 ? 'var(--red)' : 'var(--white)');
+  var ago;
+  if(f.last_hr_ago==null)     ago = '<span style="color:var(--red)">no HR allowed this yr</span>';
+  else if(f.last_hr_ago===0)  ago = '<span style="color:var(--green);font-weight:700">HR last start</span>';
+  else                         ago = '<span style="color:'+(f.last_hr_ago<=1?'var(--gold)':'var(--muted)')+'">last HR '+f.last_hr_ago+' start'+(f.last_hr_ago===1?'':'s')+' ago</span>';
+  return '<div style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+    +(ICONS.pitcher||'')
+    +'<span style="color:var(--muted)">'+last+' last '+f.starts+':</span> '
+    +'<span style="color:'+col+';font-weight:700">'+f.hr+' HR &middot; '+f.hr9.toFixed(2)+' HR/9</span>'
+    +'<span style="color:var(--muted)">&middot;</span> '+ago
+    +'</div>';
+}
+
 // Career batter-vs-this-pitcher line — "4-for-11, 3 HR (.364)". Flags small samples honestly.
 function h2hLine(pick){
   var h = pick.h2h;
@@ -1324,7 +1342,7 @@ function buildPicks(){
       +(formHtml?' <span style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);padding:1px 5px;border-radius:3px;font-size:9px">'+formHtml+'</span>':'')
       +wxHtml+'</div></div></div>'
       +'<span class="conf-badge '+ccls+'">'+conf+'</span></div>'
-      +betLine(pick)+(isTop?formulaBar(pick,true):formulaBar(pick))+formLine(pick)+h2hLine(pick)+bullpenLine(pick)+pitchMixLine(pick)
+      +betLine(pick)+(isTop?formulaBar(pick,true):formulaBar(pick))+formLine(pick)+h2hLine(pick)+bullpenLine(pick)+pitcherFormLine(pick)+pitchMixLine(pick)
       +'<div class="pick-stats">'
       +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+msCol+'">'+ms+'</div><div class="pick-stat-lbl">Match</div></div>'
       +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+clr(pick.barrel_pct,15,8)+'">'+f(pick.barrel_pct,1)+'%</div><div class="pick-stat-lbl">Barrel%</div></div>'

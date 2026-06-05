@@ -37,6 +37,7 @@ _matchups_cache = [] # Last known matchups
 _pitcher_splits_cache = {}  # {pid: {hr_risk_rhb, hr_risk_lhb} | None}
 _h2h_cache = {}  # {(batter_id, pitcher_id): {pa,ab,h,hr,...} | None}
 _form_cache = {}  # {(batter_id, season, window): {games,hr,slg,last_hr_ago,...} | None}
+_pform_cache = {}  # {(pitcher_id, season, window): {starts,hr,ip,hr9,...} | None}
 
 # ── Daily snapshots ───────────────────────────────────────────────
 # The GitHub Action does the heavy fetching once a day and commits JSON
@@ -579,6 +580,63 @@ def get_recent_form(batter_id, season=None, window=15):
         result = None
 
     _form_cache[key] = result
+    return result
+
+
+def get_pitcher_recent_form(pitcher_id, season=None, window=4):
+    """Pitcher's recent HR vulnerability from the game log: HR allowed, innings, and
+    HR/9 over the last N starts, plus starts since the pitcher last gave up a homer.
+    A starter serving up homers lately is a tailwind for our HR picks. Cached per
+    (id, season, window); only the day's ~30 starters get looked up. Note: the game
+    log carries no pitch velocity (that's Statcast), so this is HR/9-based."""
+    if not pitcher_id:
+        return None
+    try:
+        pitcher_id = int(pitcher_id)
+    except (TypeError, ValueError):
+        return None
+    yr = season or _et_now().year
+    key = (pitcher_id, yr, window)
+    if key in _pform_cache:
+        return _pform_cache[key]
+
+    result = None
+    try:
+        url = (f"https://statsapi.mlb.com/api/v1/people/{pitcher_id}/stats"
+               f"?stats=gameLog&group=pitching&season={yr}")
+        data = requests.get(url, timeout=8).json()
+        stats = data.get("stats") or []
+        splits = stats[0].get("splits", []) if stats else []
+        splits = sorted([s for s in splits if s.get("stat")], key=lambda s: s.get("date", ""))
+        # Prefer actual starts; fall back to all appearances if none are flagged.
+        starts = [s for s in splits if _to_int(s["stat"].get("gamesStarted")) >= 1]
+        used = starts if starts else splits
+        if used:
+            recent = used[-window:]
+            hr = er = 0
+            ip = 0.0
+            for s in recent:
+                st = s["stat"]
+                hr += _to_int(st.get("homeRuns"))
+                er += _to_int(st.get("earnedRuns"))
+                ip += (_parse_ip(st.get("inningsPitched")) or 0.0)
+            # Starts since the pitcher last allowed a HR (0 = gave one up last time out).
+            last_hr_ago = None
+            for i, s in enumerate(reversed(used)):
+                if _to_int(s["stat"].get("homeRuns")) >= 1:
+                    last_hr_ago = i
+                    break
+            result = {
+                "starts": len(recent), "hr": hr,
+                "ip": round(ip, 1),
+                "hr9": round(hr / ip * 9, 2) if ip else None,
+                "era": round(er / ip * 9, 2) if ip else None,
+                "last_hr_ago": last_hr_ago,  # 0 = HR allowed last start; None = none this season
+            }
+    except Exception:
+        result = None
+
+    _pform_cache[key] = result
     return result
 
 
@@ -1326,6 +1384,7 @@ def get_top_picks(matchups, props):
         p['h2h']       = get_batter_vs_pitcher(p.get('player_id'), p.get('_pitcher_id'))
         p['pitch_mix'] = pitch_matchup(p.get('player_id'), p.get('_pitcher_id'))
         p['form']      = get_recent_form(p.get('player_id'))
+        p['pitcher_form'] = get_pitcher_recent_form(p.get('_pitcher_id'))
         p.pop('_pitcher_id', None)
     return top
 
