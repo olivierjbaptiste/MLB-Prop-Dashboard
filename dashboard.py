@@ -2217,6 +2217,87 @@ def load_results_log():
     return {"entries": []}
 
 
+# ── STRIKEOUT PROJECTIONS ──────────────────────────────────────────
+# Free model: pitcher K-rate x matchup (opposing lineup K%) x workload.
+# Uses only data already pulled (MLB Stats API) — NO Odds API calls.
+SK_LEAGUE_BAT_K = 22.0   # league-average batter strikeout rate (%)
+SK_EXP_IP_SP    = 5.6    # expected innings for a starter (refinable per-pitcher later)
+
+
+def _sk_avg_lineup_k(batters):
+    """Average strikeout rate of a lineup (%), or None if unavailable."""
+    ks = [b.get("k_pct") for b in (batters or [])
+          if isinstance(b.get("k_pct"), (int, float)) and b.get("k_pct")]
+    return round(sum(ks) / len(ks), 1) if ks else None
+
+
+def get_strikeout_projections(matchups):
+    """Projected strikeouts for each starting pitcher on the slate.
+
+    proj_K = expected_BF x pitcher_K_per_BF x opponent_factor
+      - pitcher_K_per_BF : season K% (per batter faced), fallback from K/9
+      - opponent_factor  : opposing lineup K% / league avg (log5-style), clamped
+      - expected_BF      : expected_IP x (3 + WHIP)  (WHIP approximates baserunners)
+    Returns a list ranked by projected Ks (desc). No Odds API usage.
+    """
+    out = []
+    # Within each matchup the pitcher stored under "<side>_pitcher" faces the
+    # lineup stored under "<side>_batters"; the opponent is that side's team.
+    for m in matchups or []:
+        pairs = [
+            (m.get("away_pitcher"), m.get("away_batters"), m.get("away_abb")),
+            (m.get("home_pitcher"), m.get("home_batters"), m.get("home_abb")),
+        ]
+        for pit, lineup, opp_abb in pairs:
+            if not isinstance(pit, dict):
+                continue
+            name = (pit.get("name") or "").strip()
+            if not name or name.upper() == "TBD":
+                continue
+
+            k_pct = pit.get("k_pct")
+            k9    = pit.get("k9")
+            if isinstance(k_pct, (int, float)) and k_pct > 0:
+                p_k = k_pct / 100.0
+            elif isinstance(k9, (int, float)) and k9 > 0:
+                p_k   = k9 / 38.0          # ~38 batters faced per 9 IP
+                k_pct = round(p_k * 100, 1)
+            else:
+                continue                   # no usable strikeout rate -> skip
+
+            whip = pit.get("whip")
+            whip = whip if isinstance(whip, (int, float)) and whip > 0 else 1.30
+
+            opp_k = _sk_avg_lineup_k(lineup)
+            if opp_k:
+                opp_factor = max(0.82, min(1.22, opp_k / SK_LEAGUE_BAT_K))
+            else:
+                opp_factor = 1.0
+
+            exp_bf = SK_EXP_IP_SP * (3.0 + whip)
+            proj_k = exp_bf * p_k * opp_factor
+
+            out.append({
+                "pitcher":    name,
+                "team":       pit.get("team", ""),
+                "hand":       pit.get("hand", "R"),
+                "opp":        opp_abb or "",
+                "game":       m.get("game", ""),
+                "headshot":   pit.get("headshot", ""),
+                "proj_k":     round(proj_k, 1),
+                "k_pct":      round(k_pct, 1) if isinstance(k_pct, (int, float)) else None,
+                "k9":         k9 if isinstance(k9, (int, float)) else None,
+                "opp_k_pct":  opp_k,
+                "opp_factor": round(opp_factor, 2),
+                "exp_ip":     SK_EXP_IP_SP,
+                "exp_bf":     round(exp_bf, 1),
+                "whip":       round(whip, 2),
+            })
+
+    out.sort(key=lambda x: x["proj_k"], reverse=True)
+    return out
+
+
 def build_all_data(odds_api_key=""):
     games    = get_games()
     # Read the daily odds snapshot regardless of whether a key is set in THIS
@@ -2288,6 +2369,7 @@ def build_all_data(odds_api_key=""):
         "batters":           batters,
         "pitchers":          pitchers,
         "matchups":          final_matchups,
+        "strikeout_projections": get_strikeout_projections(final_matchups),
         "top_picks":         final_top_picks,
         "weather":           weather,
         "week_schedule":     week_schedule,

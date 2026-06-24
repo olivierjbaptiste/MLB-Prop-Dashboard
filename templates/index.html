@@ -274,6 +274,7 @@ tr:last-child td{border-bottom:none}
   <button class="nb"    id="btn-props"      onclick="go('props')">&#128176; Props</button>
   <button class="nb"    id="btn-batters"    onclick="go('batters')">&#127955; Batters</button>
   <button class="nb"    id="btn-pitchers"   onclick="go('pitchers')">&#9918; Pitchers</button>
+  <button class="nb"    id="btn-strikeouts" onclick="go('strikeouts')">&#9889; Strikeouts</button>
   <button class="nb"    id="btn-daynight"   onclick="go('daynight')">&#9728; Day/Night</button>
   <button class="nb"    id="btn-framework"  onclick="go('framework')">&#128203; Framework</button>
   <button class="nb"    id="btn-parks"      onclick="go('parks')">&#127967; Parks</button>
@@ -364,6 +365,13 @@ tr:last-child td{border-bottom:none}
   <div class="section-hdr"><h2>Pitcher Vulnerability</h2></div>
   <div class="section-sub">Ranked by HR vulnerability — red = target, green = avoid. Real season stats + Statcast contact allowed.</div>
   <div class="picks-grid" id="pitchers-body"></div>
+</div>
+
+<!-- STRIKEOUTS -->
+<div id="tc-strikeouts" class="tc">
+  <div class="section-hdr"><h2>Strikeout Projections</h2><span class="badge" id="sk-count">0</span></div>
+  <div class="section-sub">Projected Ks per starter &mdash; pitcher K% &times; matchup (opposing lineup K%) &times; expected workload. Free model, no betting lines yet.</div>
+  <div class="picks-grid" id="strikeouts-body"></div>
 </div>
 
 <!-- DAY/NIGHT -->
@@ -642,6 +650,7 @@ var PICKS    = RAW.top_picks || [];
 var WEEK     = RAW.week_schedule     || [];
 var YESTERDAY= RAW.yesterday_results || [];
 var HEADSHOTS= RAW.headshots || {};
+var SKP      = RAW.strikeout_projections || [];
 
 // Shared player photo helper — circular headshot with a clean fallback.
 // Uses a fixed-size inline wrapper so rows never shift if an image is missing.
@@ -1078,7 +1087,7 @@ function buildTarget(){
 }
 
 function go(name){
-  var all=['picks','target','lineups','slate','props','batters','pitchers','daynight','framework','parks','cheatsheet','results','glossary','rotation','leaders'];
+  var all=['picks','target','lineups','slate','props','batters','pitchers','strikeouts','daynight','framework','parks','cheatsheet','results','glossary','rotation','leaders'];
   for(var i=0;i<all.length;i++){
     var tc=document.getElementById('tc-'+all[i]);
     var nb=document.getElementById('btn-'+all[i]);
@@ -1092,6 +1101,7 @@ function go(name){
   if(name==='props')       buildProps();
   if(name==='batters')     buildBatters();
   if(name==='pitchers')    buildPitchers();
+  if(name==='strikeouts')  buildStrikeouts();
   if(name==='daynight')    buildDN();
   if(name==='parks')       buildParks();
   if(name==='results')     { buildModelRecord(); buildResults(); }
@@ -1701,6 +1711,46 @@ function buildPitchers(){
       +'</div>';
   });
   document.getElementById('pitchers-body').innerHTML=cards;
+}
+
+// ── STRIKEOUT PROJECTIONS ─────────────────────────────────────────
+function buildStrikeouts(){
+  var rows = SKP || [];
+  var cnt = document.getElementById('sk-count');
+  if(cnt) cnt.textContent = rows.length;
+  if(!rows.length){
+    document.getElementById('strikeouts-body').innerHTML =
+      '<div style="color:var(--muted);font-size:12px;padding:24px;text-align:center">No projections yet \u2014 starters appear once the day\'s probables and lineups post.</div>';
+    return;
+  }
+  var cards='';
+  rows.forEach(function(p){
+    var pk   = p.proj_k!=null ? p.proj_k : 0;
+    var pCol = pk>=6.5 ? 'var(--green)' : (pk<=4.5 ? 'var(--red)' : 'var(--gold)');
+    var ofCol = (p.opp_factor!=null && p.opp_factor>1.05) ? 'var(--green)'
+              : (p.opp_factor!=null && p.opp_factor<0.95) ? 'var(--red)' : 'var(--white)';
+    var stats=''
+      +'<div class="pick-stat"><div class="pick-stat-val">'+(p.k_pct!=null?f(p.k_pct,1)+'%':'\u2014')+'</div><div class="pick-stat-lbl">K%</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val">'+(p.k9!=null?f(p.k9,1):'\u2014')+'</div><div class="pick-stat-lbl">K/9</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val" style="color:'+ofCol+'">'+(p.opp_k_pct!=null?f(p.opp_k_pct,1)+'%':'\u2014')+'</div><div class="pick-stat-lbl">Opp K%</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val">'+(p.exp_bf!=null?f(p.exp_bf,1):'\u2014')+'</div><div class="pick-stat-lbl">Exp BF</div></div>';
+    cards+='<div class="pick-card">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px">'
+        +'<div style="min-width:0">'
+          +'<div class="pick-name">'+pPhoto(p.pitcher,p.headshot)+p.pitcher+'</div>'
+          +'<div style="font-size:11px;color:var(--muted);margin-top:3px">'
+            +'<span class="badge-gray">'+(p.team||'')+'</span> &middot; '+(p.hand||'R')+'HP &middot; vs '+(p.opp||'')
+          +'</div>'
+        +'</div>'
+        +'<div style="text-align:right;flex-shrink:0">'
+          +'<div style="font-size:22px;font-weight:800;color:'+pCol+'">'+f(pk,1)+'</div>'
+          +'<div style="font-size:9px;color:'+pCol+';text-transform:uppercase;letter-spacing:0.5px;font-weight:700">PROJ K</div>'
+        +'</div>'
+      +'</div>'
+      +'<div class="pick-stats">'+stats+'</div>'
+      +'</div>';
+  });
+  document.getElementById('strikeouts-body').innerHTML=cards;
 }
 
 // ── DAY/NIGHT ─────────────────────────────────────────────────────
