@@ -2231,6 +2231,17 @@ def _sk_avg_lineup_k(batters):
     return round(sum(ks) / len(ks), 1) if ks else None
 
 
+def _sk_expected_ip(pit):
+    """Expected innings tonight from the pitcher's recent starts (avg IP/start).
+    Reuses the cached recent-form lookup (no Odds API); clamps to a sane starter
+    range and falls back to the league default when the log is too thin."""
+    pid = pit.get("player_id")
+    form = get_pitcher_recent_form(pid) if pid else None
+    if form and form.get("starts", 0) >= 2 and form.get("ip"):
+        return max(4.0, min(7.0, round(form["ip"] / form["starts"], 1)))
+    return SK_EXP_IP_SP
+
+
 def get_strikeout_projections(matchups):
     """Projected strikeouts for each starting pitcher on the slate.
 
@@ -2274,7 +2285,8 @@ def get_strikeout_projections(matchups):
             else:
                 opp_factor = 1.0
 
-            exp_bf = SK_EXP_IP_SP * (3.0 + whip)
+            exp_ip = _sk_expected_ip(pit)
+            exp_bf = exp_ip * (3.0 + whip)
             proj_k = exp_bf * p_k * opp_factor
 
             out.append({
@@ -2289,7 +2301,7 @@ def get_strikeout_projections(matchups):
                 "k9":         k9 if isinstance(k9, (int, float)) else None,
                 "opp_k_pct":  opp_k,
                 "opp_factor": round(opp_factor, 2),
-                "exp_ip":     SK_EXP_IP_SP,
+                "exp_ip":     exp_ip,
                 "exp_bf":     round(exp_bf, 1),
                 "whip":       round(whip, 2),
             })
