@@ -275,6 +275,9 @@ tr:last-child td{border-bottom:none}
   <button class="nb"    id="btn-batters"    onclick="go('batters')">&#127955; Batters</button>
   <button class="nb"    id="btn-pitchers"   onclick="go('pitchers')">&#9918; Pitchers</button>
   <button class="nb"    id="btn-strikeouts" onclick="go('strikeouts')">&#9889; Strikeouts</button>
+  <button class="nb"    id="btn-hits"       onclick="go('hits')">&#128165; Hits</button>
+  <button class="nb"    id="btn-tbases"     onclick="go('tbases')">&#128208; Total Bases</button>
+  <button class="nb"    id="btn-steals"     onclick="go('steals')">&#127939; Stolen Bases</button>
   <button class="nb"    id="btn-daynight"   onclick="go('daynight')">&#9728; Day/Night</button>
   <button class="nb"    id="btn-framework"  onclick="go('framework')">&#128203; Framework</button>
   <button class="nb"    id="btn-parks"      onclick="go('parks')">&#127967; Parks</button>
@@ -372,6 +375,27 @@ tr:last-child td{border-bottom:none}
   <div class="section-hdr"><h2>Strikeout Projections</h2><span class="badge" id="sk-count">0</span></div>
   <div class="section-sub">Projected Ks per starter &mdash; pitcher K% &times; matchup (opposing lineup K%) &times; expected workload. Free model, no betting lines yet.</div>
   <div class="picks-grid" id="strikeouts-body"></div>
+</div>
+
+<!-- HITS -->
+<div id="tc-hits" class="tc">
+  <div class="section-hdr"><h2>Hits Projections</h2><span class="badge" id="hits-count">0</span></div>
+  <div class="section-sub">Projected hits per batter &mdash; expected AB (by lineup spot) &times; AVG &times; matchup (opposing starter). Free model, no betting lines yet.</div>
+  <div class="picks-grid" id="hits-body"></div>
+</div>
+
+<!-- TOTAL BASES -->
+<div id="tc-tbases" class="tc">
+  <div class="section-hdr"><h2>Total Base Projections</h2><span class="badge" id="tbases-count">0</span></div>
+  <div class="section-sub">Projected total bases per batter &mdash; expected AB &times; SLG &times; matchup (opposing starter). Free model, no betting lines yet.</div>
+  <div class="picks-grid" id="tbases-body"></div>
+</div>
+
+<!-- STOLEN BASES -->
+<div id="tc-steals" class="tc">
+  <div class="section-hdr"><h2>Stolen Base Projections</h2><span class="badge" id="steals-count">0</span></div>
+  <div class="section-sub">Projected steals per batter &mdash; season SB rate per game. Only rostered base-stealers in today&rsquo;s lineups appear.</div>
+  <div class="picks-grid" id="steals-body"></div>
 </div>
 
 <!-- DAY/NIGHT -->
@@ -651,6 +675,7 @@ var WEEK     = RAW.week_schedule     || [];
 var YESTERDAY= RAW.yesterday_results || [];
 var HEADSHOTS= RAW.headshots || {};
 var SKP      = RAW.strikeout_projections || [];
+var BP       = RAW.batter_projections || [];
 
 // Shared player photo helper — circular headshot with a clean fallback.
 // Uses a fixed-size inline wrapper so rows never shift if an image is missing.
@@ -1087,7 +1112,7 @@ function buildTarget(){
 }
 
 function go(name){
-  var all=['picks','target','lineups','slate','props','batters','pitchers','strikeouts','daynight','framework','parks','cheatsheet','results','glossary','rotation','leaders'];
+  var all=['picks','target','lineups','slate','props','batters','pitchers','strikeouts','hits','tbases','steals','daynight','framework','parks','cheatsheet','results','glossary','rotation','leaders'];
   for(var i=0;i<all.length;i++){
     var tc=document.getElementById('tc-'+all[i]);
     var nb=document.getElementById('btn-'+all[i]);
@@ -1102,6 +1127,9 @@ function go(name){
   if(name==='batters')     buildBatters();
   if(name==='pitchers')    buildPitchers();
   if(name==='strikeouts')  buildStrikeouts();
+  if(name==='hits')        buildHits();
+  if(name==='tbases')      buildTBases();
+  if(name==='steals')      buildSteals();
   if(name==='daynight')    buildDN();
   if(name==='parks')       buildParks();
   if(name==='results')     { buildModelRecord(); buildResults(); }
@@ -1752,6 +1780,85 @@ function buildStrikeouts(){
       +'</div>';
   });
   document.getElementById('strikeouts-body').innerHTML=cards;
+}
+
+// ── BATTER PROP PROJECTIONS (hits / total bases / stolen bases) ───
+function _statCell(val, lbl, col){
+  return '<div class="pick-stat"><div class="pick-stat-val"'+(col?' style="color:'+col+'"':'')+'>'+val+'</div>'
+       + '<div class="pick-stat-lbl">'+lbl+'</div></div>';
+}
+function _renderBatterBoard(cfg){
+  var rows = (BP||[]).filter(function(p){ return p[cfg.field]!=null; })
+                     .sort(function(a,b){ return b[cfg.field]-a[cfg.field]; });
+  var cnt = document.getElementById(cfg.countId);
+  if(cnt) cnt.textContent = rows.length;
+  var body = document.getElementById(cfg.bodyId);
+  if(!body) return;
+  if(!rows.length){
+    body.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:24px;text-align:center">No projections yet \u2014 batters appear once the day\'s lineups post.</div>';
+    return;
+  }
+  var cards='';
+  rows.forEach(function(p){
+    var v = p[cfg.field]!=null ? p[cfg.field] : 0;
+    var vCol = cfg.color(v);
+    cards+='<div class="pick-card">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px">'
+        +'<div style="min-width:0">'
+          +'<div class="pick-name">'+pPhoto(p.name,p.headshot)+p.name+'</div>'
+          +'<div style="font-size:11px;color:var(--muted);margin-top:3px">'
+            +'<span class="badge-gray">'+(p.team||'')+'</span> &middot; '+(p.hand||'R')+'HB &middot; vs '+(p.opp||'')
+            +(p.opp_pitcher?' ('+p.opp_pitcher+')':'')
+          +'</div>'
+        +'</div>'
+        +'<div style="text-align:right;flex-shrink:0">'
+          +'<div style="font-size:22px;font-weight:800;color:'+vCol+'">'+f(v,cfg.decimals)+'</div>'
+          +'<div style="font-size:9px;color:'+vCol+';text-transform:uppercase;letter-spacing:0.5px;font-weight:700">'+cfg.label+'</div>'
+        +'</div>'
+      +'</div>'
+      +'<div class="pick-stats">'+cfg.stats(p)+'</div>'
+      +'</div>';
+  });
+  body.innerHTML=cards;
+}
+function _oppFactorCol(p){
+  return (p.opp_factor!=null && p.opp_factor>1.05) ? 'var(--green)'
+       : (p.opp_factor!=null && p.opp_factor<0.95) ? 'var(--red)' : null;
+}
+function buildHits(){
+  _renderBatterBoard({
+    field:'proj_h', bodyId:'hits-body', countId:'hits-count', label:'PROJ H', decimals:2,
+    color:function(v){ return v>=1.15?'var(--green)':(v<=0.80?'var(--red)':'var(--gold)'); },
+    stats:function(p){
+      return _statCell(p.avg!=null?f(p.avg,3):'\u2014','AVG')
+           + _statCell(p.slg!=null?f(p.slg,3):'\u2014','SLG')
+           + _statCell(p.exp_ab!=null?f(p.exp_ab,1):'\u2014','Exp AB')
+           + _statCell(p.opp_factor!=null?f(p.opp_factor,2):'\u2014','Opp Fctr',_oppFactorCol(p));
+    }
+  });
+}
+function buildTBases(){
+  _renderBatterBoard({
+    field:'proj_tb', bodyId:'tbases-body', countId:'tbases-count', label:'PROJ TB', decimals:2,
+    color:function(v){ return v>=1.90?'var(--green)':(v<=1.30?'var(--red)':'var(--gold)'); },
+    stats:function(p){
+      return _statCell(p.slg!=null?f(p.slg,3):'\u2014','SLG')
+           + _statCell(p.avg!=null?f(p.avg,3):'\u2014','AVG')
+           + _statCell(p.exp_ab!=null?f(p.exp_ab,1):'\u2014','Exp AB')
+           + _statCell(p.opp_factor!=null?f(p.opp_factor,2):'\u2014','Opp Fctr',_oppFactorCol(p));
+    }
+  });
+}
+function buildSteals(){
+  _renderBatterBoard({
+    field:'proj_sb', bodyId:'steals-body', countId:'steals-count', label:'PROJ SB', decimals:2,
+    color:function(v){ return v>=0.30?'var(--green)':(v<=0.08?'var(--muted)':'var(--gold)'); },
+    stats:function(p){
+      return _statCell(p.sb!=null?p.sb:'\u2014','Season SB')
+           + _statCell(p.gp!=null?p.gp:'\u2014','Games')
+           + _statCell((p.sb!=null&&p.gp)?f(p.sb/p.gp,2):'\u2014','Per Game');
+    }
+  });
 }
 
 // ── DAY/NIGHT ─────────────────────────────────────────────────────

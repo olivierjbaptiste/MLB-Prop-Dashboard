@@ -2310,6 +2310,123 @@ def get_strikeout_projections(matchups):
     return out
 
 
+# ── BATTER PROP PROJECTIONS (hits / total bases / stolen bases) ──────
+# Free models built only from data already on hand (lineup batter stats +
+# opposing starter). NO Odds API calls.
+#   proj_H  = expected_AB x AVG x opp_factor
+#   proj_TB = expected_AB x SLG x opp_factor
+#   proj_SB = season SB / games played      (no opponent data -> rate only)
+# expected_AB = expected_PA(by lineup spot) x AB-share(from BB%).
+BP_LEAGUE_WHIP = 1.30   # league-average WHIP, the hit-environment baseline
+
+# expected plate appearances by lineup spot (leadoff bats most, 9-hole least)
+_BP_PA_BY_SPOT = {1: 4.65, 2: 4.55, 3: 4.45, 4: 4.35, 5: 4.25,
+                  6: 4.15, 7: 4.05, 8: 3.95, 9: 3.85}
+
+# Season stolen-base reference for the sample-batter pool (SB, games played).
+# Self-contained like the strikeout constants; players not listed simply get
+# no SB projection (same limitation as any stat missing from the pool).
+SB_SEASON = {
+    "Elly De La Cruz": (40, 72), "Bobby Witt Jr": (26, 72), "Corbin Carroll": (24, 70),
+    "Jose Ramirez": (24, 70), "Shohei Ohtani": (22, 70), "Trea Turner": (21, 70),
+    "Julio Rodriguez": (20, 70), "Ronald Acuna Jr": (18, 68), "Fernando Tatis Jr": (17, 70),
+    "Kyle Tucker": (16, 70), "Gunnar Henderson": (15, 70), "Mookie Betts": (12, 70),
+    "Willy Adames": (12, 70), "Bryce Harper": (10, 70), "Freddie Freeman": (9, 70),
+    "Adolis Garcia": (9, 70), "Aaron Judge": (8, 70), "Teoscar Hernandez": (8, 70),
+    "Juan Soto": (7, 70), "Bo Bichette": (6, 70), "Sal Stewart": (4, 60),
+    "Rafael Devers": (3, 70), "William Contreras": (3, 70), "Corey Seager": (3, 68),
+    "Pete Alonso": (2, 70), "Yordan Alvarez": (1, 65), "Matt Olson": (1, 70),
+    "Tyler Stephenson": (1, 65), "Marcell Ozuna": (1, 70), "Cal Raleigh": (0, 68),
+}
+
+
+def _bp_expected_pa(order):
+    """Expected plate appearances from the batter's lineup spot."""
+    try:
+        return _BP_PA_BY_SPOT.get(int(order), 4.2)
+    except (TypeError, ValueError):
+        return 4.2
+
+
+def _bp_opp_factor(pitcher):
+    """Hit environment from the opposing starter's WHIP vs league (proxy),
+    clamped to a sane range. Higher WHIP -> more baserunners -> more hits."""
+    if not isinstance(pitcher, dict):
+        return 1.0
+    whip = pitcher.get("whip")
+    if isinstance(whip, (int, float)) and whip > 0:
+        return max(0.85, min(1.18, whip / BP_LEAGUE_WHIP))
+    return 1.0
+
+
+def get_batter_projections(matchups):
+    """Per-batter hits / total-bases / stolen-base projections for the slate.
+
+    Returns one flat list; each frontend tab sorts by its own projection.
+    A batter faces the pitcher stored under the SAME side key (mirroring the
+    strikeout pairing): away_batters face m['away_pitcher'], etc.
+    """
+    out = []
+    for m in matchups or []:
+        pairs = [
+            (m.get("away_batters"), m.get("away_pitcher"), m.get("away_abb"), m.get("home_abb")),
+            (m.get("home_batters"), m.get("home_pitcher"), m.get("home_abb"), m.get("away_abb")),
+        ]
+        for lineup, opp_pit, team_abb, opp_abb in pairs:
+            opp_factor = _bp_opp_factor(opp_pit)
+            opp_name = (opp_pit.get("name", "") if isinstance(opp_pit, dict) else "")
+            for bat in (lineup or []):
+                if not isinstance(bat, dict):
+                    continue
+                name = (bat.get("name") or "").strip()
+                if not name:
+                    continue
+
+                avg = bat.get("avg")
+                slg = bat.get("slg")
+                bb_pct = bat.get("bb_pct")
+
+                exp_pa = _bp_expected_pa(bat.get("order"))
+                share = 1.0 - ((bb_pct / 100.0) if isinstance(bb_pct, (int, float)) else 0.085) - 0.02
+                share = max(0.80, min(0.95, share))
+                exp_ab = exp_pa * share
+
+                proj_h = (exp_ab * avg * opp_factor) if isinstance(avg, (int, float)) and avg > 0 else None
+                proj_tb = (exp_ab * slg * opp_factor) if isinstance(slg, (int, float)) and slg > 0 else None
+
+                sb_gp = SB_SEASON.get(name)
+                if sb_gp and sb_gp[1] > 0:
+                    sb_n, gp_n = sb_gp
+                    proj_sb = max(0.0, min(1.2, sb_n / gp_n))
+                else:
+                    sb_n = gp_n = None
+                    proj_sb = None
+
+                if proj_h is None and proj_tb is None and proj_sb is None:
+                    continue   # nothing to rank this batter on
+
+                out.append({
+                    "name":       name,
+                    "team":       bat.get("team", team_abb or ""),
+                    "hand":       bat.get("hand", "R"),
+                    "order":      bat.get("order"),
+                    "opp":        opp_abb or "",
+                    "opp_pitcher": opp_name,
+                    "game":       m.get("game", ""),
+                    "headshot":   bat.get("headshot", ""),
+                    "avg":        round(avg, 3) if isinstance(avg, (int, float)) else None,
+                    "slg":        round(slg, 3) if isinstance(slg, (int, float)) else None,
+                    "exp_ab":     round(exp_ab, 1),
+                    "opp_factor": round(opp_factor, 2),
+                    "proj_h":     round(proj_h, 2) if proj_h is not None else None,
+                    "proj_tb":    round(proj_tb, 2) if proj_tb is not None else None,
+                    "proj_sb":    round(proj_sb, 2) if proj_sb is not None else None,
+                    "sb":         sb_n,
+                    "gp":         gp_n,
+                })
+    return out
+
+
 def build_all_data(odds_api_key=""):
     games    = get_games()
     # Read the daily odds snapshot regardless of whether a key is set in THIS
@@ -2382,6 +2499,7 @@ def build_all_data(odds_api_key=""):
         "pitchers":          pitchers,
         "matchups":          final_matchups,
         "strikeout_projections": get_strikeout_projections(final_matchups),
+        "batter_projections":    get_batter_projections(final_matchups),
         "top_picks":         final_top_picks,
         "weather":           weather,
         "week_schedule":     week_schedule,
