@@ -1223,16 +1223,27 @@ function goNBA(prop){
 }
 
 var NBA_CFG = {
-  pts:{field:'proj_pts',label:'PROJ PTS',dec:1,szn:function(p){return p.ppg;},l5:function(p){return p.ppg_l5;}},
-  pra:{field:'proj_pra',label:'PROJ PRA',dec:1,szn:function(p){return (p.ppg||0)+(p.rpg||0)+(p.apg||0);},l5:function(p){return (p.ppg_l5||0)+(p.rpg_l5||0)+(p.apg_l5||0);}},
-  reb:{field:'proj_reb',label:'PROJ REB',dec:1,szn:function(p){return p.rpg;},l5:function(p){return p.rpg_l5;}},
-  ast:{field:'proj_ast',label:'PROJ AST',dec:1,szn:function(p){return p.apg;},l5:function(p){return p.apg_l5;}},
-  tpm:{field:'proj_tpm',label:'PROJ 3PM',dec:1,szn:function(p){return p.tpm;},l5:function(p){return null;}}
+  pts:{field:'proj_pts',label:'PROJ PTS',dec:1,mf:'mf_pts',szn:function(p){return p.ppg;},l5:function(p){return p.ppg_l5;}},
+  pra:{field:'proj_pra',label:'PROJ PRA',dec:1,mf:null,szn:function(p){return (p.ppg||0)+(p.rpg||0)+(p.apg||0);},l5:function(p){return (p.ppg_l5||0)+(p.rpg_l5||0)+(p.apg_l5||0);}},
+  reb:{field:'proj_reb',label:'PROJ REB',dec:1,mf:'mf_reb',szn:function(p){return p.rpg;},l5:function(p){return p.rpg_l5;}},
+  ast:{field:'proj_ast',label:'PROJ AST',dec:1,mf:'mf_ast',szn:function(p){return p.apg;},l5:function(p){return p.apg_l5;}},
+  tpm:{field:'proj_tpm',label:'PROJ 3PM',dec:1,mf:'mf_tpm',szn:function(p){return p.tpm;},l5:function(p){return null;}}
 };
 
 function _nbaConfPill(c){
   var cls = c==='high'?'conf-high':(c==='med'?'conf-med':'conf-low');
   return '<span class="conf-pill '+cls+'">'+String(c||'').toUpperCase()+'</span>';
+}
+
+// Matchup badge: green when the opponent is soft vs this stat, red when tough.
+function _nbaMatchup(p, cfg){
+  if(!cfg.mf) return '';
+  var m = p[cfg.mf];
+  if(m==null) return '';
+  var pct = Math.round((m-1)*100);
+  if(m >= 1.03) return ' <span class="nba-flag" style="background:rgba(34,197,94,0.12);color:var(--green);border:1px solid rgba(34,197,94,0.3)">SOFT D +'+pct+'%</span>';
+  if(m <= 0.97) return ' <span class="nba-flag" style="background:rgba(239,68,68,0.12);color:var(--red);border:1px solid rgba(239,68,68,0.3)">TOUGH D '+pct+'%</span>';
+  return '';
 }
 
 function buildNBA(prop){
@@ -1261,7 +1272,7 @@ function buildNBA(prop){
         +'<div style="min-width:0">'
           +'<div class="pick-name">'+nbaPhoto(p.name,p.id,28)+p.name+'</div>'
           +'<div style="font-size:11px;color:var(--muted);margin-top:3px">'
-            +'<span class="badge-gray">'+(p.team||'')+'</span> &middot; '+(p.pos||'')+' '+_nbaConfPill(p.confidence)+flag
+            +'<span class="badge-gray">'+(p.team||'')+'</span>'+(p.opp?' vs '+p.opp:'')+' &middot; '+(p.pos||'')+' '+_nbaConfPill(p.confidence)+flag+_nbaMatchup(p,cfg)
           +'</div>'
         +'</div>'
         +'<div style="text-align:right;flex-shrink:0">'

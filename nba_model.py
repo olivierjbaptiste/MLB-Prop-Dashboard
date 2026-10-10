@@ -67,18 +67,64 @@ def _status_bucket(status):
     return "ok"
 
 
-# ── matchup layer (STUB until stats.nba.com residential pull exists) ──
-def matchup_factor(player, data):
-    """
-    Opponent pace × positional-defense multiplier. Returns 1.0 for now.
+# ── matchup layer (team-level opponent defense, from ESPN) ────────────
+MATCHUP_CLAMP = 0.15   # never let one matchup swing a projection more than ±15%
 
-    When the residential-IP pace/defense pull lands, this is the ONE place
-    that changes: look up the player's team's opponent today, multiply a
-    pace factor (opp possessions vs league avg) by a positional-defense
-    factor (how much the opponent gives up to the player's position), and
-    return it. Everything downstream already multiplies by this.
+# which team_defense field drives which stat
+_DEF_FIELD = {"pts": "opp_pts", "reb": "opp_reb",
+              "ast": "opp_ast", "tpm": "opp_tpm"}
+
+
+def _opponent_abb(p, data):
+    """The abbreviation of the team this player faces today, or None."""
+    tid = str(p.get("team_id"))
+    for g in data.get("games", []):
+        if str(g.get("home_id")) == tid:
+            return g.get("away_abb")
+        if str(g.get("away_id")) == tid:
+            return g.get("home_abb")
+    return None
+
+
+def _league_avgs(td):
+    """League-average opponent values across all teams we have defense for."""
+    avg = {}
+    for field in _DEF_FIELD.values():
+        vals = [r[field] for r in td.values()
+                if isinstance(r, dict) and r.get(field)]
+        avg[field] = (sum(vals) / len(vals)) if vals else None
+    return avg
+
+
+def matchup_factors(player, data):
     """
-    return 1.0
+    Per-stat multiplier from the opponent's team defense: a team that allows
+    more of a stat than the league average pushes that projection up, and a
+    stingy team pushes it down. Clamped to ±15% so one odd number can't blow
+    up a line. Falls back to a neutral 1.0 whenever the data isn't there, so
+    the board never breaks when ESPN's team stats are missing.
+
+    This is the team-level (Tier 1) version. Positional defense (points
+    allowed to a player's position specifically) is the Tier 2 upgrade and
+    would refine these same factors once a stats.nba.com feed exists.
+    """
+    out = {"pts": 1.0, "reb": 1.0, "ast": 1.0, "tpm": 1.0}
+    td = data.get("team_defense") or {}
+    if not td:
+        return out
+    opp = _opponent_abb(player, data)
+    if not opp or opp not in td:
+        return out
+    avg = data.get("_league_avg")
+    if avg is None:
+        avg = _league_avgs(td)
+        data["_league_avg"] = avg    # cache on the data dict for the whole run
+    for stat, field in _DEF_FIELD.items():
+        a, v = avg.get(field), td[opp].get(field)
+        if a and v:
+            f = v / a
+            out[stat] = max(1 - MATCHUP_CLAMP, min(1 + MATCHUP_CLAMP, f))
+    return out
 
 
 # ── the projection ────────────────────────────────────────────────────
@@ -100,13 +146,20 @@ def project_player(p, data):
         r        = _blend(r_season, r_l5, gp)
         return proj_min * r
 
-    mf = matchup_factor(p, data)
+    mf = matchup_factors(p, data)
 
-    proj_pts = proj_stat(p.get("ppg"), p.get("ppg_l5")) * mf
-    proj_reb = proj_stat(p.get("rpg"), p.get("rpg_l5")) * mf
-    proj_ast = proj_stat(p.get("apg"), p.get("apg_l5")) * mf
-    proj_tpm = proj_stat(p.get("tpm"), None)            * mf   # no L5 3PM yet
+    proj_pts = proj_stat(p.get("ppg"), p.get("ppg_l5")) * mf["pts"]
+    proj_reb = proj_stat(p.get("rpg"), p.get("rpg_l5")) * mf["reb"]
+    proj_ast = proj_stat(p.get("apg"), p.get("apg_l5")) * mf["ast"]
+    proj_tpm = proj_stat(p.get("tpm"), None)            * mf["tpm"]  # no L5 3PM yet
     proj_pra = proj_pts + proj_reb + proj_ast
+
+    # expose the opponent + factors so the board can show WHY a line moved
+    p["opp"] = _opponent_abb(p, data)
+    p["mf_pts"] = round(mf["pts"], 3)
+    p["mf_reb"] = round(mf["reb"], 3)
+    p["mf_ast"] = round(mf["ast"], 3)
+    p["mf_tpm"] = round(mf["tpm"], 3)
 
     if bucket == "out":
         proj_min = proj_pts = proj_reb = proj_ast = proj_tpm = proj_pra = 0.0

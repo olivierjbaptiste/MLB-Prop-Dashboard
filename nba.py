@@ -44,6 +44,7 @@ PLAYER_CAP = int(os.environ.get("NBA_PLAYER_CAP", "40"))
 UA          = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 ESPN        = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba"
 ESPN_COMMON = "https://site.api.espn.com/apis/common/v3/sports/basketball/nba"
+ESPN_CORE   = "https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba"
 
 
 def _snap_path():
@@ -280,6 +281,85 @@ def get_player_log(athlete_id):
     }
 
 
+# ── 6. team defense (opponent stats per team) ────────────────────────
+# Which season's numbers to use. In preseason / very early season the new
+# season has no data yet, so we try the current end-year first, then last
+# season as the baseline (same idea as the players' season averages).
+def _season_candidates():
+    t = _et_today()
+    cur_end = t.year + 1 if t.month >= 10 else t.year
+    return [cur_end, cur_end - 1]
+
+# candidate ESPN stat names (lowercased) for each opponent metric we want.
+# We try several because ESPN's naming varies; the diagnostic below prints
+# every name it actually saw so we can lock these down on the first run.
+_DEF_KEYS = {
+    "opp_pts": ["opponentpointspergame", "avgpointsagainst", "pointsagainst",
+                "opppointspergame", "opponentpoints", "pointsagainstpergame"],
+    "opp_reb": ["opponentreboundspergame", "reboundsagainst",
+                "opponentrebounds", "opprebounds", "opponenttotalreboundspergame"],
+    "opp_ast": ["opponentassistspergame", "assistsagainst", "opponentassists"],
+    "opp_tpm": ["opponentthreepointfieldgoalsmadepergame",
+                "opponentthreepointfieldgoalsmade",
+                "threepointfieldgoalsmadeagainst"],
+    "pace":    ["pace", "pacefactor", "avgpace"],
+}
+
+
+def _flatten_team_stats(data):
+    """Return {stat_name_lower: per_game_value} from a core statistics payload."""
+    flat = {}
+    if not isinstance(data, dict):
+        return flat
+    cats = (((data.get("splits") or {}).get("categories")) or [])
+    for cat in cats:
+        for st in (cat.get("stats") or []):
+            nm = str(st.get("name") or "").lower()
+            if not nm:
+                continue
+            val = st.get("perGameValue")
+            if val is None:
+                val = st.get("value")
+            if val is None:
+                val = _num(st.get("displayValue"))
+            if val is not None:
+                flat[nm] = float(val)
+    return flat
+
+
+def _parse_team_def(flat):
+    """Pick opponent metrics out of a flattened stat map."""
+    rec = {}
+    for key, cands in _DEF_KEYS.items():
+        for c in cands:
+            if c in flat and flat[c]:
+                rec[key] = round(flat[c], 2)
+                break
+    return rec
+
+
+def get_team_defense(teams):
+    """{team_abb: {opp_pts, opp_reb, opp_ast, opp_tpm, pace?, season}} for all
+    teams we can parse. Returns {} if ESPN's core stats are unreachable (the
+    model then simply falls back to a neutral 1.0 matchup factor)."""
+    out = {}
+    seasons = _season_candidates()
+    for tid, meta in teams.items():
+        abb = meta.get("abb")
+        if not abb:
+            continue
+        for season in seasons:
+            flat = _flatten_team_stats(
+                _fetch_json(f"{ESPN_CORE}/seasons/{season}/types/2/teams/{tid}/statistics"))
+            rec = _parse_team_def(flat)
+            if rec:
+                rec["season"] = season
+                out[abb] = rec
+                break
+        time.sleep(0.15)
+    return out
+
+
 # ── assemble everything ───────────────────────────────────────────────
 def build_nba_data():
     today = _et_today()
@@ -293,6 +373,9 @@ def build_nba_data():
 
     inj_id, inj_name = get_injuries()
     print(f"    injuries: {len(inj_id)} by-id / {len(inj_name)} by-name")
+
+    team_defense = get_team_defense(teams)
+    print(f"    team defense parsed: {len(team_defense)}/{len(teams)} teams")
 
     # teams playing today → the player universe
     playing = set()
@@ -340,6 +423,7 @@ def build_nba_data():
         "games":  games,
         "teams":  teams,
         "players": players,
+        "team_defense": team_defense,
         "injuries_count": len(inj_id) + len(inj_name),
     }
 
@@ -367,6 +451,20 @@ def _dump_shape(label, url):
         print("     top-level keys:", list(data.keys())[:15])
     sample = json.dumps(data)[:600]
     print("     sample:", sample, "…")
+
+
+def _dump_def_names(tid):
+    """Print every stat name ESPN exposes for one team, so we can map the
+    opponent metrics precisely if _DEF_KEYS missed them."""
+    for season in _season_candidates():
+        data = _fetch_json(f"{ESPN_CORE}/seasons/{season}/types/2/teams/{tid}/statistics")
+        flat = _flatten_team_stats(data)
+        if flat:
+            print(f"\n  ── team {tid} stat names (season {season}, {len(flat)} stats) ──")
+            for nm in sorted(flat.keys()):
+                print(f"       {nm} = {flat[nm]}")
+            return
+    print(f"\n  ── team {tid}: no stats returned for either season ──")
 
 
 if __name__ == "__main__":
@@ -400,6 +498,20 @@ if __name__ == "__main__":
         if data["players"]:
             _dump_shape("gamelog",
                         f"{ESPN_COMMON}/athletes/{data['players'][0]['id']}/gamelog")
+
+    # team defense report
+    print("\n  === TEAM DEFENSE (opponent per-game) ===")
+    td = data.get("team_defense") or {}
+    if td:
+        for abb in list(td.keys())[:6]:
+            r = td[abb]
+            print(f"    {abb:4s} oppPTS {r.get('opp_pts')}  oppREB {r.get('opp_reb')}"
+                  f"  oppAST {r.get('opp_ast')}  opp3PM {r.get('opp_tpm')}"
+                  f"  pace {r.get('pace')}  (szn {r.get('season')})")
+    else:
+        print("    ⚠ no team defense parsed — dumping one team's stat names to map them:")
+        if data.get("teams"):
+            _dump_def_names(sorted(data["teams"].keys())[0])
 
     # dump shapes for anything that came back empty, so we can fix parsers
     if not data["games"]:
