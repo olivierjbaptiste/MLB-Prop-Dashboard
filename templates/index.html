@@ -317,6 +317,17 @@ tr:last-child td{border-bottom:none}
 <div class="main">
 
 <!-- ===================== NBA BOARDS ===================== -->
+<div id="nba-filterbar" style="display:none;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+  <input id="nba-search" type="text" placeholder="&#128269; Search player…" oninput="buildNBA(currentNBAProp)"
+         style="background:var(--surface2);border:1px solid var(--border);color:var(--white);padding:6px 10px;border-radius:5px;font-size:12px;font-family:inherit;min-width:160px;outline:none">
+  <select id="nba-team-filter" onchange="buildNBA(currentNBAProp)"
+          style="background:var(--surface2);border:1px solid var(--border);color:var(--white);padding:6px 10px;border-radius:5px;font-size:12px;font-family:inherit;outline:none">
+    <option value="all">All teams</option>
+  </select>
+  <button class="filter-btn on" id="nbaf-all"  onclick="setNBAConf('all',this)">All</button>
+  <button class="filter-btn"    id="nbaf-high" onclick="setNBAConf('high',this)">High conf</button>
+  <span id="nba-filter-count" style="font-size:10px;color:var(--muted);font-weight:700"></span>
+</div>
 <div id="tc-nba-pts" class="tc">
   <div class="section-hdr"><h2>&#127936; NBA Points Projections</h2><span class="badge" id="nba-pts-count">0</span></div>
   <div class="section-sub">Projected points &mdash; blended per-minute scoring &times; projected minutes. OUT players removed; Day-To-Day flagged. &nbsp;&bull;&nbsp; <span id="nba-freshness" style="color:var(--muted)"></span></div>
@@ -1217,12 +1228,14 @@ function setSport(s){
     var m=document.getElementById('tc-picks'); if(m) m.className='tc on';
     try{ buildPicks(); buildNoBet(); }catch(e){ console.error(e); }
   } else {
+    try{ populateNBATeamFilter(); }catch(e){}
     goNBA('pts');
     try{
       var fr=document.getElementById('nba-freshness');
       if(fr) fr.textContent = NBA_GAMES.length + ' games on today’s slate';
     }catch(e){}
   }
+  if(s==='mlb'){ var fb=document.getElementById('nba-filterbar'); if(fb) fb.style.display='none'; }
   updateHeaderStats(s);
 }
 
@@ -1244,6 +1257,9 @@ function updateHeaderStats(s){
   }
 }
 
+var currentNBAProp = 'pts';
+var nbaConf = 'all';   // 'all' | 'high'
+
 function goNBA(prop){
   var views = NBA_PROPS.concat(['teams']);
   for(var i=0;i<views.length;i++){
@@ -1252,7 +1268,29 @@ function goNBA(prop){
     if(tc) tc.className='tc'+(views[i]===prop?' on':'');
     if(nb) nb.className='nb'+(views[i]===prop?' on':'');
   }
-  if(prop==='teams') buildNBATeams(); else buildNBA(prop);
+  // the search/filter bar applies to player props only, not the Teams board
+  var fb=document.getElementById('nba-filterbar');
+  if(fb) fb.style.display = (prop==='teams') ? 'none' : 'flex';
+  if(prop==='teams'){ buildNBATeams(); }
+  else { currentNBAProp = prop; buildNBA(prop); }
+}
+
+function setNBAConf(v, btn){
+  nbaConf = v;
+  var a=document.getElementById('nbaf-all'), h=document.getElementById('nbaf-high');
+  if(a) a.classList.toggle('on', v==='all');
+  if(h) h.classList.toggle('on', v==='high');
+  buildNBA(currentNBAProp);
+}
+
+function populateNBATeamFilter(){
+  var sel=document.getElementById('nba-team-filter'); if(!sel) return;
+  var teams={}; (NBA_PLAYERS||[]).forEach(function(p){ if(p.team) teams[p.team]=1; });
+  var list=Object.keys(teams).sort();
+  var cur=sel.value||'all';
+  sel.innerHTML='<option value="all">All teams</option>'
+    + list.map(function(t){return '<option value="'+t+'">'+t+'</option>';}).join('');
+  sel.value=cur;
 }
 
 // ── NBA TEAM RATINGS ──────────────────────────────────────────────
@@ -1352,9 +1390,18 @@ function _nbaMatchup(p, cfg){
 
 function buildNBA(prop){
   var cfg = NBA_CFG[prop]; if(!cfg) return;
-  var rows = (NBA_PLAYERS||[]).filter(function(p){ return p.playable && p[cfg.field]!=null; })
-                              .sort(function(a,b){ return b[cfg.field]-a[cfg.field]; });
+  var q = ((document.getElementById('nba-search')||{}).value||'').trim().toLowerCase();
+  var teamF = (document.getElementById('nba-team-filter')||{}).value||'all';
+  var rows = (NBA_PLAYERS||[]).filter(function(p){
+      if(!p.playable || p[cfg.field]==null) return false;
+      if(q && (p.name||'').toLowerCase().indexOf(q)===-1) return false;
+      if(teamF!=='all' && p.team!==teamF) return false;
+      if(nbaConf==='high' && p.confidence!=='high') return false;
+      return true;
+    }).sort(function(a,b){ return b[cfg.field]-a[cfg.field]; });
   var cnt=document.getElementById('nba-'+prop+'-count'); if(cnt) cnt.textContent=rows.length;
+  var fc=document.getElementById('nba-filter-count');
+  if(fc) fc.textContent = (q||teamF!=='all'||nbaConf!=='all') ? (rows.length+' shown') : '';
   var body=document.getElementById('nba-'+prop+'-body'); if(!body) return;
   if(!rows.length){
     body.innerHTML='<div style="color:var(--muted);font-size:12px;padding:24px;text-align:center">No projections yet — players appear once the day’s slate and stats post. Run the NBA Data Pull to refresh the snapshot.</div>';
