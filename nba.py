@@ -508,10 +508,12 @@ if __name__ == "__main__":
             print(f"    {abb:4s} oppPTS {r.get('opp_pts')}  oppREB {r.get('opp_reb')}"
                   f"  oppAST {r.get('opp_ast')}  opp3PM {r.get('opp_tpm')}"
                   f"  pace {r.get('pace')}  (szn {r.get('season')})")
-    else:
-        print("    ⚠ no team defense parsed — dumping one team's stat names to map them:")
-        if data.get("teams"):
-            _dump_def_names(sorted(data["teams"].keys())[0])
+    # dump the full stat-name list if we're missing the opponent fields,
+    # so we can map opp_pts/opp_reb/opp_ast/opp_tpm precisely
+    missing_opp = (not td) or any(td[a].get("opp_pts") is None for a in list(td.keys())[:1])
+    if missing_opp and data.get("teams"):
+        print("    ⚠ opponent fields unmapped — dumping one team's stat names:")
+        _dump_def_names(sorted(data["teams"].keys())[0])
 
     # dump shapes for anything that came back empty, so we can fix parsers
     if not data["games"]:

@@ -87,9 +87,9 @@ def _opponent_abb(p, data):
 
 
 def _league_avgs(td):
-    """League-average opponent values across all teams we have defense for."""
+    """League-average opponent values (and pace) across all teams."""
     avg = {}
-    for field in _DEF_FIELD.values():
+    for field in list(_DEF_FIELD.values()) + ["pace"]:
         vals = [r[field] for r in td.values()
                 if isinstance(r, dict) and r.get(field)]
         avg[field] = (sum(vals) / len(vals)) if vals else None
@@ -119,11 +119,23 @@ def matchup_factors(player, data):
     if avg is None:
         avg = _league_avgs(td)
         data["_league_avg"] = avg    # cache on the data dict for the whole run
+    orec = td[opp]
+
+    # pace is a universal possessions multiplier — a fast opponent inflates
+    # every counting stat, a slow one deflates it. This is live now.
+    pace_f = 1.0
+    if avg.get("pace") and orec.get("pace"):
+        pace_f = orec["pace"] / avg["pace"]
+
+    # stat-specific opponent allowance (e.g. "allows more threes") stacks on
+    # top of pace once ESPN's opponent fields are mapped; until then these are
+    # absent and pace alone drives the factor.
     for stat, field in _DEF_FIELD.items():
-        a, v = avg.get(field), td[opp].get(field)
+        f = pace_f
+        a, v = avg.get(field), orec.get(field)
         if a and v:
-            f = v / a
-            out[stat] = max(1 - MATCHUP_CLAMP, min(1 + MATCHUP_CLAMP, f))
+            f = f * (v / a)
+        out[stat] = max(1 - MATCHUP_CLAMP, min(1 + MATCHUP_CLAMP, f))
     return out
 
 
