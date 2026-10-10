@@ -433,17 +433,18 @@ def _parse_bbref_opp(html, nick2abb, season):
         return out
     block = html[start:html.find("</table>", start)]
     for row in re.findall(r"<tr[^>]*>(.*?)</tr>", block, re.S):
-        name = _bb_cell(row, "team_name") or _bb_cell(row, "team")
+        name = _bb_cell(row, "team") or _bb_cell(row, "team_name")
         if not name:
             continue
         abb = nick2abb.get(name.strip().lower().split()[-1])
         if not abb:
-            continue   # skips "League Average" and anything unmatched
+            continue   # skips "Team" header rows, "League Average", unmatched
         rec = {}
-        pts = _num(_bb_cell(row, "pts"))
-        reb = _num(_bb_cell(row, "trb"))
-        ast = _num(_bb_cell(row, "ast"))
-        tpm = _num(_bb_cell(row, "fg3"))
+        # bbref prefixes every opponent-allowed column with opp_
+        pts = _num(_bb_cell(row, "opp_pts"))
+        reb = _num(_bb_cell(row, "opp_trb"))
+        ast = _num(_bb_cell(row, "opp_ast"))
+        tpm = _num(_bb_cell(row, "opp_fg3"))
         if pts: rec["opp_pts"] = round(pts, 2)
         if reb: rec["opp_reb"] = round(reb, 2)
         if ast: rec["opp_ast"] = round(ast, 2)
@@ -598,9 +599,9 @@ def _dump_bbref(teams):
             nm = _bb_cell(row, "team_name") or _bb_cell(row, "team")
             if nm:
                 stats = re.findall(r'data-stat="([^"]+)"', row)
-                print(f"      sample row team='{nm}'  data-stats={stats[:16]}")
-                print(f"        pts={_bb_cell(row,'pts')} trb={_bb_cell(row,'trb')} "
-                      f"ast={_bb_cell(row,'ast')} fg3={_bb_cell(row,'fg3')}")
+                print(f"      sample row team='{nm}'  data-stats={stats[:20]}")
+                print(f"        opp_pts={_bb_cell(row,'opp_pts')} opp_trb={_bb_cell(row,'opp_trb')} "
+                      f"opp_ast={_bb_cell(row,'opp_ast')} opp_fg3={_bb_cell(row,'opp_fg3')}")
                 break
         return
     print("    bbref: could not fetch either season page")
