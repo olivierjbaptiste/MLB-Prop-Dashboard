@@ -749,6 +749,21 @@ function pPhoto(name, url, size){
   return '<span style="'+wrap+'">'+ph+'</span>';
 }
 
+// NBA headshot — built from the ESPN athlete id. Mirrors pPhoto but with a
+// basketball fallback glyph. The img-safe class lets the global error handler
+// hide a missing image and reveal the fallback.
+function nbaPhoto(name, id, size){
+  size = size || 28;
+  var src = id ? ('https://a.espncdn.com/i/headshots/nba/players/full/'+id+'.png') : '';
+  var common = 'width:'+size+'px;height:'+size+'px;border-radius:50%;border:1px solid var(--border);background:var(--surface2)';
+  var wrap   = 'display:inline-block;width:'+size+'px;height:'+size+'px;vertical-align:middle;margin-right:7px;flex-shrink:0';
+  var ph = '<span style="'+common+';align-items:center;justify-content:center;font-size:'+Math.round(size*0.55)+'px;'+(src?'display:none':'display:flex')+'">&#127936;</span>';
+  if(src){
+    return '<span style="'+wrap+'"><img src="'+src+'" class="img-safe" style="'+common+';object-fit:cover;object-position:top" alt="">'+ph+'</span>';
+  }
+  return '<span style="'+wrap+'">'+ph+'</span>';
+}
+
 // Weather/park boost badge: rocket for HR-friendly conditions, warning for suppressors.
 function boostBadge(pick){
   var pf = pick.park_factor || 1.0;
@@ -1244,7 +1259,7 @@ function buildNBA(prop){
     cards+='<div class="pick-card">'
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px">'
         +'<div style="min-width:0">'
-          +'<div class="pick-name">'+p.name+'</div>'
+          +'<div class="pick-name">'+nbaPhoto(p.name,p.id,28)+p.name+'</div>'
           +'<div style="font-size:11px;color:var(--muted);margin-top:3px">'
             +'<span class="badge-gray">'+(p.team||'')+'</span> &middot; '+(p.pos||'')+' '+_nbaConfPill(p.confidence)+flag
           +'</div>'
