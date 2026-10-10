@@ -1,0 +1,45 @@
+name: NBA Data Pull
+
+# Manual for now. Runs the ESPN data layer on a real runner (the only place
+# ESPN is reachable), prints a parse report, and commits nba_snapshot.json
+# so the live site can read it. Once the parsers are confirmed we'll add a
+# schedule (cron) the same way the MLB side refreshes.
+on:
+  workflow_dispatch:
+    inputs:
+      player_cap:
+        description: "Max players to pull (keeps the first run fast; raise later)"
+        required: false
+        default: "40"
+
+permissions:
+  contents: write        # needed to commit the snapshot back
+
+jobs:
+  nba-pull:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run NBA data pull (force live, write snapshot)
+        env:
+          NBA_PLAYER_CAP: ${{ github.event.inputs.player_cap }}
+        run: python nba.py
+
+      - name: Commit snapshot if it changed
+        run: |
+          git config user.name  "diamond-bot"
+          git config user.email "diamond-bot@users.noreply.github.com"
+          git add -f nba_snapshot.json
+          if git diff --cached --quiet; then
+            echo "No snapshot changes to commit."
+          else
+            git commit -m "NBA snapshot refresh [skip ci]"
+            git push
+          fi
