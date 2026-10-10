@@ -38,9 +38,9 @@ _SNAP_DIR  = os.path.dirname(os.path.abspath(__file__))
 SNAP_NAME  = "nba_snapshot.json"
 _FORCE_LIVE = False          # the pull script flips this to True
 
-# First validation run stays small/fast. Raise (or set env to 0 = unlimited)
-# once the ESPN shapes are confirmed so it covers the whole slate.
-PLAYER_CAP = int(os.environ.get("NBA_PLAYER_CAP", "40"))
+# 0 = full slate (no cap) — the default now that the pipeline is proven.
+# Set NBA_PLAYER_CAP to a small number to keep a run fast while testing.
+PLAYER_CAP = int(os.environ.get("NBA_PLAYER_CAP") or "0")
 
 UA          = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 ESPN        = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba"
@@ -488,10 +488,11 @@ def build_nba_data():
     for g in games:
         if g.get("home_id"): playing.add(str(g["home_id"]))
         if g.get("away_id"): playing.add(str(g["away_id"]))
-    # if no games today (off day), fall back to all teams so the pull still works
+    # on a true off day (no games) the board is simply empty — we don't scan
+    # all 30 rosters for nothing
     if not playing:
-        playing = set(teams.keys())
-    print(f"    teams playing/scanned: {len(playing)}")
+        print("    no games today — player board will be empty")
+    print(f"    teams playing: {len(playing)}")
 
     team_abb = {tid: teams.get(tid, {}).get("abb", "") for tid in playing}
 

@@ -1,16 +1,19 @@
 name: NBA Data Pull
 
-# Manual for now. Runs the ESPN data layer on a real runner (the only place
-# ESPN is reachable), prints a parse report, and commits nba_snapshot.json
-# so the live site can read it. Once the parsers are confirmed we'll add a
-# schedule (cron) the same way the MLB side refreshes.
+# Refreshes the ESPN + bbref NBA data on a real runner (the only place those
+# sources are reachable), writes nba_snapshot.json, and commits it so the live
+# site redeploys with fresh numbers. Runs on a daily schedule and on demand.
 on:
   workflow_dispatch:
     inputs:
       player_cap:
-        description: "Max players to pull (keeps the first run fast; raise later)"
+        description: "Max players to pull (0 or blank = full slate; set a small number to test fast)"
         required: false
-        default: "40"
+        default: "0"
+  schedule:
+    # times are UTC. EDT = UTC-4, EST = UTC-5.
+    - cron: "0 16 * * *"    # ~12:00pm ET — morning refresh: slate, stats, defense, injuries
+    - cron: "0 22 * * *"    # ~6:00pm ET  — pre-tip sweep: catch late injuries/lineups
 
 permissions:
   contents: write        # needed to commit the snapshot back
@@ -29,7 +32,9 @@ jobs:
 
       - name: Run NBA data pull (force live, write snapshot)
         env:
-          NBA_PLAYER_CAP: ${{ github.event.inputs.player_cap }}
+          # manual runs can override; scheduled runs send nothing, so default to
+          # full slate. `|| '0'` keeps it valid when the input is absent/blank.
+          NBA_PLAYER_CAP: ${{ github.event.inputs.player_cap || '0' }}
         run: python nba.py
 
       - name: Commit snapshot if it changed
