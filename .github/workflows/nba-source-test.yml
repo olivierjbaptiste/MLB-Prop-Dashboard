@@ -1,0 +1,26 @@
+name: NBA Source Test
+
+# Manual-only. Does NOT touch your app or data — just prints which NBA
+# APIs respond from a GitHub runner, then exits.
+on:
+  workflow_dispatch:
+
+jobs:
+  nba-source-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run NBA data-source test
+        env:
+          # Optional: add a free balldontlie key as a repo secret to test it.
+          # Settings → Secrets and variables → Actions → New secret:
+          #   name BALLDONTLIE_KEY,  value <your key from balldontlie.io>
+          BALLDONTLIE_KEY: ${{ secrets.BALLDONTLIE_KEY }}
+        run: python nba_source_test.py
