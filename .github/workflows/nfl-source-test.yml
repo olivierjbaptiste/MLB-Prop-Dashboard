@@ -1,0 +1,21 @@
+name: NFL Source Test
+
+# Manual-only. Does NOT touch your app or data — just prints which NFL
+# APIs respond from a GitHub runner, then exits.
+on:
+  workflow_dispatch:
+
+jobs:
+  nfl-source-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run NFL data-source test
+        run: python nfl_source_test.py
