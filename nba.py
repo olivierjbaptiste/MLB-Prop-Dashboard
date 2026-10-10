@@ -326,7 +326,12 @@ _DEF_KEYS = {
     "opp_tpm": ["opponentthreepointfieldgoalsmadepergame",
                 "opponentthreepointfieldgoalsmade",
                 "threepointfieldgoalsmadeagainst"],
-    "pace":    ["pace", "pacefactor", "avgpace"],
+    "pace":    ["pacefactor", "pace", "avgpace"],
+    # the team's OWN offensive output (ESPN core stats — confirmed names)
+    "off_pts": ["avgpoints"],
+    "off_reb": ["avgrebounds"],
+    "off_ast": ["avgassists"],
+    "off_tpm": ["avgthreepointfieldgoalsmade"],
 }
 
 

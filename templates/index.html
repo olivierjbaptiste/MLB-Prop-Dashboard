@@ -311,6 +311,7 @@ tr:last-child td{border-bottom:none}
   <button class="nb"    id="bnb-reb" onclick="goNBA('reb')">&#128138; Rebounds</button>
   <button class="nb"    id="bnb-ast" onclick="goNBA('ast')">&#127919; Assists</button>
   <button class="nb"    id="bnb-tpm" onclick="goNBA('tpm')">&#127919; 3-Pointers</button>
+  <button class="nb"    id="bnb-teams" onclick="goNBA('teams')">&#127963; Teams</button>
 </div>
 
 <div class="main">
@@ -340,6 +341,19 @@ tr:last-child td{border-bottom:none}
   <div class="section-hdr"><h2>&#127919; NBA 3-Pointers Made</h2><span class="badge" id="nba-tpm-count">0</span></div>
   <div class="section-sub">Projected made threes &mdash; season rate &times; projected minutes (last-5 blend added once the season is underway).</div>
   <div class="picks-grid" id="nba-tpm-body"></div>
+</div>
+<div id="tc-nba-teams" class="tc">
+  <div class="section-hdr"><h2>&#127963; NBA Team Ratings</h2><span class="badge" id="nba-teams-count">0</span></div>
+  <div class="section-sub">Offense (what they score) vs defense (what they allow), per game &mdash; green = strong, red = weak, measured against league average. Use it to spot favorable matchups.</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+    <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:700">Sort:</span>
+    <button class="filter-btn on" onclick="setNBATeamSort('off_pts',1,this)">Top Offense</button>
+    <button class="filter-btn" onclick="setNBATeamSort('opp_pts',0,this)">Top Defense</button>
+    <button class="filter-btn" onclick="setNBATeamSort('pace',1,this)">Fastest Pace</button>
+    <button class="filter-btn" onclick="setNBATeamSort('opp_tpm',1,this)">Allows Most 3s</button>
+    <button class="filter-btn" onclick="setNBATeamSort('opp_reb',1,this)">Allows Most Reb</button>
+  </div>
+  <div class="picks-grid" id="nba-teams-body"></div>
 </div>
 <!-- =================== END NBA BOARDS =================== -->
 
@@ -1231,13 +1245,85 @@ function updateHeaderStats(s){
 }
 
 function goNBA(prop){
-  for(var i=0;i<NBA_PROPS.length;i++){
-    var tc=document.getElementById('tc-nba-'+NBA_PROPS[i]);
-    var nb=document.getElementById('bnb-'+NBA_PROPS[i]);
-    if(tc) tc.className='tc'+(NBA_PROPS[i]===prop?' on':'');
-    if(nb) nb.className='nb'+(NBA_PROPS[i]===prop?' on':'');
+  var views = NBA_PROPS.concat(['teams']);
+  for(var i=0;i<views.length;i++){
+    var tc=document.getElementById('tc-nba-'+views[i]);
+    var nb=document.getElementById('bnb-'+views[i]);
+    if(tc) tc.className='tc'+(views[i]===prop?' on':'');
+    if(nb) nb.className='nb'+(views[i]===prop?' on':'');
   }
-  buildNBA(prop);
+  if(prop==='teams') buildNBATeams(); else buildNBA(prop);
+}
+
+// ── NBA TEAM RATINGS ──────────────────────────────────────────────
+var nbaTeamSortKey = 'off_pts';
+var nbaTeamSortDesc = 1;   // 1 = high first, 0 = low first
+function setNBATeamSort(key, desc, btn){
+  nbaTeamSortKey = key; nbaTeamSortDesc = desc;
+  var bar = btn ? btn.parentNode : null;
+  if(bar) bar.querySelectorAll('.filter-btn').forEach(function(b){ b.classList.remove('on'); });
+  if(btn) btn.classList.add('on');
+  buildNBATeams();
+}
+
+function _nbaTeamAvgs(td){
+  var keys=['off_pts','off_reb','off_ast','off_tpm','opp_pts','opp_reb','opp_ast','opp_tpm','pace'];
+  var avg={};
+  keys.forEach(function(k){
+    var vals=[]; for(var a in td){ if(td[a] && td[a][k]) vals.push(td[a][k]); }
+    avg[k] = vals.length ? vals.reduce(function(x,y){return x+y;},0)/vals.length : null;
+  });
+  return avg;
+}
+
+function buildNBATeams(){
+  var td = NBA.team_defense || {};
+  var names = {};
+  for(var id in (NBA.teams||{})){ var t=NBA.teams[id]; if(t&&t.abb) names[t.abb]=t.name||t.abb; }
+  var abbs = Object.keys(td);
+  var cnt=document.getElementById('nba-teams-count'); if(cnt) cnt.textContent=abbs.length;
+  var body=document.getElementById('nba-teams-body'); if(!body) return;
+  if(!abbs.length){
+    body.innerHTML='<div style="color:var(--muted);font-size:12px;padding:24px;text-align:center">No team ratings yet — run the NBA Data Pull to populate team defense/offense.</div>';
+    return;
+  }
+  var avg=_nbaTeamAvgs(td);
+  abbs.sort(function(a,b){
+    var va=(td[a]||{})[nbaTeamSortKey]||0, vb=(td[b]||{})[nbaTeamSortKey]||0;
+    return nbaTeamSortDesc ? vb-va : va-vb;
+  });
+  // color: higher-than-avg green for OFFENSE (more = better), and for DEFENSE
+  // lower-than-avg is green (allowing less = better)
+  function offCol(v,k){ if(v==null||!avg[k]) return 'var(--white)'; return v>avg[k]*1.02?'var(--green)':(v<avg[k]*0.98?'var(--red)':'var(--white)'); }
+  function defCol(v,k){ if(v==null||!avg[k]) return 'var(--white)'; return v<avg[k]*0.98?'var(--green)':(v>avg[k]*1.02?'var(--red)':'var(--white)'); }
+  function cell(v,lbl,col){ return '<div class="pick-stat"><div class="pick-stat-val" style="color:'+col+'">'+(v!=null?f(v,1):'—')+'</div><div class="pick-stat-lbl">'+lbl+'</div></div>'; }
+
+  var cards='';
+  abbs.forEach(function(abb){
+    var r=td[abb]||{};
+    var off=''
+      +cell(r.off_pts,'PTS',offCol(r.off_pts,'off_pts'))
+      +cell(r.off_reb,'REB',offCol(r.off_reb,'off_reb'))
+      +cell(r.off_ast,'AST',offCol(r.off_ast,'off_ast'))
+      +cell(r.off_tpm,'3PM',offCol(r.off_tpm,'off_tpm'));
+    var def=''
+      +cell(r.opp_pts,'PTS',defCol(r.opp_pts,'opp_pts'))
+      +cell(r.opp_reb,'REB',defCol(r.opp_reb,'opp_reb'))
+      +cell(r.opp_ast,'AST',defCol(r.opp_ast,'opp_ast'))
+      +cell(r.opp_tpm,'3PM',defCol(r.opp_tpm,'opp_tpm'));
+    cards+='<div class="pick-card">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px">'
+        +'<div class="pick-name">'+(names[abb]||abb)+'</div>'
+        +'<div style="text-align:right;flex-shrink:0"><div style="font-size:16px;font-weight:800;color:var(--gold)">'+(r.pace!=null?f(r.pace,1):'—')+'</div>'
+          +'<div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:0.5px;font-weight:700">PACE</div></div>'
+      +'</div>'
+      +'<div style="font-size:9px;color:var(--green);font-weight:800;letter-spacing:0.5px;text-transform:uppercase;margin:2px 0 4px">&#9650; Offense (scores)</div>'
+      +'<div class="pick-stats">'+off+'</div>'
+      +'<div style="font-size:9px;color:var(--muted);font-weight:800;letter-spacing:0.5px;text-transform:uppercase;margin:8px 0 4px">&#128737; Defense (allows)</div>'
+      +'<div class="pick-stats">'+def+'</div>'
+      +'</div>';
+  });
+  body.innerHTML=cards;
 }
 
 var NBA_CFG = {
