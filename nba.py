@@ -20,6 +20,7 @@ and it prints what it parsed and dumps the raw shape of anything empty.
 
 import os
 import io
+import re
 import json
 import gzip
 import time
@@ -45,6 +46,7 @@ UA          = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 ESPN        = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba"
 ESPN_COMMON = "https://site.api.espn.com/apis/common/v3/sports/basketball/nba"
 ESPN_CORE   = "https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba"
+BBREF       = "https://www.basketball-reference.com"
 
 
 def _snap_path():
@@ -74,7 +76,7 @@ def _snapshot_age_h(snap):
 
 
 # ── fetch helper (urllib, gzip, retries) ──────────────────────────────
-def _fetch_json(url, timeout=15, attempts=3):
+def _fetch_json(url, timeout=15, attempts=3, quiet=False):
     """Return parsed JSON dict/list, or None. Never raises."""
     for i in range(attempts):
         try:
@@ -86,9 +88,31 @@ def _fetch_json(url, timeout=15, attempts=3):
                 return json.loads(raw.decode("utf-8", "replace"))
         except Exception as e:
             if i == attempts - 1:
-                print(f"    fetch fail: {url[:70]}… → {type(e).__name__}")
+                if not quiet:
+                    print(f"    fetch fail: {url[:70]}… → {type(e).__name__}")
             else:
                 time.sleep(1.2 * (i + 1))
+    return None
+
+
+def _fetch_text(url, timeout=20, attempts=2, quiet=False):
+    """Return page text, or None. Browser UA so bbref doesn't 403. Never raises."""
+    for i in range(attempts):
+        try:
+            req = urllib.request.Request(url, headers={
+                **UA, "Accept": "text/html,application/xhtml+xml",
+                "Accept-Encoding": "gzip, identity"})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                raw = r.read()
+                if r.headers.get("Content-Encoding") == "gzip":
+                    raw = gzip.GzipFile(fileobj=io.BytesIO(raw)).read()
+                return raw.decode("utf-8", "replace")
+        except Exception as e:
+            if i == attempts - 1:
+                if not quiet:
+                    print(f"    text fetch fail: {url[:70]}… → {type(e).__name__}")
+            else:
+                time.sleep(2.0 * (i + 1))
     return None
 
 
@@ -350,7 +374,8 @@ def get_team_defense(teams):
             continue
         for season in seasons:
             flat = _flatten_team_stats(
-                _fetch_json(f"{ESPN_CORE}/seasons/{season}/types/2/teams/{tid}/statistics"))
+                _fetch_json(f"{ESPN_CORE}/seasons/{season}/types/2/teams/{tid}/statistics",
+                            attempts=1, quiet=True))
             rec = _parse_team_def(flat)
             if rec:
                 rec["season"] = season
@@ -358,6 +383,83 @@ def get_team_defense(teams):
                 break
         time.sleep(0.15)
     return out
+
+
+# ── 6b. opponent defense from Basketball-Reference ────────────────────
+# bbref's league page carries an "Opponent Per Game" table — i.e. what each
+# team ALLOWS. That's the stat-specific defense ESPN doesn't give us:
+# opp points, rebounds, assists, and threes made against each team.
+def _bb_cell(row, stat):
+    """Pull one data-stat value out of a bbref table row (tags stripped)."""
+    m = re.search(r'data-stat="' + stat + r'"[^>]*>(?:<[^>]+>)*([^<]*)', row)
+    return m.group(1).strip() if m else ""
+
+
+def get_team_defense_bbref(teams):
+    """{espn_abb: {opp_pts, opp_reb, opp_ast, opp_tpm, bbref_season}} parsed
+    from bbref's Opponent Per Game table. Keyed to ESPN abbreviations by
+    matching the team nickname (last word), so bbref's own team codes
+    (BRK/PHO/CHO…) don't have to line up with ESPN's."""
+    # nickname -> ESPN abbreviation, from the ESPN teams dict
+    nick2abb = {}
+    for meta in teams.values():
+        nm = (meta.get("name") or "").strip().lower()
+        abb = meta.get("abb")
+        if nm and abb:
+            nick2abb[nm.split()[-1]] = abb
+
+    # parse each candidate season; keep whichever has the fuller table (the
+    # upcoming season's page can exist but be empty during preseason)
+    best = {}
+    for season in _season_candidates():
+        html = _fetch_text(f"{BBREF}/leagues/NBA_{season}.html", quiet=True)
+        if not html or "per_game-opponent" not in html:
+            continue
+        parsed = _parse_bbref_opp(html, nick2abb, season)
+        if len(parsed) > len(best):
+            best = parsed
+        if len(best) >= 25:        # got a full slate — no need to try older
+            break
+        time.sleep(1.5)            # be polite between bbref page loads
+    return best
+
+
+def _parse_bbref_opp(html, nick2abb, season):
+    out = {}
+    # bbref defers many tables inside HTML comments — unwrap them first
+    html = html.replace("<!--", "").replace("-->", "")
+    start = html.find('id="per_game-opponent"')
+    if start == -1:
+        return out
+    block = html[start:html.find("</table>", start)]
+    for row in re.findall(r"<tr[^>]*>(.*?)</tr>", block, re.S):
+        name = _bb_cell(row, "team_name") or _bb_cell(row, "team")
+        if not name:
+            continue
+        abb = nick2abb.get(name.strip().lower().split()[-1])
+        if not abb:
+            continue   # skips "League Average" and anything unmatched
+        rec = {}
+        pts = _num(_bb_cell(row, "pts"))
+        reb = _num(_bb_cell(row, "trb"))
+        ast = _num(_bb_cell(row, "ast"))
+        tpm = _num(_bb_cell(row, "fg3"))
+        if pts: rec["opp_pts"] = round(pts, 2)
+        if reb: rec["opp_reb"] = round(reb, 2)
+        if ast: rec["opp_ast"] = round(ast, 2)
+        if tpm: rec["opp_tpm"] = round(tpm, 2)
+        if rec:
+            rec["bbref_season"] = season
+            out[abb] = rec
+    return out
+
+
+def _merge_defense(pace_def, opp_def):
+    """Combine ESPN pace with bbref opponent allowances, keyed by ESPN abb."""
+    merged = {}
+    for abb in set(pace_def) | set(opp_def):
+        merged[abb] = {**pace_def.get(abb, {}), **opp_def.get(abb, {})}
+    return merged
 
 
 # ── assemble everything ───────────────────────────────────────────────
@@ -374,8 +476,11 @@ def build_nba_data():
     inj_id, inj_name = get_injuries()
     print(f"    injuries: {len(inj_id)} by-id / {len(inj_name)} by-name")
 
-    team_defense = get_team_defense(teams)
-    print(f"    team defense parsed: {len(team_defense)}/{len(teams)} teams")
+    pace_def = get_team_defense(teams)           # ESPN → pace
+    opp_def  = get_team_defense_bbref(teams)     # bbref → opponent allowances
+    team_defense = _merge_defense(pace_def, opp_def)
+    print(f"    team pace parsed: {len(pace_def)}/{len(teams)} teams")
+    print(f"    bbref opponent defense parsed: {len(opp_def)}/{len(teams)} teams")
 
     # teams playing today → the player universe
     playing = set()
@@ -457,7 +562,8 @@ def _dump_def_names(tid):
     """Print every stat name ESPN exposes for one team, so we can map the
     opponent metrics precisely if _DEF_KEYS missed them."""
     for season in _season_candidates():
-        data = _fetch_json(f"{ESPN_CORE}/seasons/{season}/types/2/teams/{tid}/statistics")
+        data = _fetch_json(f"{ESPN_CORE}/seasons/{season}/types/2/teams/{tid}/statistics",
+                           attempts=1, quiet=True)
         flat = _flatten_team_stats(data)
         if flat:
             print(f"\n  ── team {tid} stat names (season {season}, {len(flat)} stats) ──")
@@ -465,6 +571,39 @@ def _dump_def_names(tid):
                 print(f"       {nm} = {flat[nm]}")
             return
     print(f"\n  ── team {tid}: no stats returned for either season ──")
+
+
+def _dump_bbref(teams):
+    """Diagnose the bbref opponent table so we can fix the parser if it's empty."""
+    for season in _season_candidates():
+        url = f"{BBREF}/leagues/NBA_{season}.html"
+        html = _fetch_text(url, quiet=True)
+        if not html:
+            print(f"    bbref {season}: no response (blocked or down?)")
+            continue
+        has = "per_game-opponent" in html
+        print(f"    bbref {season}: {len(html)} bytes, per_game-opponent present: {has}")
+        if not has:
+            # maybe behind comments or renamed — show any opponent-ish table ids
+            ids = re.findall(r'id="([^"]*opponent[^"]*)"', html)
+            print(f"      opponent-ish table ids seen: {ids[:8]}")
+            continue
+        html = html.replace("<!--", "").replace("-->", "")
+        start = html.find('id="per_game-opponent"')
+        block = html[start:html.find("</table>", start)]
+        rows = re.findall(r"<tr[^>]*>(.*?)</tr>", block, re.S)
+        print(f"      rows in table: {len(rows)}")
+        # show the first data row's raw cells so we can see the data-stat names
+        for row in rows:
+            nm = _bb_cell(row, "team_name") or _bb_cell(row, "team")
+            if nm:
+                stats = re.findall(r'data-stat="([^"]+)"', row)
+                print(f"      sample row team='{nm}'  data-stats={stats[:16]}")
+                print(f"        pts={_bb_cell(row,'pts')} trb={_bb_cell(row,'trb')} "
+                      f"ast={_bb_cell(row,'ast')} fg3={_bb_cell(row,'fg3')}")
+                break
+        return
+    print("    bbref: could not fetch either season page")
 
 
 if __name__ == "__main__":
@@ -508,12 +647,11 @@ if __name__ == "__main__":
             print(f"    {abb:4s} oppPTS {r.get('opp_pts')}  oppREB {r.get('opp_reb')}"
                   f"  oppAST {r.get('opp_ast')}  opp3PM {r.get('opp_tpm')}"
                   f"  pace {r.get('pace')}  (szn {r.get('season')})")
-    # dump the full stat-name list if we're missing the opponent fields,
-    # so we can map opp_pts/opp_reb/opp_ast/opp_tpm precisely
-    missing_opp = (not td) or any(td[a].get("opp_pts") is None for a in list(td.keys())[:1])
-    if missing_opp and data.get("teams"):
-        print("    ⚠ opponent fields unmapped — dumping one team's stat names:")
-        _dump_def_names(sorted(data["teams"].keys())[0])
+    # if bbref opponent allowances didn't come through, diagnose the page
+    have_opp = any(td[a].get("opp_pts") for a in td)
+    if not have_opp:
+        print("    ⚠ no bbref opponent defense parsed — diagnosing the page:")
+        _dump_bbref(data.get("teams") or {})
 
     # dump shapes for anything that came back empty, so we can fix parsers
     if not data["games"]:
