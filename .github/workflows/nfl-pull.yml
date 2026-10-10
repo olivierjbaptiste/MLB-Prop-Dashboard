@@ -1,0 +1,44 @@
+name: NFL Data Pull
+
+# Runs the NFL data layer on a runner (nflverse + ESPN live), writes
+# nfl_snapshot.json, and commits it so the live site redeploys. Manual for
+# now; we'll add a weekly schedule once the ESPN join is confirmed.
+on:
+  workflow_dispatch:
+    inputs:
+      player_cap:
+        description: "Max players to pull (0 or blank = full slate)"
+        required: false
+        default: "0"
+
+permissions:
+  contents: write
+
+jobs:
+  nfl-pull:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run NFL data pull (force live, write snapshot)
+        env:
+          NFL_PLAYER_CAP: ${{ github.event.inputs.player_cap || '0' }}
+        run: python nfl.py
+
+      - name: Commit snapshot if it changed
+        run: |
+          git config user.name  "diamond-bot"
+          git config user.email "diamond-bot@users.noreply.github.com"
+          git add -f nfl_snapshot.json
+          if git diff --cached --quiet; then
+            echo "No snapshot changes to commit."
+          else
+            git commit -m "NFL snapshot refresh [skip ci]"
+            git push
+          fi
