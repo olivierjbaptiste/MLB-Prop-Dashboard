@@ -252,7 +252,7 @@ tr:last-child td{border-bottom:none}
     </div>
     <div class="hdr-stat">
       <div class="hdr-stat-val" id="stat-batters">—</div>
-      <div class="hdr-stat-lbl">Batters</div>
+      <div class="hdr-stat-lbl" id="lbl-batters">Batters</div>
     </div>
     <div class="hdr-stat" onclick="go('results')" style="cursor:pointer" title="View Results">
       <div class="hdr-stat-val" id="stat-record" style="color:var(--green)">0-0</div>
@@ -1209,7 +1209,25 @@ function setSport(s){
       if(fr) fr.textContent = NBA_GAMES.length + ' games on today’s slate';
     }catch(e){}
   }
-  try{ document.getElementById('stat-games').textContent = (s==='nba'?NBA_GAMES.length:GAMES.length); }catch(e){}
+  updateHeaderStats(s);
+}
+
+// Swap the top stat bar between MLB and NBA so it stops showing MLB leftovers.
+function updateHeaderStats(s){
+  function set(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; }
+  if(s==='nba'){
+    set('stat-games',   NBA_GAMES.length);
+    set('stat-picks',   '—');
+    set('stat-batters', NBA_PLAYERS.length);
+    set('lbl-batters',  'Players');
+    set('stat-record',  '—');
+  } else {
+    set('stat-games',   GAMES.length);
+    set('stat-picks',   (PICKS||[]).length);
+    set('stat-batters', BATTERS.length);
+    set('lbl-batters',  'Batters');
+    try{ buildModelRecord(); }catch(e){}   // restores the MLB W-L record
+  }
 }
 
 function goNBA(prop){
