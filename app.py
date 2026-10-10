@@ -8,6 +8,8 @@ import threading
 from datetime import datetime
 from flask import Flask, render_template, jsonify
 import dashboard as db
+import nba
+import nba_model
 
 app = Flask(__name__)
 
@@ -45,6 +47,19 @@ refresh_data()
 print("Startup data load complete")
 
 
+def get_nba_data():
+    """Read the committed NBA snapshot and attach projections. Pure/local —
+    never hits the network at request time (the GitHub Action refreshes it)."""
+    try:
+        d = nba.read_snapshot() or {}
+        if d.get("players"):
+            nba_model.project_all(d)
+        return d
+    except Exception as e:
+        print(f"NBA load error: {e}")
+        return {}
+
+
 @app.route("/")
 def index():
     try:
@@ -58,8 +73,14 @@ def index():
         data_json = "{}"
         updated   = "Error loading data"
         today     = ""
+    try:
+        nba_json = json.dumps(get_nba_data())
+    except Exception as e:
+        print(f"NBA route error: {e}")
+        nba_json = "{}"
     return render_template("index.html",
                            data=data_json,
+                           nba_data=nba_json,
                            updated=updated,
                            today=today,
                            loading=False)

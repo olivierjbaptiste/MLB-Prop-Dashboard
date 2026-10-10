@@ -73,6 +73,16 @@ body{background:var(--bg);color:var(--white);font-family:'SF Mono',SFMono-Regula
 .section-hdr .badge{background:var(--green2);color:#000;font-size:9px;font-weight:800;padding:2px 7px;border-radius:3px;letter-spacing:0.5px}
 .section-sub{font-size:10px;color:var(--muted);margin-bottom:14px;letter-spacing:0.3px}
 .tc{display:none}.tc.on{display:block}
+.sportbar{background:var(--surface);border-bottom:1px solid var(--border);padding:8px 24px;display:flex;gap:8px;align-items:center}
+.sportbtn{padding:7px 18px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;font-size:12px;font-weight:800;border-radius:6px;letter-spacing:0.5px;font-family:inherit;transition:all 0.15s}
+.sportbtn:hover{color:var(--white)}
+.sportbtn.on{background:var(--green2);color:#000;border-color:var(--green)}
+.nba-flag{font-size:9px;font-weight:800;padding:2px 6px;border-radius:3px;letter-spacing:0.5px;text-transform:uppercase}
+.nba-flag.dtd{background:rgba(234,179,8,0.15);color:var(--gold);border:1px solid var(--gold)}
+.conf-pill{font-size:9px;font-weight:800;padding:1px 6px;border-radius:3px;letter-spacing:0.5px;text-transform:uppercase}
+.conf-high{background:rgba(34,197,94,0.12);color:var(--green)}
+.conf-med{background:rgba(234,179,8,0.12);color:var(--gold)}
+.conf-low{background:rgba(148,163,184,0.12);color:var(--muted)}
 
 /* ── TABLES ── */
 .tw{overflow-x:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:18px}
@@ -265,8 +275,14 @@ tr:last-child td{border-bottom:none}
   <div style="margin-left:auto;font-size:10px;color:var(--muted)">{{ updated }}</div>
 </div>
 
-<!-- NAV -->
-<div class="nav">
+<!-- SPORT SWITCH -->
+<div class="sportbar">
+  <button class="sportbtn on" id="sb-mlb" onclick="setSport('mlb')">&#9918; MLB</button>
+  <button class="sportbtn"    id="sb-nba" onclick="setSport('nba')">&#127936; NBA</button>
+</div>
+
+<!-- NAV (MLB) -->
+<div class="nav" id="nav-mlb">
   <button class="nb on" id="btn-picks"      onclick="go('picks')">&#127919; Daily Picks</button>
   <button class="nb"    id="btn-target"     onclick="go('target')">&#128165; Attack</button>
   <button class="nb"    id="btn-lineups"    onclick="go('lineups')">&#128200; Lineups</button>
@@ -288,7 +304,44 @@ tr:last-child td{border-bottom:none}
   <button class="nb"    id="btn-leaders"    onclick="go('leaders')">&#127942; HR Leaders</button>
 </div>
 
+<!-- NAV (NBA) -->
+<div class="nav" id="nav-nba" style="display:none">
+  <button class="nb on" id="bnb-pts" onclick="goNBA('pts')">&#127936; Points</button>
+  <button class="nb"    id="bnb-pra" onclick="goNBA('pra')">&#128293; PRA</button>
+  <button class="nb"    id="bnb-reb" onclick="goNBA('reb')">&#128138; Rebounds</button>
+  <button class="nb"    id="bnb-ast" onclick="goNBA('ast')">&#127919; Assists</button>
+  <button class="nb"    id="bnb-tpm" onclick="goNBA('tpm')">&#127919; 3-Pointers</button>
+</div>
+
 <div class="main">
+
+<!-- ===================== NBA BOARDS ===================== -->
+<div id="tc-nba-pts" class="tc">
+  <div class="section-hdr"><h2>&#127936; NBA Points Projections</h2><span class="badge" id="nba-pts-count">0</span></div>
+  <div class="section-sub">Projected points &mdash; blended per-minute scoring &times; projected minutes. OUT players removed; Day-To-Day flagged. &nbsp;&bull;&nbsp; <span id="nba-freshness" style="color:var(--muted)"></span></div>
+  <div class="picks-grid" id="nba-pts-body"></div>
+</div>
+<div id="tc-nba-pra" class="tc">
+  <div class="section-hdr"><h2>&#128293; NBA PRA Projections</h2><span class="badge" id="nba-pra-count">0</span></div>
+  <div class="section-sub">Points + Rebounds + Assists combined &mdash; the all-around production board.</div>
+  <div class="picks-grid" id="nba-pra-body"></div>
+</div>
+<div id="tc-nba-reb" class="tc">
+  <div class="section-hdr"><h2>&#128138; NBA Rebound Projections</h2><span class="badge" id="nba-reb-count">0</span></div>
+  <div class="section-sub">Projected rebounds &mdash; blended rate &times; projected minutes.</div>
+  <div class="picks-grid" id="nba-reb-body"></div>
+</div>
+<div id="tc-nba-ast" class="tc">
+  <div class="section-hdr"><h2>&#127919; NBA Assist Projections</h2><span class="badge" id="nba-ast-count">0</span></div>
+  <div class="section-sub">Projected assists &mdash; blended rate &times; projected minutes.</div>
+  <div class="picks-grid" id="nba-ast-body"></div>
+</div>
+<div id="tc-nba-tpm" class="tc">
+  <div class="section-hdr"><h2>&#127919; NBA 3-Pointers Made</h2><span class="badge" id="nba-tpm-count">0</span></div>
+  <div class="section-sub">Projected made threes &mdash; season rate &times; projected minutes (last-5 blend added once the season is underway).</div>
+  <div class="picks-grid" id="nba-tpm-body"></div>
+</div>
+<!-- =================== END NBA BOARDS =================== -->
 
 <!-- DAILY PICKS -->
 <div id="tc-picks" class="tc on">
@@ -676,6 +729,11 @@ var YESTERDAY= RAW.yesterday_results || [];
 var HEADSHOTS= RAW.headshots || {};
 var SKP      = RAW.strikeout_projections || [];
 var BP       = RAW.batter_projections || [];
+
+// ── NBA data (projections computed server-side by nba_model.py) ──
+var NBA         = {{ nba_data | safe }};
+var NBA_PLAYERS = NBA.players || [];
+var NBA_GAMES   = NBA.games   || [];
 
 // Shared player photo helper — circular headshot with a clean fallback.
 // Uses a fixed-size inline wrapper so rows never shift if an image is missing.
@@ -1109,6 +1167,97 @@ function buildTarget(){
       +'</div>';
   });
   el.innerHTML=html;
+}
+
+// ── NBA SPORT TOGGLE + BOARDS ─────────────────────────────────────
+var SPORT = 'mlb';
+var NBA_PROPS = ['pts','pra','reb','ast','tpm'];
+
+function setSport(s){
+  SPORT = s;
+  var nm=document.getElementById('nav-mlb'), nn=document.getElementById('nav-nba');
+  if(nm) nm.style.display = (s==='mlb') ? 'flex' : 'none';
+  if(nn) nn.style.display = (s==='nba') ? 'flex' : 'none';
+  var bm=document.getElementById('sb-mlb'), bn=document.getElementById('sb-nba');
+  if(bm) bm.className='sportbtn'+(s==='mlb'?' on':'');
+  if(bn) bn.className='sportbtn'+(s==='nba'?' on':'');
+  // close every tab-content, then open the sport's default view
+  var tcs=document.querySelectorAll('.tc');
+  for(var i=0;i<tcs.length;i++) tcs[i].className='tc';
+  if(s==='mlb'){
+    var m=document.getElementById('tc-picks'); if(m) m.className='tc on';
+    try{ buildPicks(); buildNoBet(); }catch(e){ console.error(e); }
+  } else {
+    goNBA('pts');
+    try{
+      var fr=document.getElementById('nba-freshness');
+      if(fr) fr.textContent = NBA_GAMES.length + ' games on today’s slate';
+    }catch(e){}
+  }
+  try{ document.getElementById('stat-games').textContent = (s==='nba'?NBA_GAMES.length:GAMES.length); }catch(e){}
+}
+
+function goNBA(prop){
+  for(var i=0;i<NBA_PROPS.length;i++){
+    var tc=document.getElementById('tc-nba-'+NBA_PROPS[i]);
+    var nb=document.getElementById('bnb-'+NBA_PROPS[i]);
+    if(tc) tc.className='tc'+(NBA_PROPS[i]===prop?' on':'');
+    if(nb) nb.className='nb'+(NBA_PROPS[i]===prop?' on':'');
+  }
+  buildNBA(prop);
+}
+
+var NBA_CFG = {
+  pts:{field:'proj_pts',label:'PROJ PTS',dec:1,szn:function(p){return p.ppg;},l5:function(p){return p.ppg_l5;}},
+  pra:{field:'proj_pra',label:'PROJ PRA',dec:1,szn:function(p){return (p.ppg||0)+(p.rpg||0)+(p.apg||0);},l5:function(p){return (p.ppg_l5||0)+(p.rpg_l5||0)+(p.apg_l5||0);}},
+  reb:{field:'proj_reb',label:'PROJ REB',dec:1,szn:function(p){return p.rpg;},l5:function(p){return p.rpg_l5;}},
+  ast:{field:'proj_ast',label:'PROJ AST',dec:1,szn:function(p){return p.apg;},l5:function(p){return p.apg_l5;}},
+  tpm:{field:'proj_tpm',label:'PROJ 3PM',dec:1,szn:function(p){return p.tpm;},l5:function(p){return null;}}
+};
+
+function _nbaConfPill(c){
+  var cls = c==='high'?'conf-high':(c==='med'?'conf-med':'conf-low');
+  return '<span class="conf-pill '+cls+'">'+String(c||'').toUpperCase()+'</span>';
+}
+
+function buildNBA(prop){
+  var cfg = NBA_CFG[prop]; if(!cfg) return;
+  var rows = (NBA_PLAYERS||[]).filter(function(p){ return p.playable && p[cfg.field]!=null; })
+                              .sort(function(a,b){ return b[cfg.field]-a[cfg.field]; });
+  var cnt=document.getElementById('nba-'+prop+'-count'); if(cnt) cnt.textContent=rows.length;
+  var body=document.getElementById('nba-'+prop+'-body'); if(!body) return;
+  if(!rows.length){
+    body.innerHTML='<div style="color:var(--muted);font-size:12px;padding:24px;text-align:center">No projections yet — players appear once the day’s slate and stats post. Run the NBA Data Pull to refresh the snapshot.</div>';
+    return;
+  }
+  var cards='';
+  rows.forEach(function(p){
+    var v=p[cfg.field]!=null?p[cfg.field]:0;
+    var vCol = p.confidence==='high'?'var(--green)':(p.confidence==='low'?'var(--muted)':'var(--gold)');
+    var flag = (p.status_flag==='flag') ? ' <span class="nba-flag dtd">'+(p.status||'GTD')+'</span>' : '';
+    var szn=cfg.szn(p), l5=cfg.l5(p);
+    var stats=''
+      +'<div class="pick-stat"><div class="pick-stat-val">'+(p.proj_min!=null?f(p.proj_min,1):'—')+'</div><div class="pick-stat-lbl">Proj Min</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val">'+(szn!=null?f(szn,1):'—')+'</div><div class="pick-stat-lbl">Season</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val">'+(l5!=null?f(l5,1):'—')+'</div><div class="pick-stat-lbl">Last 5</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val">'+(p.gp!=null?p.gp:'—')+'</div><div class="pick-stat-lbl">GP</div></div>';
+    cards+='<div class="pick-card">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px">'
+        +'<div style="min-width:0">'
+          +'<div class="pick-name">'+p.name+'</div>'
+          +'<div style="font-size:11px;color:var(--muted);margin-top:3px">'
+            +'<span class="badge-gray">'+(p.team||'')+'</span> &middot; '+(p.pos||'')+' '+_nbaConfPill(p.confidence)+flag
+          +'</div>'
+        +'</div>'
+        +'<div style="text-align:right;flex-shrink:0">'
+          +'<div style="font-size:22px;font-weight:800;color:'+vCol+'">'+f(v,cfg.dec)+'</div>'
+          +'<div style="font-size:9px;color:'+vCol+';text-transform:uppercase;letter-spacing:0.5px;font-weight:700">'+cfg.label+'</div>'
+        +'</div>'
+      +'</div>'
+      +'<div class="pick-stats">'+stats+'</div>'
+      +'</div>';
+  });
+  body.innerHTML=cards;
 }
 
 function go(name){
