@@ -123,7 +123,9 @@ def build_records(data, now=None, params=None):
             base = {
                 "captured_at": captured_at, "data_as_of": data_as_of, "snapshot_ts": snap_ts,
                 "season": data.get("season"), "event_id": event_id,
-                "game_start": g.get("start"), "team": p.get("team"),
+                "game_start": g.get("start"),
+                "game_date": data.get("today") or (g.get("start") or "")[:10],
+                "team": p.get("team"),
                 "player_id": p.get("id"), "player": p.get("name"), "prop": prop,
             }
             # locate a concrete, non-stale offer (never fabricated)
@@ -147,6 +149,7 @@ def build_records(data, now=None, params=None):
                 r = dict(base); r["model_version"] = v2v; r["projection"] = v2_proj
                 model = nba_prob.DEFAULT_MODEL_BY_PROP.get(prop, "empirical")
                 r["dist_model"] = model
+                r["calibration_version"] = nba_prob.CALIBRATION_VERSION
                 if offer is not None and params is not None:
                     o = dict(offer); o.setdefault("player", p.get("name"))
                     o.setdefault("event_id", event_id)
@@ -154,6 +157,9 @@ def build_records(data, now=None, params=None):
                     if ev:
                         r.update({"book": ev["book"], "side": ev["side"], "line": ev["line"],
                                   "price": ev["price"], "line_ts": ev["ts"],
+                                  # preserve BOTH prices from the exact offer for grading
+                                  "price_over": offer.get("over_price"),
+                                  "price_under": offer.get("under_price"),
                                   "p_over": ev["p_over"], "p_push": ev["p_push"],
                                   "p_under": ev["p_under"], "model_prob": ev["model_prob"],
                                   "ev_pct": ev["ev_pct"]})
@@ -217,3 +223,47 @@ def append_records(recs, path=LOG_PATH):
         for r in new:
             f.write(json.dumps(r) + "\n")
     return len(new), len(recs) - len(new)
+
+
+def load_params(path=None):
+    """Load the saved calibration params (nba_fit_params.py output), or None."""
+    path = path or os.path.join(os.path.dirname(os.path.abspath(__file__)), "nba_prob_params.json")
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            blob = json.load(f)
+        return blob.get("params", blob)
+    except Exception:
+        return None
+
+
+def capture(path=LOG_PATH, now=None, params_path=None):
+    """Operational entrypoint: read the live NBA snapshot, project v1 + v2, and
+    record both pregame. v2 carries calibrated probabilities when the params file
+    is present. Refuses to record stale/invalid snapshots. Does NOT touch the
+    live dashboard."""
+    import nba
+    now = now or _now_utc()
+    data = nba.read_snapshot() or {}
+    if data.get("players"):
+        nba_model.project_all(data)
+        nba_model_v2.project_all_v2(data)
+    ok, reasons = validate_snapshot(data, now)
+    if not ok:
+        print("REFUSED to record — " + "; ".join(reasons))
+        return 0
+    params = load_params(params_path)
+    if params is None:
+        print("WARNING: no nba_prob_params.json — recording v2 point projections "
+              "WITHOUT calibrated probabilities. Run nba_fit_params.py first.")
+    recs = build_records(data, now, params)
+    added, skipped = append_records(recs, path)
+    v1n = sum(1 for r in recs if r["model_version"] != nba_model_v2.VERSION)
+    print("recorded {} new rows ({} already logged) -> {}  [v1:{} v2:{}]"
+          .format(added, skipped, path, v1n, len(recs) - v1n))
+    return added
+
+
+if __name__ == "__main__":
+    capture()

@@ -42,6 +42,17 @@ class TestValidate(unittest.TestCase):
         rep = v.validate(rows)
         self.assertTrue(any("out-of-window" in f or "window" in f for f in rep["flags"]))
 
+    def test_83pt_game_not_flagged(self):
+        # Bam Adebayo's real 83-point game must NOT be flagged as an outlier
+        rows = [{"player_id": "bam", "season": "2026", "season_type": "REG",
+                 "game_date": "2026-03-10", "opponent": "WSH", "min": "42",
+                 "pts": "83", "reb": "9", "ast": "3", "tpm": "7"}]
+        rep = v.validate(rows)
+        self.assertNotIn("pts", rep["stat_outliers"])
+        # but an impossible 101 still flags
+        rows[0]["pts"] = "101"
+        self.assertIn("pts", v.validate(rows)["stat_outliers"])
+
     def test_flags_outliers_and_missing(self):
         rows = [{"player_id": "", "season": "2025", "season_type": "REG",
                  "game_date": "2025-01-05", "opponent": "", "min": "99",

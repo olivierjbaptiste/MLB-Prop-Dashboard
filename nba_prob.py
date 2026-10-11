@@ -32,15 +32,20 @@ import math
 PROPS = ("pts", "reb", "ast", "tpm", "pra")
 MODELS = ("normal_fixed", "normal_fitted", "poisson", "neg_binomial", "empirical")
 
+# Bumped whenever the per-prop model selection or fitting method changes, so every
+# recorded prediction is traceable to the calibration that produced it.
+CALIBRATION_VERSION = "nba-cal-2026.1"
+
 # Initial candidate distribution per prop. These are the starting choices; the
 # final per-prop model is selected by out-of-sample calibration (Task 3) on the
 # regenerated clean data. Empirical is the distribution-free default; low-count
 # threes start on negative binomial (a count model).
-# Set from the preliminary calibration (Task 3): empirical calibrates best for the
-# higher-count props; Poisson (a count model) wins for low-count threes. Finalized
-# on the regenerated clean data before any dashboard use.
-DEFAULT_MODEL_BY_PROP = {"pts": "empirical", "reb": "empirical", "ast": "empirical",
-                         "tpm": "poisson", "pra": "empirical"}
+# FINAL per-prop models — selected by out-of-sample Brier (proper scoring) on the
+# corrected data (fit 2023-24+2024-25, test 2025-26). Empirical wins significantly
+# for points and PRA; negative binomial is the best proper-scoring model for the
+# discrete count props (rebounds, assists, threes). See PHASE_3C_CALIBRATION.md.
+DEFAULT_MODEL_BY_PROP = {"pts": "empirical", "reb": "neg_binomial", "ast": "neg_binomial",
+                         "tpm": "neg_binomial", "pra": "empirical"}
 
 # fixed-CV fallback per prop (used by normal_fixed and as a floor elsewhere)
 FIXED_CV = {"pts": 0.45, "reb": 0.55, "ast": 0.55, "tpm": 0.75, "pra": 0.40}

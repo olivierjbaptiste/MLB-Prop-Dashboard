@@ -75,6 +75,17 @@ class TestValidity(unittest.TestCase):
         self.assertAlmostEqual(sum(t), 1.0, places=9)
 
 
+class TestFinalConfig(unittest.TestCase):
+    def test_locked_model_selection(self):
+        # the Phase 3C calibration result — guard against accidental changes
+        self.assertEqual(P.DEFAULT_MODEL_BY_PROP, {
+            "pts": "empirical", "reb": "neg_binomial", "ast": "neg_binomial",
+            "tpm": "neg_binomial", "pra": "empirical"})
+
+    def test_calibration_version_present(self):
+        self.assertTrue(P.CALIBRATION_VERSION)
+
+
 class TestCountCorrectness(unittest.TestCase):
     def test_poisson_matches_formula(self):
         # P(X<=0)=e^-lam
