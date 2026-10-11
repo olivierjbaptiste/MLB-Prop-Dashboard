@@ -1,0 +1,74 @@
+# ─────────────────────────────────────────────────────────────────────────
+# PROPOSAL — INERT. This file is in automation/ and will NOT run.
+# To activate (ONLY after approval): copy to .github/workflows/ on the DEFAULT
+# branch (main). Scheduled workflows only run from the default branch.
+#
+# It checks out the reviewed, version-PINNED development code (a tag/commit on
+# phase1-fixes) WITHOUT merging that branch into production, runs the capture,
+# and commits the private logs to the SEPARATE private storage repo.
+# ─────────────────────────────────────────────────────────────────────────
+name: diamond-shadow-capture
+on:
+  workflow_dispatch:
+    inputs:
+      sport:   { description: "nba | nfl | both", default: "both" }
+      dry_run: { description: "true = compute, do not write", default: "false" }
+  schedule:
+    # Multiple times across game windows (UTC). Each run records only games that
+    # have NOT started yet (per-game pregame gate), so early games are covered
+    # and duplicates are de-duped. NOT a single fixed 5pm capture.
+    - cron: "0 16,18,20,22,23 * * *"     # NBA/NFL afternoon→evening ET windows
+    - cron: "0 17 * * 0"                 # NFL Sunday ~1pm ET kickoffs
+    - cron: "0 0 * * 2,5"                # NFL Mon/Thu night pregame (UTC next day)
+
+concurrency:
+  group: shadow-capture          # never run two captures at once (no races)
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out PINNED reviewed code (not a merge to main)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ vars.SHADOW_CODE_REF }}     # e.g. a tag like shadow-v1 on phase1-fixes
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
+      - name: Check out private storage repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.STORAGE_REPO }} # e.g. olivierjbaptiste/diamond-shadow-data (PRIVATE)
+          token: ${{ secrets.STORAGE_REPO_TOKEN }}   # fine-grained PAT, contents:write on that repo only
+          path: storage
+
+      - name: Restore prior logs from storage (so appends continue)
+        run: |
+          cp -f storage/nba/nba_predictions_log.jsonl ./ 2>/dev/null || true
+          cp -f storage/nfl/predictions_log.jsonl ./ 2>/dev/null || true
+
+      - name: Refresh live data (snapshots)
+        env: { ODDS_API_KEY2: ${{ secrets.ODDS_API_KEY2 }} }
+        run: |
+          python nba.py || echo "::warning::NBA data refresh failed — capture will refuse if stale"
+          python nfl.py || echo "::warning::NFL data refresh failed — capture will refuse if stale"
+
+      - name: Capture (packaged params; NO history CSV needed)
+        run: |
+          python shadow_ops.py nba capture ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
+          python shadow_ops.py nfl capture ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
+
+      - name: Persist logs + run status to private storage (append-only)
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          mkdir -p storage/nba storage/nfl storage/status
+          cp -f nba_predictions_log.jsonl storage/nba/ 2>/dev/null || true
+          cp -f predictions_log.jsonl     storage/nfl/ 2>/dev/null || true
+          cat shadow_runs.jsonl >> storage/status/shadow_runs.jsonl 2>/dev/null || true
+          cd storage
+          git config user.name "diamond-bot"; git config user.email "bot@users.noreply.github.com"
+          git add -A && git commit -m "capture $(date -u +%FT%TZ)" || echo "nothing to commit"
+          # retry push on conflict: rebase on remote, then push
+          for i in 1 2 3; do git pull --rebase && git push && break || sleep 5; done

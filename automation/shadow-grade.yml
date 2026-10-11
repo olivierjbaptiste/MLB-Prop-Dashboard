@@ -1,0 +1,62 @@
+# ─────────────────────────────────────────────────────────────────────────
+# PROPOSAL — INERT. Copy to .github/workflows/ on the default branch to enable
+# (after approval). Grades the previous slate and refreshes the combined report.
+# ─────────────────────────────────────────────────────────────────────────
+name: diamond-shadow-grade
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run: { description: "true = compute, do not write reports", default: "false" }
+  schedule:
+    - cron: "0 16 * * *"     # mid-day UTC: grade last night's NBA + any final NFL
+
+concurrency:
+  group: shadow-grade
+  cancel-in-progress: false
+
+jobs:
+  grade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: ${{ vars.SHADOW_CODE_REF }} }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
+      - name: Check out private storage repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.STORAGE_REPO }}
+          token: ${{ secrets.STORAGE_REPO_TOKEN }}
+          path: storage
+
+      - name: Restore logs + prior grades
+        run: |
+          cp -f storage/nba/nba_predictions_log.jsonl ./ 2>/dev/null || true
+          cp -f storage/nfl/predictions_log.jsonl ./ 2>/dev/null || true
+          mkdir -p grades && cp -f storage/grades/* grades/ 2>/dev/null || true
+
+      - name: Retrieve official final stats
+        run: |
+          # NBA actuals from the corrected fetcher (ESPN); NFL from nflverse.
+          python nba_fetch_history.py --seasons 2027 --out nba_history.csv \
+            || echo "::warning::NBA results fetch failed — grading will skip ungraded games"
+
+      - name: Grade (only games with finalized stats are graded)
+        run: |
+          python shadow_ops.py nba grade nba_history.csv ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
+          python grade_shadow.py || echo "::warning::NFL grade step reported an issue"
+          python shadow_report.py
+
+      - name: Persist grades + reports to private storage
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          mkdir -p storage/grades storage/reports storage/status
+          cp -f grades/*.json storage/grades/ 2>/dev/null || true
+          cp -f SHADOW_PERFORMANCE.md storage/reports/ 2>/dev/null || true
+          cat shadow_runs.jsonl >> storage/status/shadow_runs.jsonl 2>/dev/null || true
+          cd storage
+          git config user.name "diamond-bot"; git config user.email "bot@users.noreply.github.com"
+          git add -A && git commit -m "grade $(date -u +%FT%TZ)" || echo "nothing to commit"
+          for i in 1 2 3; do git pull --rebase && git push && break || sleep 5; done

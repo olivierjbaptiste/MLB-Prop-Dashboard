@@ -212,7 +212,8 @@ def _existing_keys(path):
     return keys
 
 
-def append_records(recs, path=LOG_PATH):
+def append_records(recs, path=None):
+    path = path or LOG_PATH            # resolve dynamically (respects reassignment)
     existing = _existing_keys(path)
     new = [r for r in recs if r["dedupe_key"] not in existing]
     if not new:
@@ -226,8 +227,10 @@ def append_records(recs, path=LOG_PATH):
 
 
 def load_params(path=None):
-    """Load the saved calibration params (nba_fit_params.py output), or None."""
-    path = path or os.path.join(os.path.dirname(os.path.abspath(__file__)), "nba_prob_params.json")
+    """Load the packaged calibration params (nba_fit_params.py output), or None.
+    Prefers the compact committed file; no history CSV is needed at run time."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = path or os.path.join(here, "nba_calib_params.json")
     if not os.path.exists(path):
         return None
     try:

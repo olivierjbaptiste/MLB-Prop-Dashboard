@@ -182,7 +182,12 @@ def _global_nb_r(pairs):
 
 def _params_for(params, proj):
     b = _bucket_of(proj, params["edges"])
-    return params["buckets"].get(b) or {
+    # JSON serialization turns int bucket keys into strings — accept both so
+    # per-bucket params survive a save/load round-trip.
+    bp = params["buckets"].get(b)
+    if bp is None:
+        bp = params["buckets"].get(str(b))
+    return bp or {
         "cv": params["cv_global"], "nb_r": params["nb_r_global"],
         "ratios": params["ratios_global"]}
 

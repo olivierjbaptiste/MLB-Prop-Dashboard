@@ -21,7 +21,8 @@ from collections import defaultdict
 import nba_prob
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "nba_prob_params.json")
+OUT = os.path.join(HERE, "nba_calib_params.json")   # compact, committed, versioned
+RATIO_GRID = 1500        # empirical ratios downsampled to this many quantile points
 MIN_GP, MIN_FLOOR, MIN_HISTORY = 3, 10.0, 3
 W2 = {"pts": 0.6, "reb": 0.8, "ast": 0.8, "tpm": 0.8}
 
@@ -92,15 +93,43 @@ def build_pairs(path):
     return pairs
 
 
+def _grid(sorted_vals, n=RATIO_GRID):
+    """Downsample a sorted list to n quantile points (keeps the empirical CDF
+    essentially unchanged while making the params file small enough to commit)."""
+    m = len(sorted_vals)
+    if m <= n:
+        return [round(float(v), 5) for v in sorted_vals]
+    return [round(float(sorted_vals[min(m - 1, int(i * (m - 1) / (n - 1)))]), 5)
+            for i in range(n)]
+
+
+def _compact(params):
+    """Shrink empirical ratio arrays to a quantile grid, in place-ish copy."""
+    out = {}
+    for prop, pp in params.items():
+        c = {"edges": [round(float(e), 4) for e in pp["edges"]],
+             "cv_global": pp["cv_global"], "nb_r_global": pp["nb_r_global"],
+             "ratios_global": _grid(pp["ratios_global"]),
+             "fixed_cv": pp["fixed_cv"], "buckets": {}}
+        for b, bk in pp["buckets"].items():
+            c["buckets"][str(b)] = {"cv": bk["cv"], "nb_r": bk["nb_r"],
+                                    "ratios": _grid(bk["ratios"]), "n": bk["n"]}
+        out[prop] = c
+    return out
+
+
 def main(path, out=OUT):
     pairs = build_pairs(path)
-    params = nba_prob.fit(pairs)
+    params = _compact(nba_prob.fit(pairs))
     blob = {"calibration_version": nba_prob.CALIBRATION_VERSION,
-            "models": nba_prob.DEFAULT_MODEL_BY_PROP, "params": params}
+            "models": nba_prob.DEFAULT_MODEL_BY_PROP,
+            "fit_pairs": {p: len(pairs[p]) for p in pairs}, "params": params}
     with open(out, "w", encoding="utf-8") as f:
         json.dump(blob, f)
-    print("fit params for {} props ({} pairs) -> {}  [calibration {}]".format(
-        len(params), {p: len(pairs[p]) for p in pairs}, out, nba_prob.CALIBRATION_VERSION))
+    size = os.path.getsize(out)
+    print("fit+compacted params for {} props ({} pairs) -> {}  [{} ; {:.0f} KB]".format(
+        len(params), {p: len(pairs[p]) for p in pairs}, out,
+        nba_prob.CALIBRATION_VERSION, size / 1024))
     return out
 
 
