@@ -136,11 +136,72 @@ def build_records(data, model_version, now=None):
                 "team": p.get("team"), "opp": p.get("opp"), "home": p.get("home"),
                 "player_id": p.get("id"), "player": p.get("name"),
                 "prop": prop, "projection": proj,
-                "dedupe_key": "{}|{}|{}".format(snap_ts, p.get("id") or p.get("name"), prop),
+                # model_version in the key so v1 and v2 shadow rows coexist without collision
+                "dedupe_key": "{}|{}|{}|{}".format(snap_ts, p.get("id") or p.get("name"), prop, model_version),
             }
             rec.update(price_block)
             rec["hash"] = hashlib.sha256(
                 json.dumps(rec, sort_keys=True).encode()).hexdigest()[:16]
+            recs.append(rec)
+    return recs
+
+
+def build_v2_records(data, now=None, dist="empirical"):
+    """Candidate-v2 shadow rows: same offers/snapshot as v1, v2 probability +
+    EV, tagged with the v2 model version. v2 covers the four O/U props (no TD
+    model). Projections come from v1 (shared); only the probability layer differs."""
+    import model_v2
+    now = now or _now_utc()
+    captured_at = _iso(now)
+    snap_ts = data.get("ts")
+    data_as_of = _iso(datetime.fromtimestamp(snap_ts, timezone.utc)) if snap_ts else None
+    odds = data.get("odds") or {}
+    games = {}
+    for g in data.get("games", []):
+        for key in (g.get("home_nflv"), g.get("away_nflv")):
+            if key:
+                games[key] = g
+    recs = []
+    for p in data.get("players", []):
+        if not p.get("playable"):
+            continue
+        g = games.get(p.get("team"))
+        if not g or not _game_is_pregame(g, now):
+            continue
+        book_lines = odds.get((p.get("name") or "").lower())
+        if not book_lines:
+            continue
+        for prop in ("pass_yds", "rush_yds", "rec_yds", "rec"):
+            proj = p.get("proj_" + prop)
+            ln = book_lines.get(prop)
+            if proj is None or not ln or not ln.get("offers"):
+                continue
+            best = None
+            for offer in ln["offers"]:
+                offer_ts = _parse_iso(offer.get("ts"))
+                if offer_ts is not None and (now - offer_ts) > timedelta(hours=STALE_OFFER_HOURS):
+                    continue                              # expired offer
+                ev = model_v2.offer_ev(prop, proj, offer, dist)
+                if ev and (best is None or ev["ev_pct"] > best["ev_pct"]):
+                    best = ev
+            if not best:
+                continue
+            rec = {
+                "captured_at": captured_at, "data_as_of": data_as_of, "snapshot_ts": snap_ts,
+                "model_version": best["model_version"], "dist": dist,
+                "season": data.get("season"), "game_id": g.get("game_id"),
+                "game_date": g.get("start") or data.get("today"),
+                "team": p.get("team"), "opp": p.get("opp"), "home": p.get("home"),
+                "player_id": p.get("id"), "player": p.get("name"),
+                "prop": prop, "projection": proj,
+                "book": best["book"], "side": best["side"], "line": best["line"],
+                "price": best["price"], "model_prob": best["model_prob"], "ev_pct": best["ev_pct"],
+                "p_over": best["p_over"], "p_push": best["p_push"], "p_under": best["p_under"],
+                "line_ts": best["ts"],
+                "label": "shadow model estimate — not a verified betting opportunity",
+                "dedupe_key": "{}|{}|{}|{}".format(snap_ts, p.get("id") or p.get("name"), prop, best["model_version"]),
+            }
+            rec["hash"] = hashlib.sha256(json.dumps(rec, sort_keys=True).encode()).hexdigest()[:16]
             recs.append(rec)
     return recs
 
@@ -173,7 +234,9 @@ def append_records(recs, path=LOG_PATH):
     return len(new), len(recs) - len(new)
 
 
-def capture(path=LOG_PATH, now=None):
+def capture(path=LOG_PATH, now=None, shadow=True):
+    """Record v1 predictions (always) and, when shadow=True, v2 shadow rows too.
+    Both share snapshot/offer identifiers for fair later grading."""
     import nfl
     import nfl_model
     now = now or _now_utc()
@@ -185,10 +248,13 @@ def capture(path=LOG_PATH, now=None):
         print("REFUSED to record — " + "; ".join(reasons))
         return 0
     recs = build_records(data, getattr(nfl_model, "VERSION", "unknown"), now)
+    if shadow:
+        recs = recs + build_v2_records(data, now)
     added, skipped = append_records(recs, path)
-    with_odds = sum(1 for r in recs if r.get("price") is not None)
-    print("recorded {} new predictions ({} already logged; {} with live odds) -> {}"
-          .format(added, skipped, with_odds, path))
+    v1n = sum(1 for r in recs if "shadow" not in str(r.get("label", "")))
+    v2n = len(recs) - v1n
+    print("recorded {} new rows ({} already logged) -> {}  [v1:{} v2:{}]"
+          .format(added, skipped, path, v1n, v2n))
     return added
 
 

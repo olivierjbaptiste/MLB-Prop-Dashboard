@@ -48,7 +48,8 @@ def _phi(z):
 
 
 def collect(prop, seasons, w=0.45):
-    """Walk-forward (proj, actual, year, nprior) with proj = the live blend."""
+    """Walk-forward rows (proj, actual, year, nprior, pid), proj = the live blend.
+    Unpack by index so 4- or 5-length rows both work."""
     out = []
     floor = backtest.VOL_FLOOR[prop]
     for r in backtest.collect_records(list(seasons), prop):
@@ -56,7 +57,7 @@ def collect(prop, seasons, w=0.45):
         proj = (1 - w) * s + w * l3 if (s is not None and l3 is not None) else (s if s is not None else l3)
         if proj is None or proj < floor:
             continue
-        out.append((proj, r["actual"], r["yr"], r.get("nprior")))
+        out.append((proj, r["actual"], r["yr"], r.get("nprior"), r.get("pid")))
     return out
 
 
@@ -64,7 +65,7 @@ def collect(prop, seasons, w=0.45):
 def variance_structure(prop, seasons):
     pairs = collect(prop, seasons)
     # residuals and ratios
-    res = [(p, a, a - p) for (p, a, _, _) in pairs if p > 0]
+    res = [(row[0], row[1], row[1] - row[0]) for row in pairs if row[0] > 0]
     n = len(res)
     if n < 20:
         return {"n": n}
@@ -98,7 +99,8 @@ def _fit(prop, train_pairs):
     floor = backtest.VOL_FLOOR[prop]
     rs, ln_rs, zeros = [], [], 0
     resid_over_proj = []
-    for p, a, _, _ in train_pairs:
+    for row in train_pairs:
+        p, a = row[0], row[1]
         if p < floor:
             continue
         resid_over_proj.append((a - p) / p)
@@ -149,68 +151,153 @@ def prob_over(model, proj, line, params):
 
 
 MODELS = ["normal_fixed", "normal_fitted", "lognormal", "empirical"]
+MIN_BUCKET = 400       # min train obs per projection bucket, else fall back to pooled
+
+
+# ── projection-conditional empirical (Task 3) ──────────────────────────
+def fit_conditional(prop, train):
+    """Fit separate ratio distributions for low/med/high projection buckets,
+    with cut-points taken from the TRAINING projection tertiles. Any bucket with
+    too few observations falls back to the pooled distribution (no overfitting)."""
+    import bisect
+    floor = backtest.VOL_FLOOR[prop]
+    rows = [(row[0], row[1]) for row in train if row[0] >= floor]
+    pooled = sorted((a / p) if p > 0 else 0.0 for p, a in rows)
+    n = len(rows)
+    if n < 3 * MIN_BUCKET:
+        return {"cutoffs": None, "pooled": pooled}
+    projs = sorted(p for p, _ in rows)
+    c1, c2 = projs[n // 3], projs[2 * n // 3]
+    buckets = {"lo": [], "mid": [], "hi": []}
+    for p, a in rows:
+        r = (a / p) if p > 0 else 0.0
+        b = "lo" if p <= c1 else "mid" if p <= c2 else "hi"
+        buckets[b].append(r)
+    out = {"cutoffs": (c1, c2), "pooled": pooled}
+    for b in ("lo", "mid", "hi"):
+        vals = sorted(buckets[b])
+        out[b] = vals if len(vals) >= MIN_BUCKET else pooled
+    return out
+
+
+def prob_over_cond(prop, proj, line, cond):
+    import bisect
+    if proj <= 0:
+        return None
+    emp = cond["pooled"]
+    if cond.get("cutoffs"):
+        c1, c2 = cond["cutoffs"]
+        emp = cond["lo"] if proj <= c1 else cond["mid"] if proj <= c2 else cond["hi"]
+    if not emp:
+        return None
+    idx = bisect.bisect_right(emp, line / proj)
+    return (len(emp) - idx) / len(emp)
+
+
+ALL_MODELS = MODELS + ["empirical_cond"]
 
 
 def evaluate(prop, train_seasons, test_seasons):
+    """Return (params, cond, summary_by_model, per_prediction_logloss)."""
     train = collect(prop, train_seasons)
     test = collect(prop, test_seasons)
     params = _fit(prop, train)
+    cond = fit_conditional(prop, train)
     floor = backtest.VOL_FLOOR[prop]
-    out = {}
-    for model in MODELS:
-        brier, logloss = [], []
-        buckets = {}   # rounded pred prob -> [sum_outcome, count]
-        for proj, a, _, _ in test:
-            if proj < floor:
-                continue
-            for m in THRESHOLDS:
-                line = m * proj
-                p = prob_over(model, proj, line, params)
+    agg = {m: {"brier": [], "ll": [], "buckets": {}} for m in ALL_MODELS}
+    perpred = []
+    for row in test:
+        proj, a = row[0], row[1]
+        pid = row[4] if len(row) > 4 else None
+        if proj < floor:
+            continue
+        lls = {}
+        for m in ALL_MODELS:
+            tot_ll, got = 0.0, False
+            for mm in THRESHOLDS:
+                line = mm * proj
+                p = (prob_over_cond(prop, proj, line, cond) if m == "empirical_cond"
+                     else prob_over(m, proj, line, params))
                 if p is None:
                     continue
                 p = min(1 - 1e-9, max(1e-9, p))
                 y = 1 if a > line else 0
-                brier.append((p - y) ** 2)
-                logloss.append(-(y * math.log(p) + (1 - y) * math.log(1 - p)))
-                b = round(p, 1)
-                g = buckets.setdefault(b, [0, 0])
+                ll = -(y * math.log(p) + (1 - y) * math.log(1 - p))
+                agg[m]["brier"].append((p - y) ** 2)
+                agg[m]["ll"].append(ll)
+                bk = round(p, 1)
+                g = agg[m]["buckets"].setdefault(bk, [0, 0])
                 g[0] += y; g[1] += 1
-        n = len(brier)
-        ece = 0.0
-        tot = sum(c for _, c in buckets.values())
-        for b, (s, c) in buckets.items():
-            ece += (c / tot) * abs((s / c) - b)
-        out[model] = {"n": n,
-                      "brier": round(sum(brier) / n, 4) if n else None,
-                      "logloss": round(sum(logloss) / n, 4) if n else None,
-                      "ece": round(ece, 4),
-                      "calib": {b: [round(s / c, 3), c] for b, (s, c) in sorted(buckets.items())}}
-    return params, out
+                tot_ll += ll; got = True
+            if got:
+                lls[m] = tot_ll
+        if lls:
+            perpred.append((pid, lls))
+    out = {}
+    for m in ALL_MODELS:
+        br, ll, bks = agg[m]["brier"], agg[m]["ll"], agg[m]["buckets"]
+        n = len(br)
+        tot = sum(c for _, c in bks.values())
+        ece = sum((c / tot) * abs((s / c) - b) for b, (s, c) in bks.items()) if tot else 0.0
+        out[m] = {"n": n, "brier": round(sum(br) / n, 4) if n else None,
+                  "logloss": round(sum(ll) / n, 4) if n else None, "ece": round(ece, 4)}
+    return params, cond, out, perpred
 
 
-def run(train=(2022, 2023), test=(2024,)):
-    print("=" * 76)
-    print("NFL PREDICTIVE-DISTRIBUTION COMPARISON")
-    print("train %s  ->  test %s  (chronological; params fit on train only)" % (train, test))
-    print("lower Brier / log loss / ECE = better calibrated" )
-    print("=" * 76)
+def cluster_ll_ci(perpred, model_a, model_b, B=600, seed=0):
+    """95% CI for mean per-prediction logloss(model_a) − logloss(model_b),
+    resampling PLAYERS. Negative = model_a better calibrated."""
+    import random
+    agg = {}
+    for pid, lls in perpred:
+        if model_a not in lls or model_b not in lls:
+            continue
+        g = agg.setdefault(pid, [0.0, 0.0, 0])
+        g[0] += lls[model_a]; g[1] += lls[model_b]; g[2] += 1
+    players = list(agg.values())
+    if len(players) < 2:
+        return {}
+    rng = random.Random(seed)
+
+    def diff(s):
+        sa = sum(x[0] for x in s); sb = sum(x[1] for x in s); n = sum(x[2] for x in s)
+        return (sa / n - sb / n) if n else None
+    obs = diff(players)
+    k = len(players)
+    boots = sorted(d for d in (diff([players[rng.randrange(k)] for _ in range(k)])
+                               for _ in range(B)) if d is not None)
+    lo, hi = boots[int(0.025 * len(boots))], boots[min(len(boots) - 1, int(0.975 * len(boots)))]
+    return {"obs": round(obs, 4), "ci95": [round(lo, 4), round(hi, 4)],
+            "significant": bool(lo > 0 or hi < 0), "n_clusters": k}
+
+
+def run(train=(2022, 2023, 2024), test=(2025,)):
+    print("=" * 78)
+    print("NFL v1-vs-v2 CALIBRATION  (v1=normal_fixed, v2=empirical)")
+    print("train %s -> test %s (chronological; fit on train only; 2025=diagnostic)" % (train, test))
+    print("lower Brier / LogLoss / ECE = better calibrated. 5 thresholds each 0.5-1.5x proj")
+    print("=" * 78)
     for prop in backtest.FIELDS:
         print("\n### %s" % prop)
         vs = variance_structure(prop, train + test)
         if vs.get("bins"):
-            print("  variance structure (does sd scale with proj? CV should be ~flat):")
-            for b in vs["bins"]:
-                print(f"    {b['bin']}  mean_proj {b['mean_proj']:7}  sd_resid {b['sd_resid']:7}  cv {b['cv']:6}  n {b['n']}")
-            print(f"    overall cv {vs['overall_cv']}  (model assumes {vs['cv_fixed']})")
-        params, res = evaluate(prop, train, test)
-        print(f"  fitted CV={params['cv_emp']}  lognormal(mu={params['ln_mu']:.3f},s={params['ln_s']:.3f})  p_zero={params['p_zero']}")
+            cvs = ", ".join("%s %.2f" % (b["bin"], b["cv"]) for b in vs["bins"])
+            print(f"  variance structure CV by proj-quartile: {cvs}  (model assumes {vs['cv_fixed']})")
+        params, cond, res, perpred = evaluate(prop, train, test)
         print(f"  {'model':14} {'Brier':>8} {'LogLoss':>8} {'ECE':>7} {'n':>7}")
-        for m in MODELS:
+        for m in ALL_MODELS:
             r = res[m]
             if r["n"]:
-                print(f"  {m:14} {r['brier']:8} {r['logloss']:8} {r['ece']:7} {r['n']:7}")
-        best = min(MODELS, key=lambda m: res[m]["logloss"] if res[m]["n"] else 9e9)
-        print(f"  -> best (log loss): {best}")
+                tag = " (v1)" if m == "normal_fixed" else " (v2)" if m == "empirical" else ""
+                print(f"  {m:14} {r['brier']:8} {r['logloss']:8} {r['ece']:7} {r['n']:7}{tag}")
+        v2v1 = cluster_ll_ci(perpred, "empirical", "normal_fixed")
+        cvp = cluster_ll_ci(perpred, "empirical_cond", "empirical")
+        if v2v1:
+            print(f"  v2-v1 logloss diff {v2v1['obs']:+.4f} CI[{v2v1['ci95'][0]:+.4f},{v2v1['ci95'][1]:+.4f}] "
+                  f"{'SIGNIFICANT (v2 better)' if (v2v1['significant'] and v2v1['obs']<0) else 'ns'} ({v2v1['n_clusters']} players)")
+        if cvp:
+            print(f"  conditional-pooled logloss diff {cvp['obs']:+.4f} CI[{cvp['ci95'][0]:+.4f},{cvp['ci95'][1]:+.4f}] "
+                  f"{'SIGNIFICANT' if cvp['significant'] else 'ns'}")
 
 
 if __name__ == "__main__":
