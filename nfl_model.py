@@ -476,15 +476,18 @@ def build_correlations(players):
 # per-prop variance, then compares to the book's de-vigged price and ranks by
 # expected value at the best available number. Anytime TD compares our modeled
 # probability directly. No edges appear unless the snapshot carries odds.
-_CV = {"pass_yds": 0.26, "rush_yds": 0.42, "rec_yds": 0.50, "rec": 0.38}
+# Game-to-game variance per prop (wide early season — our 4-game projections
+# are far from certain, so model probabilities shouldn't be overconfident).
+_CV = {"pass_yds": 0.32, "rush_yds": 0.52, "rec_yds": 0.60, "rec": 0.46}
 # The market is a strong prior. We weight our model this much and the book's
 # de-vigged line the rest, so a wild model-vs-market gap can't mint a fake edge.
-EDGE_ANCHOR   = 0.60
+EDGE_ANCHOR   = 0.45      # market gets the majority weight early in the season
 EDGE_MIN_BOOKS = 2        # need a consensus, not one stray book
-EDGE_MAX_PCT   = 35.0     # edges larger than this are model error, not value
+EDGE_MAX_PCT   = 25.0     # edges larger than this are model error, not value
 EDGE_MIN_MKT   = 0.12     # skip longshots (book implied < ~12%) — unreliable, high-vig
 EDGE_MAX_MKT   = 0.85     # skip prohibitive favorites (no one lays -600)
-EDGE_MIN_SHOW  = 2.0      # only surface edges worth at least this EV %
+EDGE_MIN_SHOW  = 5.0      # only surface edges worth at least this EV %
+EDGE_MAX_BOARD = 40       # a "best edges" board is a short leaderboard, not a dump
 
 def _normcdf(z):
     return 0.5 * (1 + math.erf(z / math.sqrt(2)))
@@ -561,7 +564,7 @@ def compute_edges(players, odds_lines):
                     edges.append({"name": p.get("name"), "team": p.get("team"),
                                   "opp": p.get("opp"), "pos": p.get("pos"), **e})
     edges.sort(key=lambda e: e.get("ev_pct", -999), reverse=True)
-    return edges
+    return edges[:EDGE_MAX_BOARD]
 
 
 # ── defense-vs-position grades (for the matchup page) ─────────────────
