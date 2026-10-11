@@ -147,9 +147,18 @@ def project_td(p, avg, td):
     td_total = p.get("td_total")
     if td_total is None:
         td_total = ((p.get("rush_td") or 0) + (p.get("rec_td") or 0)) * g
-    # empirical-Bayes shrink toward a league prior — three games of data can't
-    # establish a real TD rate, so a 1-for-1 fluke gets pulled way down
-    rate = (td_total + TD_PRIOR_K * TD_PRIOR_RATE) / (g + TD_PRIOR_K)
+    # opportunity: a player with no touches / no red-zone role shouldn't float
+    # up to the league prior (that's what put fullbacks at 19% anytime TD).
+    touches = (p.get("targets") or 0) + (p.get("carries") or 0)   # per game
+    opp = min(1.0, touches / 7.0)
+    rz = (p.get("rz_tgt") or 0) + (p.get("rz_car") or 0)          # season red-zone looks
+    if g:
+        opp = min(1.0, opp + (rz / g) / 2.0)
+    opp = max(0.03, opp)
+    # empirical-Bayes shrink toward a usage-scaled prior — small samples and
+    # no-usage players both get pulled down, real scorers keep their rate
+    eff_prior = TD_PRIOR_RATE * opp
+    rate = (td_total + TD_PRIOR_K * eff_prior) / (g + TD_PRIOR_K)
     if rate <= 0:
         p["anytime_td"] = 0.0
         return
@@ -468,6 +477,14 @@ def build_correlations(players):
 # expected value at the best available number. Anytime TD compares our modeled
 # probability directly. No edges appear unless the snapshot carries odds.
 _CV = {"pass_yds": 0.26, "rush_yds": 0.42, "rec_yds": 0.50, "rec": 0.38}
+# The market is a strong prior. We weight our model this much and the book's
+# de-vigged line the rest, so a wild model-vs-market gap can't mint a fake edge.
+EDGE_ANCHOR   = 0.60
+EDGE_MIN_BOOKS = 2        # need a consensus, not one stray book
+EDGE_MAX_PCT   = 35.0     # edges larger than this are model error, not value
+EDGE_MIN_MKT   = 0.12     # skip longshots (book implied < ~12%) — unreliable, high-vig
+EDGE_MAX_MKT   = 0.85     # skip prohibitive favorites (no one lays -600)
+EDGE_MIN_SHOW  = 2.0      # only surface edges worth at least this EV %
 
 def _normcdf(z):
     return 0.5 * (1 + math.erf(z / math.sqrt(2)))
@@ -476,15 +493,25 @@ def _dec(am):
     o = float(am)
     return (o / 100.0 + 1) if o > 0 else (100.0 / (-o) + 1)
 
-def _best_side(cands):
-    """cands: [(side, our_prob, american_price)] -> the +EV pick."""
+def _implied(am):
+    o = float(am)
+    return (-o) / ((-o) + 100.0) if o < 0 else 100.0 / (o + 100.0)
+
+def _edge_side(cands):
+    """cands: [(side, model_prob, market_fair, price)] -> best anchored +EV pick,
+    with the market as a prior and longshots filtered out."""
     best = None
-    for side, prob, px in cands:
+    for side, mp, mkt, px in cands:
         if px is None:
             continue
+        imp = _implied(px)
+        if imp < EDGE_MIN_MKT or imp > EDGE_MAX_MKT:   # longshots & prohibitive favorites out
+            continue
+        prob = EDGE_ANCHOR * mp + (1 - EDGE_ANCHOR) * mkt if mkt is not None else mp
         ev = prob * _dec(px) - 1
         if best is None or ev > best["ev"]:
-            best = {"side": side, "prob": round(prob, 4), "price": px, "ev": ev}
+            best = {"side": side, "prob": round(prob, 4), "model_prob": round(mp, 4),
+                    "price": px, "ev": ev}
     return best
 
 def compute_edges(players, odds_lines):
@@ -501,31 +528,38 @@ def compute_edges(players, odds_lines):
             proj = p.get("proj_" + prop)
             if not ln or proj is None or ln.get("line") is None:
                 continue
+            if (ln.get("books") or 0) < EDGE_MIN_BOOKS:
+                continue
             line = ln["line"]
             sigma = max(1.0, _CV.get(prop, 0.4) * max(proj, line))
             prob_over = 1 - _normcdf((line - proj) / sigma)
-            best = _best_side([("Over", prob_over, ln.get("best_over_price")),
-                               ("Under", 1 - prob_over, ln.get("best_under_price"))])
-            if not best:
+            fair_over = ln.get("fair_over")
+            fair_under = (1 - fair_over) if fair_over is not None else None
+            best = _edge_side([("Over",  prob_over,     fair_over,  ln.get("best_over_price")),
+                               ("Under", 1 - prob_over,  fair_under, ln.get("best_under_price"))])
+            if not best or best["ev"] * 100 > EDGE_MAX_PCT:
                 continue
             best.update({"prop": prop, "line": line, "proj": proj,
-                         "fair_over": ln.get("fair_over"), "books": ln.get("books"),
+                         "fair_over": fair_over, "books": ln.get("books"),
                          "ev_pct": round(best.pop("ev") * 100, 1)})
             pe[prop] = best
         td = book.get("anytime_td")
-        if td and p.get("anytime_td"):
+        if td and p.get("anytime_td") and (td.get("books") or 0) >= EDGE_MIN_BOOKS:
             our = p["anytime_td"] / 100.0
-            best = _best_side([("Yes", our, td.get("best_yes_price")),
-                               ("No", 1 - our, td.get("best_no_price"))])
-            if best:
-                best.update({"prop": "anytime_td", "fair_yes": td.get("fair_yes"),
+            fair_yes = td.get("fair_yes")
+            fair_no = (1 - fair_yes) if fair_yes is not None else None
+            best = _edge_side([("Yes", our,     fair_yes, td.get("best_yes_price")),
+                               ("No",  1 - our, fair_no,  td.get("best_no_price"))])
+            if best and best["ev"] * 100 <= EDGE_MAX_PCT:
+                best.update({"prop": "anytime_td", "fair_yes": fair_yes,
                              "books": td.get("books"), "ev_pct": round(best.pop("ev") * 100, 1)})
                 pe["anytime_td"] = best
         if pe:
             p["edge"] = pe
             for prop, e in pe.items():
-                edges.append({"name": p.get("name"), "team": p.get("team"),
-                              "opp": p.get("opp"), "pos": p.get("pos"), **e})
+                if e.get("ev_pct", 0) >= EDGE_MIN_SHOW:   # board = real edges only
+                    edges.append({"name": p.get("name"), "team": p.get("team"),
+                                  "opp": p.get("opp"), "pos": p.get("pos"), **e})
     edges.sort(key=lambda e: e.get("ev_pct", -999), reverse=True)
     return edges
 
