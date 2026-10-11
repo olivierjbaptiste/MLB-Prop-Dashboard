@@ -244,12 +244,44 @@ def get_team_roster(team_id):
 
 
 # ── 5. per-player season averages + last-5 form (from gamelog) ────────
-def get_player_log(athlete_id):
-    """Return dict of season averages + last-5 form, or None."""
-    data = _fetch_json(f"{ESPN_COMMON}/athletes/{athlete_id}/gamelog")
+# Phase 3B parser fixes (confirmed bugs in the old pooled parser):
+#   • season types are separated — preseason and playoffs no longer pollute the
+#     regular-season averages;
+#   • DNP / 0-minute games are excluded (a game a player sat is not a real 0);
+#   • "last 5" is the five MOST RECENT games by date, not ESPN's list order;
+#   • games are de-duped by event id (ESPN can repeat a game across categories);
+#   • missing event ids / dates are handled without crashing.
+# The model formulas (nba_model.py) and the return keys are unchanged.
+import re as _re
+
+
+def _season_type_from_display(display):
+    d = (display or "").lower()
+    if "regular" in d:
+        return "REG"
+    if "post" in d or "playoff" in d:
+        return "POST"
+    if "pre" in d:
+        return "PRE"
+    return "OTHER"
+
+
+def _season_from_display(display, fallback=None):
+    """'2024-25 Regular Season' -> 2025 (NBA end-year)."""
+    m = _re.search(r"(\d{4})-(\d{2})", display or "")
+    if m:
+        return int(m.group(1)) + 1
+    m = _re.search(r"(\d{4})", display or "")
+    return int(m.group(1)) if m else fallback
+
+
+def _gamelog_games(data):
+    """Per-game rows from an ESPN athlete gamelog: one row per event (de-duped),
+    with season, season_type, date, opponent and the box stats. DNP rows are
+    KEPT here (callers filter on minutes). Mirrors the proven history parser."""
     if not data:
-        return None
-    names  = [str(n).lower() for n in (data.get("names")  or [])]
+        return []
+    names = [str(n).lower() for n in (data.get("names") or [])]
     labels = [str(l).upper() for l in (data.get("labels") or [])]
 
     def idx(name_opts, label_opts):
@@ -261,46 +293,77 @@ def get_player_log(athlete_id):
                 return labels.index(l)
         return None
 
-    i_min = idx(["minutes"],                         ["MIN"])
-    i_pts = idx(["points"],                           ["PTS"])
-    i_reb = idx(["rebounds", "totalrebounds"],        ["REB"])
-    i_ast = idx(["assists"],                          ["AST"])
-    i_tpm = idx(["threepointfieldgoalsmade",
-                 "threepointfieldgoals"],             ["3PT"])
-
-    # collect every game's stat row across all seasonTypes/categories
-    rows = []
+    I = {"min": idx(["minutes"], ["MIN"]),
+         "pts": idx(["points"], ["PTS"]),
+         "reb": idx(["rebounds", "totalrebounds"], ["REB"]),
+         "ast": idx(["assists"], ["AST"]),
+         "tpm": idx(["threepointfieldgoalsmade", "threepointfieldgoals"], ["3PT"])}
+    meta = data.get("events") or {}
+    out, seen = [], set()
     for stype in (data.get("seasonTypes") or []):
+        st = _season_type_from_display(stype.get("displayName"))
+        season = _season_from_display(stype.get("displayName"))
         for cat in (stype.get("categories") or []):
             for ev in (cat.get("events") or []):
+                eid = ev.get("eventId") or ev.get("id")
                 stats = ev.get("stats")
-                if isinstance(stats, list) and stats:
-                    rows.append(stats)
+                if not isinstance(stats, list) or not stats:
+                    continue
+                key = (season, st, eid)
+                if eid and key in seen:          # same game across categories
+                    continue
+                if eid:
+                    seen.add(key)
+                m = meta.get(str(eid), {}) if eid else {}
 
-    if not rows:
+                def cell(k, stats=stats):
+                    i = I[k]
+                    return _num(stats[i]) if (i is not None and i < len(stats)) else None
+                out.append({
+                    "season": season, "season_type": st,
+                    "date": (m.get("gameDate") or m.get("date") or "")[:10],
+                    "opponent": (m.get("opponent") or {}).get("abbreviation") or "",
+                    "home": m.get("homeAway") == "home",
+                    "min": cell("min"), "pts": cell("pts"), "reb": cell("reb"),
+                    "ast": cell("ast"), "tpm": cell("tpm"),
+                })
+    return out
+
+
+def _summarize_reg(games):
+    """Season averages + most-recent-5 form from REGULAR-season, played games
+    (DNP excluded) of the most recent season present. Pure; no network."""
+    reg = [g for g in games if g.get("season_type") == "REG"
+           and g.get("min") is not None and g["min"] > 0]
+    if not reg:
         return {"gp": 0, "ppg": None, "rpg": None, "apg": None,
                 "tpm": None, "mpg": None, "_nolog": True}
+    seasons = [g["season"] for g in reg if g.get("season") is not None]
+    if seasons:
+        latest = max(seasons)
+        reg = [g for g in reg if g["season"] == latest]
+    reg.sort(key=lambda g: g.get("date") or "", reverse=True)   # most recent first
 
-    def col_avg(i, rowset):
-        if i is None:
-            return None
-        vals = [_num(r[i]) for r in rowset if i < len(r)]
-        vals = [v for v in vals if v is not None]
+    def avg(k, rows):
+        vals = [g[k] for g in rows if g.get(k) is not None]
         return round(sum(vals) / len(vals), 1) if vals else None
 
-    last5 = rows[:5]   # ESPN lists most-recent first
+    last5 = reg[:5]
     return {
-        "gp":  len(rows),
-        "ppg": col_avg(i_pts, rows),
-        "rpg": col_avg(i_reb, rows),
-        "apg": col_avg(i_ast, rows),
-        "tpm": col_avg(i_tpm, rows),
-        "mpg": col_avg(i_min, rows),
-        "ppg_l5": col_avg(i_pts, last5),
-        "rpg_l5": col_avg(i_reb, last5),
-        "apg_l5": col_avg(i_ast, last5),
-        "min_l5": col_avg(i_min, last5),
+        "gp": len(reg),
+        "ppg": avg("pts", reg), "rpg": avg("reb", reg), "apg": avg("ast", reg),
+        "tpm": avg("tpm", reg), "mpg": avg("min", reg),
+        "ppg_l5": avg("pts", last5), "rpg_l5": avg("reb", last5),
+        "apg_l5": avg("ast", last5), "min_l5": avg("min", last5),
     }
+
+
+def get_player_log(athlete_id):
+    """Season averages + last-5 form, regular-season & played games only."""
+    data = _fetch_json(f"{ESPN_COMMON}/athletes/{athlete_id}/gamelog")
+    if not data:
+        return None
+    return _summarize_reg(_gamelog_games(data))
 
 
 # ── 6. team defense (opponent stats per team) ────────────────────────

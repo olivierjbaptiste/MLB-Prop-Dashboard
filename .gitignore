@@ -10,6 +10,10 @@ grades/
 grade_report*.json
 grade_report*.csv
 
+# NBA backtest history dump (large, local)
+nba_history.csv
+nba_history*.csv
+
 # Python
 __pycache__/
 *.pyc
