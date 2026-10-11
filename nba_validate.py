@@ -24,7 +24,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CSV = os.path.join(HERE, "nba_history.csv")
 
 # plausible per-game maxima (flag above these — data error, not a real game)
-SANE_MAX = {"min": 60.0, "pts": 81.0, "reb": 40.0, "ast": 30.0, "tpm": 14.0}
+SANE_MAX = {"min": 60.0, "pts": 100.0, "reb": 40.0, "ast": 30.0, "tpm": 14.0}
 
 
 def _f(x):
