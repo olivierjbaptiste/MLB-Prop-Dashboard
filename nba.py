@@ -355,6 +355,9 @@ def _summarize_reg(games):
         "tpm": avg("tpm", reg), "mpg": avg("min", reg),
         "ppg_l5": avg("pts", last5), "rpg_l5": avg("reb", last5),
         "apg_l5": avg("ast", last5), "min_l5": avg("min", last5),
+        # recent minutes series (oldest→newest) for the candidate v2 EWMA minutes
+        # model. v1 ignores this field; it's additive and does not change v1.
+        "recent_min": [g["min"] for g in reversed(reg[:10]) if g.get("min") is not None],
     }
 
 

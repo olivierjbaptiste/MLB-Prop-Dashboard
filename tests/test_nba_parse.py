@@ -90,6 +90,13 @@ class TestSummarize(unittest.TestCase):
                   "ppg_l5", "rpg_l5", "apg_l5", "min_l5"):
             self.assertIn(k, self.s)
 
+    def test_recent_min_series_oldest_to_newest(self):
+        # recent_min feeds the v2 EWMA; must be oldest→newest (newest last)
+        self.assertIn("recent_min", self.s)
+        rm = self.s["recent_min"]
+        self.assertTrue(rm)
+        self.assertEqual(rm[-1], 30.0)              # all played games are 30 min here
+
     def test_empty_gamelog(self):
         s = nba._summarize_reg([])
         self.assertEqual(s["gp"], 0)
