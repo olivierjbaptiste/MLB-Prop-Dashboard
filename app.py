@@ -10,6 +10,8 @@ from flask import Flask, render_template, jsonify
 import dashboard as db
 import nba
 import nba_model
+import nfl
+import nfl_model
 
 app = Flask(__name__)
 
@@ -60,6 +62,18 @@ def get_nba_data():
         return {}
 
 
+def get_nfl_data():
+    """Read the committed NFL snapshot and attach projections. Pure/local."""
+    try:
+        d = nfl.read_snapshot() or {}
+        if d.get("players"):
+            nfl_model.project_all(d)
+        return d
+    except Exception as e:
+        print(f"NFL load error: {e}")
+        return {}
+
+
 @app.route("/")
 def index():
     try:
@@ -78,9 +92,15 @@ def index():
     except Exception as e:
         print(f"NBA route error: {e}")
         nba_json = "{}"
+    try:
+        nfl_json = json.dumps(get_nfl_data())
+    except Exception as e:
+        print(f"NFL route error: {e}")
+        nfl_json = "{}"
     return render_template("index.html",
                            data=data_json,
                            nba_data=nba_json,
+                           nfl_data=nfl_json,
                            updated=updated,
                            today=today,
                            loading=False)

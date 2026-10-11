@@ -104,8 +104,10 @@ def project_player(p, data, avg):
     out = {}
     def put(prop, base, area):
         if base is None: return
-        val = _blend(base, p.get(prop + "_l3")) * matchup(p, avg, td, prop) * gs[area]
+        mf = matchup(p, avg, td, prop)
+        val = _blend(base, p.get(prop + "_l3")) * mf * gs[area]
         out["proj_" + prop] = 0.0 if bucket == "out" else round(val, 1)
+        out["mf_" + prop] = round(mf, 3)
 
     if pos == "QB":
         put("pass_yds", p.get("pass_yds"), "pass")

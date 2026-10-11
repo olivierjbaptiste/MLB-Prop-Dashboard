@@ -279,6 +279,7 @@ tr:last-child td{border-bottom:none}
 <div class="sportbar">
   <button class="sportbtn on" id="sb-mlb" onclick="setSport('mlb')">&#9918; MLB</button>
   <button class="sportbtn"    id="sb-nba" onclick="setSport('nba')">&#127936; NBA</button>
+  <button class="sportbtn"    id="sb-nfl" onclick="setSport('nfl')">&#127944; NFL</button>
 </div>
 
 <!-- NAV (MLB) -->
@@ -312,6 +313,14 @@ tr:last-child td{border-bottom:none}
   <button class="nb"    id="bnb-ast" onclick="goNBA('ast')">&#127919; Assists</button>
   <button class="nb"    id="bnb-tpm" onclick="goNBA('tpm')">&#127919; 3-Pointers</button>
   <button class="nb"    id="bnb-teams" onclick="goNBA('teams')">&#127963; Teams</button>
+</div>
+
+<!-- NAV (NFL) -->
+<div class="nav" id="nav-nfl" style="display:none">
+  <button class="nb on" id="bnf-pass_yds" onclick="goNFL('pass_yds')">&#127944; Passing Yds</button>
+  <button class="nb"    id="bnf-rush_yds" onclick="goNFL('rush_yds')">&#127939; Rushing Yds</button>
+  <button class="nb"    id="bnf-rec_yds"  onclick="goNFL('rec_yds')">&#128588; Receiving Yds</button>
+  <button class="nb"    id="bnf-rec"      onclick="goNFL('rec')">&#129358; Receptions</button>
 </div>
 
 <div class="main">
@@ -367,6 +376,40 @@ tr:last-child td{border-bottom:none}
   <div class="picks-grid" id="nba-teams-body"></div>
 </div>
 <!-- =================== END NBA BOARDS =================== -->
+
+<!-- ===================== NFL BOARDS ===================== -->
+<div id="nfl-filterbar" style="display:none;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+  <input id="nfl-search" type="text" placeholder="&#128269; Search player…" oninput="buildNFL(currentNFLProp)"
+         style="background:var(--surface2);border:1px solid var(--border);color:var(--white);padding:6px 10px;border-radius:5px;font-size:12px;font-family:inherit;min-width:160px;outline:none">
+  <select id="nfl-team-filter" onchange="buildNFL(currentNFLProp)"
+          style="background:var(--surface2);border:1px solid var(--border);color:var(--white);padding:6px 10px;border-radius:5px;font-size:12px;font-family:inherit;outline:none">
+    <option value="all">All teams</option>
+  </select>
+  <button class="filter-btn on" id="nflf-all"  onclick="setNFLConf('all',this)">All</button>
+  <button class="filter-btn"    id="nflf-high" onclick="setNFLConf('high',this)">High conf</button>
+  <span id="nfl-filter-count" style="font-size:10px;color:var(--muted);font-weight:700"></span>
+</div>
+<div id="tc-nfl-pass_yds" class="tc">
+  <div class="section-hdr"><h2>&#127944; NFL Passing Yards</h2><span class="badge" id="nfl-pass_yds-count">0</span></div>
+  <div class="section-sub">Projected passing yards &mdash; blended production &times; opponent pass defense &times; game script (spread/total). OUT players removed. &nbsp;&bull;&nbsp; <span id="nfl-freshness" style="color:var(--muted)"></span></div>
+  <div class="picks-grid" id="nfl-pass_yds-body"></div>
+</div>
+<div id="tc-nfl-rush_yds" class="tc">
+  <div class="section-hdr"><h2>&#127939; NFL Rushing Yards</h2><span class="badge" id="nfl-rush_yds-count">0</span></div>
+  <div class="section-sub">Projected rushing yards &mdash; favorites run more late; stacked with opponent run defense.</div>
+  <div class="picks-grid" id="nfl-rush_yds-body"></div>
+</div>
+<div id="tc-nfl-rec_yds" class="tc">
+  <div class="section-hdr"><h2>&#128588; NFL Receiving Yards</h2><span class="badge" id="nfl-rec_yds-count">0</span></div>
+  <div class="section-sub">Projected receiving yards &mdash; target volume &times; opponent defense vs the position &times; game script.</div>
+  <div class="picks-grid" id="nfl-rec_yds-body"></div>
+</div>
+<div id="tc-nfl-rec" class="tc">
+  <div class="section-hdr"><h2>&#129358; NFL Receptions</h2><span class="badge" id="nfl-rec-count">0</span></div>
+  <div class="section-sub">Projected catches &mdash; target share &times; opponent coverage of the position.</div>
+  <div class="picks-grid" id="nfl-rec-body"></div>
+</div>
+<!-- =================== END NFL BOARDS =================== -->
 
 <!-- DAILY PICKS -->
 <div id="tc-picks" class="tc on">
@@ -759,6 +802,11 @@ var BP       = RAW.batter_projections || [];
 var NBA         = {{ nba_data | safe }};
 var NBA_PLAYERS = NBA.players || [];
 var NBA_GAMES   = NBA.games   || [];
+
+var NFL         = {{ nfl_data | safe }};
+var NFL_PLAYERS = NFL.players || [];
+var NFL_GAMES   = NFL.games   || [];
+var NFL_PROPS   = ['pass_yds','rush_yds','rec_yds','rec'];
 
 // Shared player photo helper — circular headshot with a clean fallback.
 // Uses a fixed-size inline wrapper so rows never shift if an image is missing.
@@ -1215,19 +1263,17 @@ var NBA_PROPS = ['pts','pra','reb','ast','tpm'];
 
 function setSport(s){
   SPORT = s;
-  var nm=document.getElementById('nav-mlb'), nn=document.getElementById('nav-nba');
-  if(nm) nm.style.display = (s==='mlb') ? 'flex' : 'none';
-  if(nn) nn.style.display = (s==='nba') ? 'flex' : 'none';
-  var bm=document.getElementById('sb-mlb'), bn=document.getElementById('sb-nba');
-  if(bm) bm.className='sportbtn'+(s==='mlb'?' on':'');
-  if(bn) bn.className='sportbtn'+(s==='nba'?' on':'');
+  ['mlb','nba','nfl'].forEach(function(x){
+    var nav=document.getElementById('nav-'+x); if(nav) nav.style.display=(x===s?'flex':'none');
+    var btn=document.getElementById('sb-'+x); if(btn) btn.className='sportbtn'+(x===s?' on':'');
+  });
   // close every tab-content, then open the sport's default view
   var tcs=document.querySelectorAll('.tc');
   for(var i=0;i<tcs.length;i++) tcs[i].className='tc';
   if(s==='mlb'){
     var m=document.getElementById('tc-picks'); if(m) m.className='tc on';
     try{ buildPicks(); buildNoBet(); }catch(e){ console.error(e); }
-  } else {
+  } else if(s==='nba'){
     try{ populateNBATeamFilter(); }catch(e){}
     goNBA('pts');
     try{
@@ -1235,17 +1281,23 @@ function setSport(s){
       if(fr) fr.textContent = NBA_GAMES.length + ' games on today’s slate';
     }catch(e){}
   }
-  if(s==='mlb'){ var fb=document.getElementById('nba-filterbar'); if(fb) fb.style.display='none'; }
+  else if(s==='nfl'){
+    try{ populateNFLTeamFilter(); }catch(e){}
+    goNFL('pass_yds');
+    try{ var fr3=document.getElementById('nfl-freshness'); if(fr3) fr3.textContent = NFL_GAMES.length + ' games this week'; }catch(e){}
+  }
+  if(s!=='nba'){ var fbn=document.getElementById('nba-filterbar'); if(fbn) fbn.style.display='none'; }
+  if(s!=='nfl'){ var fbf=document.getElementById('nfl-filterbar'); if(fbf) fbf.style.display='none'; }
   updateHeaderStats(s);
 }
 
 // Swap the top stat bar between MLB and NBA so it stops showing MLB leftovers.
 function updateHeaderStats(s){
   function set(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; }
-  if(s==='nba'){
-    set('stat-games',   NBA_GAMES.length);
+  if(s==='nba'||s==='nfl'){
+    set('stat-games',   (s==='nfl'?NFL_GAMES:NBA_GAMES).length);
     set('stat-picks',   '—');
-    set('stat-batters', NBA_PLAYERS.length);
+    set('stat-batters', (s==='nfl'?NFL_PLAYERS:NBA_PLAYERS).length);
     set('lbl-batters',  'Players');
     set('stat-record',  '—');
   } else {
@@ -1428,6 +1480,110 @@ function buildNBA(prop){
         +'</div>'
         +'<div style="text-align:right;flex-shrink:0">'
           +'<div style="font-size:22px;font-weight:800;color:'+vCol+'">'+f(v,cfg.dec)+'</div>'
+          +'<div style="font-size:9px;color:'+vCol+';text-transform:uppercase;letter-spacing:0.5px;font-weight:700">'+cfg.label+'</div>'
+        +'</div>'
+      +'</div>'
+      +'<div class="pick-stats">'+stats+'</div>'
+      +'</div>';
+  });
+  body.innerHTML=cards;
+}
+
+// ── NFL TAB ───────────────────────────────────────────────────────
+var currentNFLProp = 'pass_yds';
+var nflConf = 'all';
+
+function goNFL(prop){
+  for(var i=0;i<NFL_PROPS.length;i++){
+    var tc=document.getElementById('tc-nfl-'+NFL_PROPS[i]);
+    var nb=document.getElementById('bnf-'+NFL_PROPS[i]);
+    if(tc) tc.className='tc'+(NFL_PROPS[i]===prop?' on':'');
+    if(nb) nb.className='nb'+(NFL_PROPS[i]===prop?' on':'');
+  }
+  var fb=document.getElementById('nfl-filterbar'); if(fb) fb.style.display='flex';
+  currentNFLProp=prop; buildNFL(prop);
+}
+
+function setNFLConf(v,btn){
+  nflConf=v;
+  var a=document.getElementById('nflf-all'), h=document.getElementById('nflf-high');
+  if(a) a.classList.toggle('on', v==='all');
+  if(h) h.classList.toggle('on', v==='high');
+  buildNFL(currentNFLProp);
+}
+
+function populateNFLTeamFilter(){
+  var sel=document.getElementById('nfl-team-filter'); if(!sel) return;
+  var teams={}; (NFL_PLAYERS||[]).forEach(function(p){ if(p.team) teams[p.team]=1; });
+  var list=Object.keys(teams).sort();
+  var cur=sel.value||'all';
+  sel.innerHTML='<option value="all">All teams</option>'+list.map(function(t){return '<option value="'+t+'">'+t+'</option>';}).join('');
+  sel.value=cur;
+}
+
+var NFL_CFG = {
+  pass_yds:{label:'PROJ PASS YDS',szn:function(p){return p.pass_yds;},l3:function(p){return p.pass_yds_l3;}},
+  rush_yds:{label:'PROJ RUSH YDS',szn:function(p){return p.rush_yds;},l3:function(p){return p.rush_yds_l3;}},
+  rec_yds: {label:'PROJ REC YDS', szn:function(p){return p.rec_yds;}, l3:function(p){return p.rec_yds_l3;}},
+  rec:     {label:'PROJ REC',     szn:function(p){return p.rec;},     l3:function(p){return p.rec_l3;}}
+};
+
+function nflPhoto(url,size){
+  size=size||28;
+  var common='width:'+size+'px;height:'+size+'px;border-radius:50%;border:1px solid var(--border);background:var(--surface2)';
+  var wrap='display:inline-block;width:'+size+'px;height:'+size+'px;vertical-align:middle;margin-right:7px;flex-shrink:0';
+  var ph='<span style="'+common+';align-items:center;justify-content:center;font-size:'+Math.round(size*0.5)+'px;'+(url?'display:none':'display:flex')+'">&#127944;</span>';
+  if(url) return '<span style="'+wrap+'"><img src="'+url+'" class="img-safe" style="'+common+';object-fit:cover" alt="">'+ph+'</span>';
+  return '<span style="'+wrap+'">'+ph+'</span>';
+}
+
+function _nflMatchup(p,prop){
+  var m=p['mf_'+prop]; if(m==null) return '';
+  var pct=Math.round((m-1)*100);
+  if(m>=1.03) return ' <span class="nba-flag" style="background:rgba(34,197,94,0.12);color:var(--green);border:1px solid rgba(34,197,94,0.3)">SOFT D +'+pct+'%</span>';
+  if(m<=0.97) return ' <span class="nba-flag" style="background:rgba(239,68,68,0.12);color:var(--red);border:1px solid rgba(239,68,68,0.3)">TOUGH D '+pct+'%</span>';
+  return '';
+}
+
+function buildNFL(prop){
+  var cfg=NFL_CFG[prop]; if(!cfg) return;
+  var field='proj_'+prop;
+  var q=((document.getElementById('nfl-search')||{}).value||'').trim().toLowerCase();
+  var teamF=(document.getElementById('nfl-team-filter')||{}).value||'all';
+  var rows=(NFL_PLAYERS||[]).filter(function(p){
+    if(!p.playable || p[field]==null) return false;
+    if(q && (p.name||'').toLowerCase().indexOf(q)===-1) return false;
+    if(teamF!=='all' && p.team!==teamF) return false;
+    if(nflConf==='high' && p.confidence!=='high') return false;
+    return true;
+  }).sort(function(a,b){ return b[field]-a[field]; });
+  var cnt=document.getElementById('nfl-'+prop+'-count'); if(cnt) cnt.textContent=rows.length;
+  var fc=document.getElementById('nfl-filter-count'); if(fc) fc.textContent=(q||teamF!=='all'||nflConf!=='all')?(rows.length+' shown'):'';
+  var body=document.getElementById('nfl-'+prop+'-body'); if(!body) return;
+  if(!rows.length){ body.innerHTML='<div style="color:var(--muted);font-size:12px;padding:24px;text-align:center">No projections yet — run the NFL Data Pull to refresh the snapshot.</div>'; return; }
+  var cards='';
+  rows.forEach(function(p){
+    var v=p[field]!=null?p[field]:0;
+    var vCol=p.confidence==='high'?'var(--green)':(p.confidence==='low'?'var(--muted)':'var(--gold)');
+    var flag=(p.status_flag==='flag')?' <span class="nba-flag dtd">'+(p.status||'Q')+'</span>':'';
+    var szn=cfg.szn(p), l3=cfg.l3(p);
+    var spread=(p.spread!=null)?((p.spread>0?'+':'')+p.spread):'—';
+    var total=(p.total!=null)?p.total:'—';
+    var stats=''
+      +'<div class="pick-stat"><div class="pick-stat-val">'+(szn!=null?f(szn,1):'—')+'</div><div class="pick-stat-lbl">Season</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val">'+(l3!=null?f(l3,1):'—')+'</div><div class="pick-stat-lbl">Last 3</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val">'+spread+'</div><div class="pick-stat-lbl">Spread</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val">'+total+'</div><div class="pick-stat-lbl">Total</div></div>';
+    cards+='<div class="pick-card">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px">'
+        +'<div style="min-width:0">'
+          +'<div class="pick-name">'+nflPhoto(p.headshot,28)+p.name+'</div>'
+          +'<div style="font-size:11px;color:var(--muted);margin-top:3px">'
+            +'<span class="badge-gray">'+(p.team||'')+'</span>'+(p.opp?' vs '+p.opp:'')+' &middot; '+(p.pos||'')+' '+_nbaConfPill(p.confidence)+flag+_nflMatchup(p,prop)
+          +'</div>'
+        +'</div>'
+        +'<div style="text-align:right;flex-shrink:0">'
+          +'<div style="font-size:22px;font-weight:800;color:'+vCol+'">'+f(v,1)+'</div>'
           +'<div style="font-size:9px;color:'+vCol+';text-transform:uppercase;letter-spacing:0.5px;font-weight:700">'+cfg.label+'</div>'
         +'</div>'
       +'</div>'
