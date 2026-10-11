@@ -28,6 +28,9 @@ ABSORB_RATE = 0.85      # share of an OUT player's volume the rest of the room a
 MAX_BOOST   = 1.60      # cap on the volume boost one player can get
 TD_CLAMP    = 0.25      # TD-matchup factor capped at ±25%
 TD_ENV_CLAMP = 0.22     # TD scoring-environment factor capped at ±22%
+TD_PRIOR_K    = 4.0     # pseudo-games of prior — shrinks small-sample TD rates
+TD_PRIOR_RATE = 0.25    # league-ish TD/game the prior pulls toward
+TD_MAX_PROB   = 0.72    # realistic anytime-TD ceiling (books rarely price past this)
 
 # which TD-allowed metrics drive each position's anytime-TD matchup
 _TD_DEF = {
@@ -139,12 +142,18 @@ def project_td(p, avg, td):
     pos = p.get("pos")
     if pos not in _TD_DEF:
         return
-    season = (p.get("rush_td") or 0) + (p.get("rec_td") or 0)
-    l3     = (p.get("rush_td_l3") or 0) + (p.get("rec_td_l3") or 0)
-    lam = _blend(season, l3)                       # expected TDs / game
-    if lam <= 0:
+    g = p.get("g") or 0
+    # season TD total (prefer the raw count; fall back to per-game × games)
+    td_total = p.get("td_total")
+    if td_total is None:
+        td_total = ((p.get("rush_td") or 0) + (p.get("rec_td") or 0)) * g
+    # empirical-Bayes shrink toward a league prior — three games of data can't
+    # establish a real TD rate, so a 1-for-1 fluke gets pulled way down
+    rate = (td_total + TD_PRIOR_K * TD_PRIOR_RATE) / (g + TD_PRIOR_K)
+    if rate <= 0:
         p["anytime_td"] = 0.0
         return
+    lam = rate                                      # expected TDs / game
 
     mf = td_matchup(p, avg, td)
 
@@ -165,7 +174,7 @@ def project_td(p, avg, td):
          p.get("vb_rush", 1.0) if pos == "RB" else p.get("vb_rec", 1.0))
 
     lam_adj = lam * mf * env * vb
-    prob = 1 - math.exp(-lam_adj)
+    prob = min(TD_MAX_PROB, 1 - math.exp(-lam_adj))
     p["td_lambda"]  = round(lam_adj, 3)
     p["td_mf"]      = round(mf, 3)
     p["anytime_td"] = round(prob * 100, 1)         # percent
