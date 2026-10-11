@@ -26,6 +26,8 @@ import urllib.request
 import urllib.error
 from datetime import datetime, timezone, timedelta
 
+import odds   # live sportsbook prop lines (optional; no-ops without a key)
+
 # ── time / season ──────────────────────────────────────────────────────
 ET = timezone(timedelta(hours=-4))
 def _et_now():   return datetime.now(ET)
@@ -546,6 +548,13 @@ def build_nfl_data():
             break
     print(f"    teams playing: {len(playing)} | active players: {len(pool)}")
 
+    # live sportsbook lines for edge detection (runner-only; no-ops with no key)
+    try:
+        odds_lines, odds_credits = odds.fetch_lines("nfl")
+    except Exception as e:
+        print(f"    odds load error: {e}")
+        odds_lines, odds_credits = {}, None
+
     return {
         "ts": time.time(),
         "season": season,
@@ -554,6 +563,8 @@ def build_nfl_data():
         "players": pool,
         "team_defense": team_defense,
         "injuries_count": len(inj),
+        "odds": odds_lines,
+        "odds_credits": odds_credits,
     }
 
 

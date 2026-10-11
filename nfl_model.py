@@ -462,6 +462,74 @@ def build_correlations(players):
     return panels
 
 
+# ── edges vs the book (needs live prop lines from odds.py) ────────────
+# Converts a projection into a probability of clearing the posted line using a
+# per-prop variance, then compares to the book's de-vigged price and ranks by
+# expected value at the best available number. Anytime TD compares our modeled
+# probability directly. No edges appear unless the snapshot carries odds.
+_CV = {"pass_yds": 0.26, "rush_yds": 0.42, "rec_yds": 0.50, "rec": 0.38}
+
+def _normcdf(z):
+    return 0.5 * (1 + math.erf(z / math.sqrt(2)))
+
+def _dec(am):
+    o = float(am)
+    return (o / 100.0 + 1) if o > 0 else (100.0 / (-o) + 1)
+
+def _best_side(cands):
+    """cands: [(side, our_prob, american_price)] -> the +EV pick."""
+    best = None
+    for side, prob, px in cands:
+        if px is None:
+            continue
+        ev = prob * _dec(px) - 1
+        if best is None or ev > best["ev"]:
+            best = {"side": side, "prob": round(prob, 4), "price": px, "ev": ev}
+    return best
+
+def compute_edges(players, odds_lines):
+    edges = []
+    for p in players:
+        if not p.get("playable"):
+            continue
+        book = odds_lines.get((p.get("name") or "").lower())
+        if not book:
+            continue
+        pe = {}
+        for prop in ("pass_yds", "rush_yds", "rec_yds", "rec"):
+            ln = book.get(prop)
+            proj = p.get("proj_" + prop)
+            if not ln or proj is None or ln.get("line") is None:
+                continue
+            line = ln["line"]
+            sigma = max(1.0, _CV.get(prop, 0.4) * max(proj, line))
+            prob_over = 1 - _normcdf((line - proj) / sigma)
+            best = _best_side([("Over", prob_over, ln.get("best_over_price")),
+                               ("Under", 1 - prob_over, ln.get("best_under_price"))])
+            if not best:
+                continue
+            best.update({"prop": prop, "line": line, "proj": proj,
+                         "fair_over": ln.get("fair_over"), "books": ln.get("books"),
+                         "ev_pct": round(best.pop("ev") * 100, 1)})
+            pe[prop] = best
+        td = book.get("anytime_td")
+        if td and p.get("anytime_td"):
+            our = p["anytime_td"] / 100.0
+            best = _best_side([("Yes", our, td.get("best_yes_price")),
+                               ("No", 1 - our, td.get("best_no_price"))])
+            if best:
+                best.update({"prop": "anytime_td", "fair_yes": td.get("fair_yes"),
+                             "books": td.get("books"), "ev_pct": round(best.pop("ev") * 100, 1)})
+                pe["anytime_td"] = best
+        if pe:
+            p["edge"] = pe
+            for prop, e in pe.items():
+                edges.append({"name": p.get("name"), "team": p.get("team"),
+                              "opp": p.get("opp"), "pos": p.get("pos"), **e})
+    edges.sort(key=lambda e: e.get("ev_pct", -999), reverse=True)
+    return edges
+
+
 # ── defense-vs-position grades (for the matchup page) ─────────────────
 def build_def_grades(td):
     metrics = ["pass_yds", "rush_yds_RB", "rec_yds_WR", "rec_yds_TE", "rec_yds_RB"]
@@ -494,6 +562,7 @@ def project_all(data):
             compute_flags(p)
     data["stacks"] = build_correlations(players)
     data["def_grades"] = build_def_grades(td)
+    data["edges"] = compute_edges(players, data.get("odds") or {})
     return players
 
 

@@ -42,6 +42,7 @@ jobs:
       - name: Run NFL data pull (force live, write snapshot)
         env:
           NFL_PLAYER_CAP: ${{ github.event.inputs.player_cap || '0' }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: python nfl.py
 
       - name: Commit snapshot if it changed

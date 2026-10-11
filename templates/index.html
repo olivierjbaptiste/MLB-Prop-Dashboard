@@ -324,6 +324,7 @@ tr:last-child td{border-bottom:none}
   <button class="nb"    id="bnf-td"       onclick="goNFL('td')">&#127945; Anytime TD</button>
   <button class="nb"    id="bnf-stacks"   onclick="goNFL('stacks')">&#128279; SGP Stacks</button>
   <button class="nb"    id="bnf-matchup"  onclick="goNFL('matchup')">&#128202; Matchup</button>
+  <button class="nb"    id="bnf-edges"    onclick="goNFL('edges')">&#128176; Best Edges</button>
 </div>
 
 <div class="main">
@@ -406,6 +407,11 @@ tr:last-child td{border-bottom:none}
   <div class="section-hdr"><h2>&#128588; NFL Receiving Yards</h2><span class="badge" id="nfl-rec_yds-count">0</span></div>
   <div class="section-sub">Projected receiving yards &mdash; target volume &times; opponent defense vs the position &times; game script.</div>
   <div class="picks-grid" id="nfl-rec_yds-body"></div>
+</div>
+<div id="tc-nfl-edges" class="tc">
+  <div class="section-hdr"><h2>&#128176; Best Edges</h2><span class="badge" id="nfl-edges-count">0</span></div>
+  <p style="color:var(--muted);font-size:12px;margin:-4px 0 12px">Our projection vs the sportsbook line, ranked by expected value at the best available price. EV is positive when the model and the de-vigged market disagree in our favor. Line-shops the best number across books.</p>
+  <div id="nfl-edges-body"></div>
 </div>
 <div id="tc-nfl-matchup" class="tc">
   <div class="section-hdr"><h2>&#128202; Weekly Matchup</h2></div>
@@ -824,7 +830,7 @@ var NBA_GAMES   = NBA.games   || [];
 var NFL         = {{ nfl_data | safe }};
 var NFL_PLAYERS = NFL.players || [];
 var NFL_GAMES   = NFL.games   || [];
-var NFL_PROPS   = ['pass_yds','rush_yds','rec_yds','rec','td','stacks','matchup'];
+var NFL_PROPS   = ['pass_yds','rush_yds','rec_yds','rec','td','stacks','matchup','edges'];
 
 // Shared player photo helper — circular headshot with a clean fallback.
 // Uses a fixed-size inline wrapper so rows never shift if an image is missing.
@@ -1524,6 +1530,7 @@ function goNFL(prop){
   if(prop==='td') buildNFLTD();
   else if(prop==='stacks') buildStacks();
   else if(prop==='matchup'){ populateMatchupGames(); buildMatchup(); }
+  else if(prop==='edges') buildEdges();
   else buildNFL(prop);
 }
 
@@ -1532,7 +1539,11 @@ function setNFLConf(v,btn){
   var a=document.getElementById('nflf-all'), h=document.getElementById('nflf-high');
   if(a) a.classList.toggle('on', v==='all');
   if(h) h.classList.toggle('on', v==='high');
-  if(currentNFLProp==='td') buildNFLTD(); else if(currentNFLProp==='stacks') buildStacks(); else buildNFL(currentNFLProp);
+  if(currentNFLProp==='td') buildNFLTD();
+  else if(currentNFLProp==='stacks') buildStacks();
+  else if(currentNFLProp==='edges') buildEdges();
+  else if(currentNFLProp==='matchup') buildMatchup();
+  else buildNFL(currentNFLProp);
 }
 
 function populateNFLTeamFilter(){
@@ -1825,6 +1836,63 @@ function buildMatchup(){
     +_mkTeamCol(home,away,homeImp,favTxt(hs),wx)
   +'</div>';
   body.innerHTML=head+cols;
+}
+
+var NFL_PROP_LABEL={pass_yds:'Pass Yds',rush_yds:'Rush Yds',rec_yds:'Rec Yds',rec:'Receptions',anytime_td:'Anytime TD'};
+function _amFmt(px){ if(px==null) return '—'; return (px>0?'+':'')+px; }
+
+function buildEdges(){
+  var body=document.getElementById('nfl-edges-body'); if(!body) return;
+  var all=(NFL&&NFL.edges)||[];
+  var cnt=document.getElementById('nfl-edges-count'); if(cnt) cnt.textContent=all.length;
+  if(!all.length){
+    var hasKey=(NFL&&NFL.odds_credits!=null);
+    body.innerHTML='<div class="pick-card" style="text-align:center;color:var(--muted);font-size:13px;padding:28px">'
+      +(hasKey
+        ? 'No edges in the current slate — the model and the market agree right now, or props aren’t posted yet.'
+        : '<b style="color:var(--text)">Edges need a live odds feed.</b><br><br>Add your Odds API key as a GitHub secret named <code>ODDS_API_KEY</code>, then run the NFL Data Pull. The board fills with projection-vs-book edges automatically.')
+      +'</div>';
+    return;
+  }
+  var q=((document.getElementById('nfl-search')||{}).value||'').trim().toLowerCase();
+  var teamF=(document.getElementById('nfl-team-filter')||{}).value||'all';
+  var rows=all.filter(function(e){
+    if(teamF!=='all' && e.team!==teamF) return false;
+    if(q && (e.name||'').toLowerCase().indexOf(q)===-1) return false;
+    return true;
+  });
+  var cred=(NFL&&NFL.odds_credits!=null)?('<span style="font-size:10px;color:var(--muted)">Odds API credits left: '+NFL.odds_credits+'</span>'):'';
+  var html='<div style="display:flex;justify-content:flex-end;margin-bottom:8px">'+cred+'</div>';
+  html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'
+    +'<thead><tr style="color:var(--muted);text-align:left;border-bottom:1px solid var(--border)">'
+    +'<th style="padding:7px 8px">Player</th><th>Prop</th><th>Bet</th><th>Line</th><th>Model</th><th>Market</th><th>Price</th><th style="text-align:right;padding-right:8px">EV</th></tr></thead><tbody>';
+  rows.forEach(function(e){
+    var evCol=e.ev_pct>=3?'var(--green)':(e.ev_pct>=0?'var(--gold)':'var(--muted)');
+    var modelTxt, mktTxt, lineTxt;
+    if(e.prop==='anytime_td'){
+      lineTxt='—';
+      modelTxt=Math.round(e.prob*100)+'%';
+      mktTxt=(e.fair_yes!=null?Math.round(e.fair_yes*100)+'%':'—');
+    } else {
+      lineTxt=e.line;
+      modelTxt=f(e.proj,1)+' ('+Math.round(e.prob*100)+'%)';
+      mktTxt=(e.fair_over!=null?Math.round((e.side==='Over'?e.fair_over:1-e.fair_over)*100)+'%':'—');
+    }
+    var sideCol=(e.side==='Over'||e.side==='Yes')?'var(--green)':'var(--red)';
+    html+='<tr style="border-bottom:1px solid var(--border)">'
+      +'<td style="padding:7px 8px;font-weight:700;white-space:nowrap">'+e.name+' <span style="color:var(--muted);font-weight:600;font-size:10px">'+(e.team||'')+(e.opp?' vs '+e.opp:'')+'</span></td>'
+      +'<td style="white-space:nowrap">'+(NFL_PROP_LABEL[e.prop]||e.prop)+'</td>'
+      +'<td style="font-weight:700;color:'+sideCol+'">'+e.side+'</td>'
+      +'<td>'+lineTxt+'</td>'
+      +'<td style="white-space:nowrap">'+modelTxt+'</td>'
+      +'<td>'+mktTxt+'</td>'
+      +'<td style="white-space:nowrap">'+_amFmt(e.price)+'</td>'
+      +'<td style="text-align:right;padding-right:8px;font-weight:800;color:'+evCol+'">'+(e.ev_pct>0?'+':'')+e.ev_pct+'%</td>'
+    +'</tr>';
+  });
+  html+='</tbody></table></div>';
+  var fc=document.getElementById('nfl-filter-count'); if(fc) fc.textContent=(q||teamF!=='all')?(rows.length+' shown'):'';
+  body.innerHTML=html;
 }
 
 function buildStacks(){
