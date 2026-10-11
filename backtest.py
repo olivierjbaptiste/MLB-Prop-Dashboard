@@ -2,28 +2,33 @@
 """
 backtest.py — Phase 2: historical baseline evaluation for NFL projections.
 
-Purpose: measure whether the projection CORE — the 55% season / 45% last-3
-blend used by nfl_model — actually beats dumb baselines, OUT OF SAMPLE, before
-we change any formula. Point-projection accuracy only here (MAE / RMSE / bias);
-probability calibration is a separate step that needs historical lines.
+Measures whether the projection CORE — the 55% season / 45% last-3 blend used
+by nfl_model — beats dumb baselines OUT OF SAMPLE, before any formula change.
+Point-projection accuracy only (MAE / RMSE / bias); probability calibration is
+a separate step that needs historical lines.
 
-Method: strict walk-forward. For each player's game in week W we project using
-ONLY that player's games in weeks < W (season-to-date mean and last-3 mean),
-then compare to the actual week-W result. No future information ever touches a
-projection — the leakage guard is unit-tested.
+Rigor guarantees (all unit-tested or documented):
+  • Strict walk-forward: a game in week W is projected from that player's games
+    in weeks < W only. No future information touches a projection.
+  • Pre-game eligibility: a prediction is scored only if the player's PRIOR
+    games (not the full season) meet a volume floor — so sample selection uses
+    no hindsight either.
+  • Regular season only (season_type REG), one season at a time, so playoffs
+    and season boundaries never mix populations.
+  • Position-appropriate: passing→QB, rushing→RB/QB, receiving→WR/TE/RB.
+  • Paired-difference 95% CIs quantify whether blend-vs-baseline gaps are real
+    or noise.
 
-Scope note: this evaluates the blend itself, not the full model (opponent
-matchup, game script, weather, injury redistribution). Those multipliers need
-per-game historical opponent/line context and are the next evaluation step;
-this isolates the one knob the brief asked about first — the 55/45 weighting.
+Scope: evaluates the blend, NOT the full model (matchup, game script, weather,
+injury redistribution, TD, calibration, EV) — those are separate steps.
 
-Data: nflverse weekly CSV (reachable offline and from the runner). Pure stdlib.
+Data: nflverse weekly CSVs (real, public, reachable offline and on the runner).
+Pure stdlib.
 """
 
 import sys
 import math
 
-# Keep the blend weights in sync with the live model so we're testing the real thing.
 try:
     from nfl_model import W_SEASON, W_L3
 except Exception:
@@ -35,14 +40,16 @@ FIELDS = {
     "rec_yds":  "receiving_yards",
     "rec":      "receptions",
 }
-# Each prop is only meaningful for the positions that actually get it, and only
-# for players with real involvement — otherwise the metrics drown in 0≈0.
+# Positions a prop is actually meaningful for.
 PROP_POS = {
     "pass_yds": ("QB",),
     "rush_yds": ("RB", "QB"),
     "rec_yds":  ("WR", "TE", "RB"),
     "rec":      ("WR", "TE", "RB"),
 }
+# Pre-game volume floor: a prediction is scored only when the player's PRIOR
+# average in this stat clears the floor (so we evaluate on players the prop
+# applies to, decided with no hindsight).
 VOL_FLOOR = {"pass_yds": 50.0, "rush_yds": 10.0, "rec_yds": 15.0, "rec": 1.5}
 
 
@@ -52,7 +59,7 @@ def _mean(xs):
 
 
 def _blend(season, last3):
-    """Mirror nfl_model._blend semantics: None = missing (skip), 0.0 counts."""
+    """Mirror nfl_model._blend: None = missing (skip), 0.0 counts."""
     if season is None and last3 is None:
         return None
     if last3 is None:
@@ -63,24 +70,17 @@ def _blend(season, last3):
 
 
 def project_from_history(prior_values):
-    """Given a player's values for every game STRICTLY BEFORE the target game
-    (oldest→newest), return the three projections under evaluation.
-
-    prior_values is the only input, so by construction no future data leaks in.
-    """
+    """Project from a player's values for games STRICTLY BEFORE the target
+    game (oldest→newest). That is the only input, so no future data leaks in."""
     if not prior_values:
         return {}
     season = _mean(prior_values)
     last3 = _mean(prior_values[-3:])
-    return {
-        "blend":  _blend(season, last3),
-        "season": season,
-        "last3":  last3,
-    }
+    return {"blend": _blend(season, last3), "season": season, "last3": last3}
 
 
 def metrics(pairs):
-    """pairs: [(projection, actual)] -> error metrics (projection minus actual)."""
+    """pairs: [(projection, actual)] -> error metrics (projection − actual)."""
     pairs = [(p, a) for p, a in pairs if p is not None and a is not None]
     n = len(pairs)
     if not n:
@@ -94,38 +94,79 @@ def metrics(pairs):
     }
 
 
-def walk_forward(logs, min_history=3):
-    """logs: {player_id: [(week, value), ...]} -> metrics per method.
+def _diff_stats(diffs):
+    """Paired difference of absolute errors (blend − baseline). Negative mean =
+    blend has lower error. 95% CI excluding 0 = statistically meaningful."""
+    n = len(diffs)
+    if n < 2:
+        return {"n": n}
+    mean = sum(diffs) / n
+    var = sum((d - mean) ** 2 for d in diffs) / (n - 1)
+    se = math.sqrt(var / n)
+    lo, hi = mean - 1.96 * se, mean + 1.96 * se
+    return {"n": n, "mean_abs_err_diff": round(mean, 3), "se": round(se, 3),
+            "ci95": [round(lo, 3), round(hi, 3)],
+            "significant": bool(lo > 0 or hi < 0)}
 
-    For each game after the first `min_history` games, project from the prior
-    games only and score against the actual.
-    """
-    buckets = {"blend": [], "season": [], "last3": []}
+
+def walk_forward_records(logs, min_history=3, vol_floor=0.0):
+    """Return one record per scored prediction: {blend, season, last3, actual}."""
+    recs = []
     for pid, log in logs.items():
         ordered = [v for _, v in sorted(log, key=lambda r: r[0])]
         for i in range(len(ordered)):
             if i < min_history:
                 continue
             prior = ordered[:i]                 # strictly earlier games — no leakage
-            actual = ordered[i]
+            pm = _mean(prior)
+            if pm is None or pm < vol_floor:    # pre-game eligibility, no hindsight
+                continue
             proj = project_from_history(prior)
-            for m in buckets:
-                buckets[m].append((proj.get(m), actual))
-    return {m: metrics(pairs) for m, pairs in buckets.items()}
+            recs.append({"pid": pid, "blend": proj["blend"], "season": proj["season"],
+                         "last3": proj["last3"], "actual": ordered[i], "nprior": len(prior)})
+    return recs
 
 
-# ── data loading (nflverse weekly) ─────────────────────────────────────
-def load_week_logs(season, prop, min_games=4):
-    """Build {player_id: [(week, value)]} for the positions that actually get
-    `prop`, keeping only players with real season-long involvement in it."""
-    import nfl  # reuse the project's fetch helper + NFLV base
+def collect_records(seasons, prop, min_history=3):
+    """Per-prediction {pid, season_rate, last3, actual, season} across seasons,
+    with this prop's pre-game eligibility applied. Reused by the weight sweep."""
+    out = []
+    for s in seasons:
+        logs = load_week_logs(s, prop)
+        for r in walk_forward_records(logs, min_history, VOL_FLOOR[prop]):
+            r["yr"] = s
+            out.append(r)
+    return out
+
+
+def summarize(recs):
+    out = {m: metrics([(r[m], r["actual"]) for r in recs]) for m in ("blend", "season", "last3")}
+    out["diff"] = {}
+    for base in ("season", "last3"):
+        ds = [abs(r["blend"] - r["actual"]) - abs(r[base] - r["actual"])
+              for r in recs if r["blend"] is not None and r[base] is not None]
+        out["diff"][base] = _diff_stats(ds)
+    return out
+
+
+def walk_forward(logs, min_history=3, vol_floor=0.0):
+    return summarize(walk_forward_records(logs, min_history, vol_floor))
+
+
+# ── data loading (nflverse weekly, regular season) ─────────────────────
+def load_week_logs(season, prop):
+    """{player_id: [(week, value)]} for the positions that get `prop`, regular
+    season only. No volume/hindsight filter here — eligibility is applied
+    per-prediction in walk_forward_records using prior games only."""
+    import nfl
     field = FIELDS[prop]
     positions = PROP_POS[prop]
-    floor = VOL_FLOOR[prop]
-    rows = nfl._fetch_csv(
-        f"{nfl.NFLV}/stats_player/stats_player_week_{season}.csv")
+    rows = nfl._fetch_csv(f"{nfl.NFLV}/stats_player/stats_player_week_{season}.csv")
     logs = {}
     for r in rows:
+        st = (r.get("season_type") or "REG").upper()
+        if st != "REG":                                  # no playoffs
+            continue
         pid = r.get("player_id")
         wk = nfl._num(r.get("week"))
         if not pid or not wk:
@@ -133,40 +174,55 @@ def load_week_logs(season, prop, min_games=4):
         if (r.get("position_group") or "") not in positions:
             continue
         logs.setdefault(pid, []).append((int(wk), nfl._num(r.get(field))))
-    out = {}
-    for pid, g in logs.items():
-        if len(g) < min_games:
-            continue
-        vals = [v for _, v in g]
-        if (sum(vals) / len(vals)) < floor:      # must actually get this prop
-            continue
-        out[pid] = g
-    return out
+    return logs
 
 
-def run(season=None):
-    import nfl
-    season = season or nfl._season()
-    print("=" * 66)
-    print(f"NFL BASELINE BACKTEST — season {season}  (walk-forward, out-of-sample)")
-    print(f"blend = {W_SEASON:.2f}*season + {W_L3:.2f}*last3   |   lower MAE/RMSE is better")
-    print("=" * 66)
-    for prop, field in FIELDS.items():
+def run(season, label=""):
+    print("=" * 72)
+    print(f"NFL BASELINE BACKTEST — season {season}{label}  (walk-forward, OOS)")
+    print(f"blend = {W_SEASON:.2f}*season + {W_L3:.2f}*last3   |   lower MAE/RMSE better")
+    print("=" * 72)
+    season_summary = {}
+    for prop in FIELDS:
         logs = load_week_logs(season, prop)
-        res = walk_forward(logs)
-        print(f"\n{prop}  ({field}, {'/'.join(PROP_POS[prop])})   "
-              f"players: {len(logs)}  predictions scored: {res['blend'].get('n', 0)}")
+        recs = walk_forward_records(logs, min_history=3, vol_floor=VOL_FLOOR[prop])
+        s = summarize(recs)
+        season_summary[prop] = s
+        n = s["blend"].get("n", 0)
+        print(f"\n{prop}  ({FIELDS[prop]}, {'/'.join(PROP_POS[prop])})   "
+              f"players:{len(logs)}  scored:{n}")
         print(f"  {'method':8s} {'MAE':>7} {'RMSE':>7} {'bias':>7}")
         for m in ("blend", "season", "last3"):
-            r = res[m]
+            r = s[m]
             if r.get("n"):
                 print(f"  {m:8s} {r['mae']:7} {r['rmse']:7} {r['bias']:7}")
-        best = min(("blend", "season", "last3"),
-                   key=lambda m: res[m].get("rmse", 9e9) if res[m].get("n") else 9e9)
-        print(f"  -> lowest RMSE: {best}")
-    print("\nNote: point-accuracy only; this evaluates the blend, not the full")
-    print("model (matchup/script/weather). No accuracy claim beyond these numbers.")
+        for base in ("season", "last3"):
+            d = s["diff"][base]
+            if d.get("n", 0) >= 2:
+                verdict = "SIGNIFICANT" if d["significant"] else "not significant (CI spans 0)"
+                sign = "blend better" if d["mean_abs_err_diff"] < 0 else "baseline better"
+                print(f"    blend−{base}: ΔMAE {d['mean_abs_err_diff']:+.3f} "
+                      f"95%CI[{d['ci95'][0]:+.3f},{d['ci95'][1]:+.3f}]  {verdict} ({sign})")
+    return season_summary
+
+
+def run_multi(seasons, holdout=None):
+    for s in seasons:
+        lbl = "  [HOLDOUT — not for tuning]" if s == holdout else ""
+        run(s, lbl)
+        print()
+    print("Point-accuracy only; evaluates the blend, not the full model.")
+    print("No accuracy claim is made beyond these measured numbers.")
 
 
 if __name__ == "__main__":
-    run(int(sys.argv[1]) if len(sys.argv) > 1 else None)
+    # Usage: backtest.py [season ...]  — the LAST season is reported as the
+    # untouched holdout (still run, just labeled; never used for tuning).
+    args = [int(a) for a in sys.argv[1:]]
+    if len(args) >= 2:
+        run_multi(args, holdout=args[-1])
+    elif len(args) == 1:
+        run(args[0])
+    else:
+        import nfl
+        run(nfl._season())

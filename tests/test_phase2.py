@@ -51,6 +51,45 @@ class TestProjection(unittest.TestCase):
         self.assertEqual(backtest.project_from_history([]), {})
 
 
+class TestPreGameEligibility(unittest.TestCase):
+    def test_eligibility_uses_prior_not_season(self):
+        # Prior games are all 5 (< floor 10). The season average WITH the week-5
+        # breakout (200) would be 44 (> 10), so a hindsight filter would include
+        # these predictions. Prior-only eligibility must exclude them all.
+        logs = {"p": [(1, 5), (2, 5), (3, 5), (4, 5), (5, 200)]}
+        recs = backtest.walk_forward_records(logs, min_history=3, vol_floor=10.0)
+        self.assertEqual(len(recs), 0)                    # no hindsight selection
+
+    def test_eligible_when_prior_clears_floor(self):
+        # Prior clears the floor, so predictions are scored even when the actual
+        # happens to be low — eligibility is decided before the game, not after.
+        logs = {"p": [(1, 20), (2, 20), (3, 20), (4, 20), (5, 5)]}
+        recs = backtest.walk_forward_records(logs, min_history=3, vol_floor=10.0)
+        self.assertEqual(len(recs), 2)                    # weeks 4 and 5
+
+    def test_no_floor_scores_all_after_history(self):
+        logs = {"p": [(1, 5), (2, 5), (3, 5), (4, 5), (5, 5)]}
+        recs = backtest.walk_forward_records(logs, min_history=3, vol_floor=0.0)
+        self.assertEqual(len(recs), 2)                    # weeks 4 and 5
+
+
+class TestUncertainty(unittest.TestCase):
+    def test_diff_stats_detects_no_difference(self):
+        # identical errors -> zero difference, CI spans 0, not significant
+        d = backtest._diff_stats([0.0] * 50)
+        self.assertEqual(d["mean_abs_err_diff"], 0.0)
+        self.assertFalse(d["significant"])
+
+    def test_diff_stats_detects_real_difference(self):
+        # blend consistently 1 better -> negative mean, CI excludes 0
+        d = backtest._diff_stats([-1.0] * 50)
+        self.assertLess(d["mean_abs_err_diff"], 0)
+        self.assertTrue(d["significant"])
+
+    def test_diff_stats_small_sample(self):
+        self.assertEqual(backtest._diff_stats([0.5])["n"], 1)
+
+
 class TestMetrics(unittest.TestCase):
     def test_mae_rmse_bias(self):
         # projections over by 2, 4, 6 -> errors +2,+4,+6

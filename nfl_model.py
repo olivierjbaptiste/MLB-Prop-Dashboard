@@ -19,6 +19,9 @@ whole scoring environment.
 
 import math
 
+# Model version — bump when projection/edge logic changes, so recorded
+# predictions stay attributable to the exact model that produced them.
+VERSION  = "nfl-2026.1"
 W_SEASON = 0.55
 W_L3     = 0.45
 CLAMP    = 0.20          # matchup factor capped at ±20%
