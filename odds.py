@@ -95,73 +95,81 @@ def _event_props(sport_key, event_id, markets):
 
 
 def _aggregate_event(data, lines):
-    """Fold one event's bookmaker odds into `lines[player][prop]`."""
-    # gather per (player, prop) the per-book samples
-    tmp = {}   # (player, prop) -> {"ou":[(point, over_px, under_px)], "td":[(yes_px, no_px)]}
+    """Fold one event's bookmaker odds into `lines[player][prop]`.
+
+    Each stored opportunity keeps CONCRETE per-book offers — (book, line, both
+    prices, timestamp) that actually exist together at one sportsbook. We no
+    longer glue a consensus line onto the best price from a different book, so
+    EV is always computed against a real, bettable offer.
+    """
+    event_id = data.get("id")
+    home, away = data.get("home_team"), data.get("away_team")
+    tmp = {}   # (player, prop) -> [offer, ...]
     for bk in data.get("bookmakers", []):
+        book = bk.get("title") or bk.get("key")
         for mk in bk.get("markets", []):
             prop = MARKET_TO_PROP.get(mk.get("key"))
             if not prop:
                 continue
-            # index this book's outcomes for the market
+            last_update = mk.get("last_update")
             byplayer = {}
             for oc in mk.get("outcomes", []):
                 player = _norm(oc.get("description") or oc.get("name"))
                 side = (oc.get("name") or "").strip().lower()
-                if oc.get("description"):
-                    pass  # description=player, name=Over/Under/Yes/No
-                else:
-                    side = "yes"  # anytime_td shape with player in name only
+                if not oc.get("description"):
+                    side = "yes"          # anytime_td shape with player in name only
                 byplayer.setdefault(player, {})[side] = oc
             for player, sides in byplayer.items():
-                slot = tmp.setdefault((player, prop), {"ou": [], "td": []})
+                key = (player, prop)
                 if prop in OU_PROPS:
                     ov, un = sides.get("over"), sides.get("under")
                     if ov and un and ov.get("point") is not None:
-                        slot["ou"].append((float(ov["point"]),
-                                           _am_to_prob(ov.get("price")),
-                                           _am_to_prob(un.get("price")),
-                                           ov.get("price"), un.get("price")))
-                else:  # anytime_td
+                        tmp.setdefault(key, []).append({
+                            "book": book, "line": float(ov["point"]),
+                            "over_price": ov.get("price"),
+                            "under_price": un.get("price"),
+                            "ts": last_update,
+                        })
+                else:  # anytime_td (Yes/No)
                     yes = sides.get("yes") or sides.get("over")
                     no  = sides.get("no")  or sides.get("under")
                     if yes:
-                        slot["td"].append((_am_to_prob(yes.get("price")),
-                                           _am_to_prob(no.get("price")) if no else None,
-                                           yes.get("price"),
-                                           no.get("price") if no else None))
-    # reduce samples to a consensus line + fair prob + best price
-    for (player, prop), slot in tmp.items():
+                        tmp.setdefault(key, []).append({
+                            "book": book,
+                            "yes_price": yes.get("price"),
+                            "no_price": no.get("price") if no else None,
+                            "ts": last_update,
+                        })
+    for (player, prop), offers in tmp.items():
         dst = lines.setdefault(player, {})
-        if prop in OU_PROPS and slot["ou"]:
-            pts   = [s[0] for s in slot["ou"]]
+        if prop in OU_PROPS:
             fairs = []
-            for _, po, pu, _, _ in slot["ou"]:
-                fo, _ = _devig(po, pu)
+            for o in offers:
+                fo, _ = _devig(_am_to_prob(o["over_price"]), _am_to_prob(o["under_price"]))
                 if fo is not None:
                     fairs.append(fo)
-            line = median(pts)
             dst[prop] = {
-                "line": round(line * 2) / 2.0,
+                "consensus_line": round(median([o["line"] for o in offers]) * 2) / 2.0,
                 "fair_over": round(median(fairs), 4) if fairs else None,
-                "best_over_price": max((s[3] for s in slot["ou"] if s[3] is not None), default=None, key=lambda x: float(x)),
-                "best_under_price": max((s[4] for s in slot["ou"] if s[4] is not None), default=None, key=lambda x: float(x)),
-                "books": len(slot["ou"]),
+                "offers": offers,            # concrete per-book (book, line, prices, ts)
+                "books": len(offers),
+                "event_id": event_id, "home": home, "away": away,
             }
-        elif prop == "anytime_td" and slot["td"]:
+        else:
             fairs = []
-            for py, pn, _, _ in slot["td"]:
+            for o in offers:
+                py, pn = _am_to_prob(o["yes_price"]), _am_to_prob(o.get("no_price"))
                 if pn is not None:
                     fy, _ = _devig(py, pn)
                     if fy is not None:
                         fairs.append(fy)
                 elif py is not None:
-                    fairs.append(py)   # no "No" side quoted — use raw implied
+                    fairs.append(py)
             dst["anytime_td"] = {
                 "fair_yes": round(median(fairs), 4) if fairs else None,
-                "best_yes_price": max((s[2] for s in slot["td"] if s[2] is not None), default=None, key=lambda x: float(x)),
-                "best_no_price": max((s[3] for s in slot["td"] if s[3] is not None), default=None, key=lambda x: float(x)),
-                "books": len(slot["td"]),
+                "offers": offers,
+                "books": len(offers),
+                "event_id": event_id, "home": home, "away": away,
             }
 
 

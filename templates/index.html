@@ -1285,6 +1285,22 @@ function buildTarget(){
 var SPORT = 'mlb';
 var NBA_PROPS = ['pts','pra','reb','ast','tpm'];
 
+// Honest data-freshness line: unavailable / stale / ok. Keeps old data from
+// being presented as a current verified prediction.
+function _renderFreshness(elId, status, okText){
+  var el=document.getElementById(elId); if(!el) return;
+  status=status||{};
+  if(status.available===false){
+    el.innerHTML='<span style="color:var(--red);font-weight:700">&#9888; Data unavailable — run the data pull</span>';
+  } else if(status.stale){
+    var age=(status.age_hours!=null)?(' ('+status.age_hours+'h old)'):'';
+    var why=(status.reasons&&status.reasons.length)?(' — '+status.reasons[0]):'';
+    el.innerHTML='<span style="color:var(--gold);font-weight:700">&#9888; Data may be stale'+age+why+'</span>';
+  } else {
+    el.textContent=okText;
+  }
+}
+
 function setSport(s){
   SPORT = s;
   ['mlb','nba','nfl'].forEach(function(x){
@@ -1300,15 +1316,12 @@ function setSport(s){
   } else if(s==='nba'){
     try{ populateNBATeamFilter(); }catch(e){}
     goNBA('pts');
-    try{
-      var fr=document.getElementById('nba-freshness');
-      if(fr) fr.textContent = NBA_GAMES.length + ' games on today’s slate';
-    }catch(e){}
+    try{ _renderFreshness('nba-freshness', (NBA&&NBA.data_status), NBA_GAMES.length+' games on today’s slate'); }catch(e){}
   }
   else if(s==='nfl'){
     try{ populateNFLTeamFilter(); }catch(e){}
     goNFL('pass_yds');
-    try{ var fr3=document.getElementById('nfl-freshness'); if(fr3) fr3.textContent = NFL_GAMES.length + ' games this week'; }catch(e){}
+    try{ _renderFreshness('nfl-freshness', (NFL&&NFL.data_status), NFL_GAMES.length+' games this week'); }catch(e){}
   }
   if(s!=='nba'){ var fbn=document.getElementById('nba-filterbar'); if(fbn) fbn.style.display='none'; }
   if(s!=='nfl'){ var fbf=document.getElementById('nfl-filterbar'); if(fbf) fbf.style.display='none'; }
@@ -1865,27 +1878,28 @@ function buildEdges(){
   var html='<div style="display:flex;justify-content:flex-end;margin-bottom:8px">'+cred+'</div>';
   html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'
     +'<thead><tr style="color:var(--muted);text-align:left;border-bottom:1px solid var(--border)">'
-    +'<th style="padding:7px 8px">Player</th><th>Prop</th><th>Bet</th><th>Line</th><th>Model</th><th>Market</th><th>Price</th><th style="text-align:right;padding-right:8px">EV</th></tr></thead><tbody>';
+    +'<th style="padding:7px 8px">Player</th><th>Prop</th><th>Bet</th><th>Line</th><th>Model</th><th>Market</th><th>Book</th><th>Price</th><th style="text-align:right;padding-right:8px">EV</th></tr></thead><tbody>';
   rows.forEach(function(e){
     var evCol=e.ev_pct>=3?'var(--green)':(e.ev_pct>=0?'var(--gold)':'var(--muted)');
     var modelTxt, mktTxt, lineTxt;
     if(e.prop==='anytime_td'){
       lineTxt='—';
       modelTxt=Math.round(e.prob*100)+'%';
-      mktTxt=(e.fair_yes!=null?Math.round(e.fair_yes*100)+'%':'—');
     } else {
       lineTxt=e.line;
       modelTxt=f(e.proj,1)+' ('+Math.round(e.prob*100)+'%)';
-      mktTxt=(e.fair_over!=null?Math.round((e.side==='Over'?e.fair_over:1-e.fair_over)*100)+'%':'—');
     }
+    mktTxt=(e.fair!=null?Math.round(e.fair*100)+'%':'—');   // de-vigged market prob for this side
     var sideCol=(e.side==='Over'||e.side==='Yes')?'var(--green)':'var(--red)';
-    html+='<tr style="border-bottom:1px solid var(--border)">'
+    var tsTitle=e.ts?('Line updated '+e.ts):'';
+    html+='<tr style="border-bottom:1px solid var(--border)"'+(tsTitle?(' title="'+tsTitle+'"'):'')+'>'
       +'<td style="padding:7px 8px;font-weight:700;white-space:nowrap">'+e.name+' <span style="color:var(--muted);font-weight:600;font-size:10px">'+(e.team||'')+(e.opp?' vs '+e.opp:'')+'</span></td>'
       +'<td style="white-space:nowrap">'+(NFL_PROP_LABEL[e.prop]||e.prop)+'</td>'
       +'<td style="font-weight:700;color:'+sideCol+'">'+e.side+'</td>'
       +'<td>'+lineTxt+'</td>'
       +'<td style="white-space:nowrap">'+modelTxt+'</td>'
       +'<td>'+mktTxt+'</td>'
+      +'<td style="white-space:nowrap;color:var(--muted)">'+(e.book||'—')+'</td>'
       +'<td style="white-space:nowrap">'+_amFmt(e.price)+'</td>'
       +'<td style="text-align:right;padding-right:8px;font-weight:800;color:'+evCol+'">'+(e.ev_pct>0?'+':'')+e.ev_pct+'%</td>'
     +'</tr>';

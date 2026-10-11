@@ -28,10 +28,8 @@ import urllib.request
 import urllib.error
 from datetime import datetime, timezone, timedelta
 
-# ── time (Eastern), mirrors dashboard.py ──────────────────────────────
-ET = timezone(timedelta(hours=-4))
-def _et_now():   return datetime.now(ET)
-def _et_today(): return _et_now().date()
+# ── time (Eastern) — DST-aware America/New_York (was a fixed -4 offset) ──
+from tzutil import ET, et_now as _et_now, et_today as _et_today
 
 # ── snapshot (mirrors dashboard.py _read/_write_snapshot) ─────────────
 _SNAP_DIR  = os.path.dirname(os.path.abspath(__file__))

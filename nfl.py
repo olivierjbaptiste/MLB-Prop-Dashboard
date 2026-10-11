@@ -29,9 +29,8 @@ from datetime import datetime, timezone, timedelta
 import odds   # live sportsbook prop lines (optional; no-ops without a key)
 
 # ── time / season ──────────────────────────────────────────────────────
-ET = timezone(timedelta(hours=-4))
-def _et_now():   return datetime.now(ET)
-def _et_today(): return _et_now().date()
+# DST-aware America/New_York (was a fixed -4 offset that broke after Nov 2).
+from tzutil import ET, et_now as _et_now, et_today as _et_today
 
 def _season():
     """NFL season is labeled by its START year (Sep–Feb)."""
@@ -206,9 +205,11 @@ def load_players(season):
             continue
         allw = wk_by_player.get(pid, [])
         recent = allw[:3]
-        rg = len(recent) or 1
         def l3(field):
-            return round(sum(_num(w.get(field)) for w in recent) / rg, 2)
+            # None = no recent games (missing); a real 0 across games stays 0.0
+            if not recent:
+                return None
+            return round(sum(_num(w.get(field)) for w in recent) / len(recent), 2)
         # per-game log (actuals, most-recent first) for hit-rate / consistency
         log = [{
             "wk":       int(_num(w.get("week")) or 0),

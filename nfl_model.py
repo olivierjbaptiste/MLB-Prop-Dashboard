@@ -71,9 +71,18 @@ def _status_bucket(status):
     return "ok"
 
 def _blend(season, l3):
-    season = season or 0.0
-    if not l3:
+    """Blend a season rate with a last-3 rate.
+
+    None means "no sample" (missing) and is skipped; 0.0 is a *real* zero
+    performance and must count. (The old code used `if not l3`, which dropped
+    a legitimate 0 as if it were missing data.)
+    """
+    if season is None and l3 is None:
+        return None
+    if l3 is None:
         return season
+    if season is None:
+        return l3
     return W_SEASON * season + W_L3 * l3
 
 
@@ -211,7 +220,10 @@ def project_player(p, data, avg):
         else:
             vb = 1.0
         wxm = wx_rush if area == "rush" else wx_pass
-        val = _blend(base, p.get(prop + "_l3")) * mf * gs[area] * vb * wxm
+        blended = _blend(base, p.get(prop + "_l3"))
+        if blended is None:
+            return
+        val = blended * mf * gs[area] * vb * wxm
         out["proj_" + prop] = 0.0 if bucket == "out" else max(0.0, round(val, 1))
         out["mf_" + prop] = round(mf, 3)
 
@@ -493,31 +505,65 @@ def _normcdf(z):
     return 0.5 * (1 + math.erf(z / math.sqrt(2)))
 
 def _dec(am):
+    """American odds -> decimal. Even money (0) returns 1.0 profit multiple."""
+    if am is None:
+        return None
     o = float(am)
+    if o == 0:
+        return 2.0
     return (o / 100.0 + 1) if o > 0 else (100.0 / (-o) + 1)
 
 def _implied(am):
+    """American odds -> implied probability (with vig)."""
+    if am is None:
+        return None
     o = float(am)
+    if o == 0:
+        return 0.5
     return (-o) / ((-o) + 100.0) if o < 0 else 100.0 / (o + 100.0)
 
-def _edge_side(cands):
-    """cands: [(side, model_prob, market_fair, price)] -> best anchored +EV pick,
-    with the market as a prior and longshots filtered out."""
-    best = None
-    for side, mp, mkt, px in cands:
-        if px is None:
-            continue
-        imp = _implied(px)
-        if imp < EDGE_MIN_MKT or imp > EDGE_MAX_MKT:   # longshots & prohibitive favorites out
-            continue
-        prob = EDGE_ANCHOR * mp + (1 - EDGE_ANCHOR) * mkt if mkt is not None else mp
-        ev = prob * _dec(px) - 1
-        if best is None or ev > best["ev"]:
-            best = {"side": side, "prob": round(prob, 4), "model_prob": round(mp, 4),
-                    "price": px, "ev": ev}
-    return best
+def _devig2(a, b):
+    """Fair probability of side A from a two-way American market, vig removed."""
+    pa, pb = _implied(a), _implied(b)
+    if pa is None or pb is None:
+        return None
+    s = pa + pb
+    return (pa / s) if s > 0 else None
+
+def _ou_probs(proj, line, sigma):
+    """Push-aware (over, push, under) probabilities for a yardage/reception line.
+    Half-point lines can't push; integer lines push within ±0.5 of the number."""
+    if sigma <= 0:
+        sigma = 1.0
+    if abs(abs(line - round(line)) - 0.5) < 1e-9:      # half-point: no push
+        p_over = 1 - _normcdf((line - proj) / sigma)
+        return p_over, 0.0, 1 - p_over
+    lo = _normcdf((line - 0.5 - proj) / sigma)
+    hi = _normcdf((line + 0.5 - proj) / sigma)
+    return (1 - hi), max(0.0, hi - lo), lo              # over, push, under
+
+def _anchor(model_p, market_p):
+    if market_p is None:
+        return model_p
+    return EDGE_ANCHOR * model_p + (1 - EDGE_ANCHOR) * market_p
+
+def _ev(p_win, p_push, price):
+    """Expected value per $1 stake. A push returns the stake (net 0); the
+    remaining mass is a loss."""
+    d = _dec(price)
+    if d is None:
+        return None
+    p_lose = max(0.0, 1 - p_win - p_push)
+    return p_win * (d - 1) - p_lose
+
+def _offer_ok(price):
+    imp = _implied(price)
+    return imp is not None and EDGE_MIN_MKT <= imp <= EDGE_MAX_MKT
 
 def compute_edges(players, odds_lines):
+    """Rank real, bettable sportsbook offers by expected value. Each edge keeps
+    the exact offer it was computed from — book, line, price, timestamp — so EV
+    is never a synthetic mix of different books' numbers."""
     edges = []
     for p in players:
         if not p.get("playable"):
@@ -529,34 +575,72 @@ def compute_edges(players, odds_lines):
         for prop in ("pass_yds", "rush_yds", "rec_yds", "rec"):
             ln = book.get(prop)
             proj = p.get("proj_" + prop)
-            if not ln or proj is None or ln.get("line") is None:
+            if not ln or proj is None:
                 continue
-            if (ln.get("books") or 0) < EDGE_MIN_BOOKS:
+            offers = ln.get("offers") or []
+            if len(offers) < EDGE_MIN_BOOKS:
                 continue
-            line = ln["line"]
-            sigma = max(1.0, _CV.get(prop, 0.4) * max(proj, line))
-            prob_over = 1 - _normcdf((line - proj) / sigma)
-            fair_over = ln.get("fair_over")
-            fair_under = (1 - fair_over) if fair_over is not None else None
-            best = _edge_side([("Over",  prob_over,     fair_over,  ln.get("best_over_price")),
-                               ("Under", 1 - prob_over,  fair_under, ln.get("best_under_price"))])
-            if not best or best["ev"] * 100 > EDGE_MAX_PCT:
+            best = None
+            for o in offers:                       # evaluate each CONCRETE offer
+                line = o.get("line")
+                if line is None:
+                    continue
+                sigma = max(1.0, _CV.get(prop, 0.4) * max(proj, line))
+                p_over, p_push, p_under = _ou_probs(proj, line, sigma)
+                fair_over = _devig2(o.get("over_price"), o.get("under_price"))
+                for side, win, px, mkt in (
+                        ("Over",  p_over,  o.get("over_price"),  fair_over),
+                        ("Under", p_under, o.get("under_price"),
+                         (1 - fair_over) if fair_over is not None else None)):
+                    if not _offer_ok(px):
+                        continue
+                    prob = _anchor(win, mkt)
+                    ev = _ev(prob, p_push, px)
+                    if ev is None:
+                        continue
+                    if best is None or ev > best["_ev"]:
+                        best = {"side": side, "book": o.get("book"), "line": line,
+                                "price": px, "prob": round(prob, 4),
+                                "model_prob": round(win, 4), "push": round(p_push, 4),
+                                "fair": round(mkt, 4) if mkt is not None else None,
+                                "ts": o.get("ts"), "_ev": ev}
+            if not best:
                 continue
-            best.update({"prop": prop, "line": line, "proj": proj,
-                         "fair_over": fair_over, "books": ln.get("books"),
-                         "ev_pct": round(best.pop("ev") * 100, 1)})
+            ev_pct = round(best.pop("_ev") * 100, 1)
+            if ev_pct > EDGE_MAX_PCT:
+                continue
+            best.update({"prop": prop, "proj": proj, "books": len(offers), "ev_pct": ev_pct})
             pe[prop] = best
+
         td = book.get("anytime_td")
-        if td and p.get("anytime_td") and (td.get("books") or 0) >= EDGE_MIN_BOOKS:
-            our = p["anytime_td"] / 100.0
-            fair_yes = td.get("fair_yes")
-            fair_no = (1 - fair_yes) if fair_yes is not None else None
-            best = _edge_side([("Yes", our,     fair_yes, td.get("best_yes_price")),
-                               ("No",  1 - our, fair_no,  td.get("best_no_price"))])
-            if best and best["ev"] * 100 <= EDGE_MAX_PCT:
-                best.update({"prop": "anytime_td", "fair_yes": fair_yes,
-                             "books": td.get("books"), "ev_pct": round(best.pop("ev") * 100, 1)})
-                pe["anytime_td"] = best
+        if td and p.get("anytime_td"):
+            offers = td.get("offers") or []
+            if len(offers) >= EDGE_MIN_BOOKS:
+                our = p["anytime_td"] / 100.0
+                best = None
+                for o in offers:
+                    fair_yes = _devig2(o.get("yes_price"), o.get("no_price"))
+                    for side, win, px, mkt in (
+                            ("Yes", our,     o.get("yes_price"), fair_yes),
+                            ("No",  1 - our, o.get("no_price"),
+                             (1 - fair_yes) if fair_yes is not None else None)):
+                        if not _offer_ok(px):
+                            continue
+                        prob = _anchor(win, mkt)
+                        ev = _ev(prob, 0.0, px)
+                        if ev is None:
+                            continue
+                        if best is None or ev > best["_ev"]:
+                            best = {"side": side, "book": o.get("book"), "price": px,
+                                    "prob": round(prob, 4), "model_prob": round(win, 4),
+                                    "fair": round(mkt, 4) if mkt is not None else None,
+                                    "ts": o.get("ts"), "_ev": ev}
+                if best:
+                    ev_pct = round(best.pop("_ev") * 100, 1)
+                    if ev_pct <= EDGE_MAX_PCT:
+                        best.update({"prop": "anytime_td", "books": len(offers), "ev_pct": ev_pct})
+                        pe["anytime_td"] = best
+
         if pe:
             p["edge"] = pe
             for prop, e in pe.items():

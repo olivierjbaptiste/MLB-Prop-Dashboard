@@ -4,6 +4,7 @@ app.py - Flask web server for MLB HR Prop Dashboard
 
 import os
 import json
+import time
 import threading
 from datetime import datetime
 from flask import Flask, render_template, jsonify
@@ -12,6 +13,39 @@ import nba
 import nba_model
 import nfl
 import nfl_model
+import tzutil
+
+# How old a snapshot may get before we flag it as stale (hours). NFL refreshes
+# a few times a week; NBA roughly daily.
+_STALE_HOURS = {"nfl": 30, "nba": 16}
+
+
+def _data_status(d, sport):
+    """Describe snapshot freshness/validity so the UI can show an honest
+    'stale' or 'unavailable' state instead of passing old data off as current."""
+    if not d or not d.get("players"):
+        return {"available": False, "stale": True,
+                "reasons": ["no snapshot data — run the data pull"]}
+    reasons = []
+    ts = d.get("ts")
+    age_h = round((time.time() - ts) / 3600, 1) if ts else None
+    # a game still relevant = not yet Final
+    games = d.get("games") or []
+    upcoming = sum(1 for g in games
+                   if "final" not in str(g.get("status") or "").lower())
+    stale = False
+    if age_h is not None and age_h > _STALE_HOURS.get(sport, 24):
+        stale = True
+        reasons.append("snapshot is {}h old".format(age_h))
+    if games and upcoming == 0:
+        stale = True
+        reasons.append("all games in this snapshot are final")
+    if not games:
+        reasons.append("no games in snapshot")
+    return {"available": True, "stale": stale, "age_hours": age_h,
+            "snapshot_date": d.get("today"),
+            "today": tzutil.et_today().strftime("%Y-%m-%d"),
+            "games": len(games), "upcoming": upcoming, "reasons": reasons}
 
 app = Flask(__name__)
 
@@ -56,10 +90,11 @@ def get_nba_data():
         d = nba.read_snapshot() or {}
         if d.get("players"):
             nba_model.project_all(d)
+        d["data_status"] = _data_status(d, "nba")
         return d
     except Exception as e:
         print(f"NBA load error: {e}")
-        return {}
+        return {"data_status": {"available": False, "stale": True, "reasons": [str(e)]}}
 
 
 def get_nfl_data():
@@ -68,10 +103,11 @@ def get_nfl_data():
         d = nfl.read_snapshot() or {}
         if d.get("players"):
             nfl_model.project_all(d)
+        d["data_status"] = _data_status(d, "nfl")
         return d
     except Exception as e:
         print(f"NFL load error: {e}")
-        return {}
+        return {"data_status": {"available": False, "stale": True, "reasons": [str(e)]}}
 
 
 @app.route("/")

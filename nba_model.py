@@ -49,11 +49,21 @@ def _rate(total, minutes):
     return 0.0
 
 def _blend(season, l5, gp):
-    """Blend a season rate with a last-5 rate, with an early-season guard."""
-    s = season or 0.0
-    if not l5 or not gp or gp < MIN_GP_FOR_L5:
-        return s
-    return W_SEASON * s + W_L5 * l5
+    """Blend a season rate with a last-5 rate, with an early-season guard.
+
+    None means "no sample" (missing) and is skipped; 0.0 is a *real* zero and
+    must count. The gp guard (too few games to trust the last-5) is a
+    deliberate heuristic and is preserved — but it no longer fires just because
+    the recent rate happens to be 0. (Old code used `if not l5`, dropping a
+    legitimate 0 as missing.)
+    """
+    if season is None and l5 is None:
+        return None
+    if l5 is None or gp is None or gp < MIN_GP_FOR_L5:
+        return season if season is not None else l5
+    if season is None:
+        return l5
+    return W_SEASON * season + W_L5 * l5
 
 def _status_bucket(status):
     """Return 'out' | 'flag' | 'ok' from an ESPN status string."""
