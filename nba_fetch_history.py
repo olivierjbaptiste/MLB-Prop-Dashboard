@@ -24,11 +24,35 @@ import sys
 import csv
 import time
 import argparse
+from datetime import datetime
 
 import nba   # reuse its _fetch_json, get_teams, get_team_roster, _num
+from tzutil import ET   # America/New_York (DST-aware) for accurate game dates
 
-COLS = ["player_id", "player", "season", "season_type", "game_date",
+# game_id (ESPN event id) makes every game uniquely identifiable so two games
+# can never collide on a truncated date again.
+COLS = ["player_id", "player", "season", "season_type", "game_id", "game_date",
         "team", "opponent", "home", "started", "min", "pts", "reb", "ast", "tpm"]
+
+# The 30 real NBA teams. All-Star / Rising-Stars games come back with non-NBA
+# opponent codes (STARS, WORLD, SHQ, CHK, EAST, WEST, …) and are exhibitions, not
+# regular-season games — they are dropped so they can't pollute the history.
+NBA_TEAMS = {"ATL", "BOS", "BKN", "CHA", "CHI", "CLE", "DAL", "DEN", "DET", "GS",
+             "HOU", "IND", "LAC", "LAL", "MEM", "MIA", "MIL", "MIN", "NO", "NY",
+             "OKC", "ORL", "PHI", "PHX", "POR", "SA", "SAC", "TOR", "UTAH", "WSH"}
+
+
+def _et_date(iso):
+    """ESPN gameDate is a UTC timestamp; an evening US tip rolls past midnight
+    UTC, so truncating the raw string shifts the date +1 day. Convert to Eastern
+    first, then take the calendar date — the true NBA game date."""
+    if not iso:
+        return ""
+    try:
+        dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        return dt.astimezone(ET).strftime("%Y-%m-%d")
+    except Exception:
+        return (iso or "")[:10]
 
 
 def _season_type(display):
@@ -96,15 +120,21 @@ def parse_gamelog(data, athlete_id, player_name, queried_season):
                     seen.add(dedupe)
                 meta = events_meta.get(str(eid), {}) if eid else {}
                 opp = (meta.get("opponent") or {})
-                def cell(k):
+                opp_abb = opp.get("abbreviation") or ""
+                team_abb = (meta.get("team") or {}).get("abbreviation") or ""
+                # drop All-Star / exhibition games (non-NBA opponent code)
+                if opp_abb and opp_abb not in NBA_TEAMS:
+                    continue
+                def cell(k, stats=stats):
                     i = ci[k]
                     return nba._num(stats[i]) if (i is not None and i < len(stats)) else None
                 rows.append({
                     "player_id": athlete_id, "player": player_name,
                     "season": season, "season_type": st,
-                    "game_date": (meta.get("gameDate") or meta.get("date") or "")[:10],
-                    "team": (meta.get("team") or {}).get("abbreviation") or "",
-                    "opponent": opp.get("abbreviation") or "",
+                    "game_id": eid or "",
+                    "game_date": _et_date(meta.get("gameDate") or meta.get("date")),
+                    "team": team_abb,
+                    "opponent": opp_abb,
                     "home": 1 if meta.get("homeAway") == "home" else (0 if meta.get("homeAway") else ""),
                     "started": "",     # ESPN gamelog does not expose a start flag
                     "min": cell("min"), "pts": cell("pts"), "reb": cell("reb"),

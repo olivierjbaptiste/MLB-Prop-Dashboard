@@ -6,6 +6,8 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import copy
+import nba_model
 import nba_model_v2 as v2
 
 
@@ -62,6 +64,20 @@ class TestProjection(unittest.TestCase):
         # rates differ, v2 weights them differently
         self.assertEqual(v2.RATE_WEIGHT["pts"], 0.60)
         self.assertEqual(v2.RATE_WEIGHT["reb"], 0.80)
+
+
+class TestV1Unaffected(unittest.TestCase):
+    def test_recent_min_does_not_change_v1(self):
+        data = {"games": [], "team_defense": {}}
+        a = _player(gp=20)
+        b = _player(gp=20, recent_min=[20, 25, 40, 15, 33])   # extra field v2 uses
+        nba_model.project_player(copy.deepcopy(a), data)
+        ra = _player(gp=20); rb = _player(gp=20, recent_min=[20, 25, 40, 15, 33])
+        nba_model.project_player(ra, data)
+        nba_model.project_player(rb, data)
+        for k in ("proj_pts", "proj_reb", "proj_ast", "proj_tpm", "proj_pra",
+                  "proj_min", "confidence"):
+            self.assertEqual(ra.get(k), rb.get(k))   # v1 ignores recent_min
 
 
 if __name__ == "__main__":
