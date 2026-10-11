@@ -1,8 +1,15 @@
 name: NFL Data Pull
 
 # Runs the NFL data layer on a runner (nflverse + ESPN live), writes
-# nfl_snapshot.json, and commits it so the live site redeploys. Manual for
-# now; we'll add a weekly schedule once the ESPN join is confirmed.
+# nfl_snapshot.json, and commits it so the live site redeploys.
+#
+# Schedule (UTC — GitHub cron has no timezone; these land mid-morning ET
+# through the season, a little later once clocks fall back in November):
+#   Thu 13:00  — Thursday Night Football prep
+#   Fri 15:00  — after Friday's final injury-report designations
+#   Sun 13:00  — game-day morning (full main slate)
+#   Sun 16:00  — catch inactives (~90 min before the 1pm ET kickoffs)
+#   Mon 13:00  — Monday Night Football prep
 on:
   workflow_dispatch:
     inputs:
@@ -10,6 +17,12 @@ on:
         description: "Max players to pull (0 or blank = full slate)"
         required: false
         default: "0"
+  schedule:
+    - cron: "0 13 * * 4"    # Thursday  ~9am ET
+    - cron: "0 15 * * 5"    # Friday    ~11am ET
+    - cron: "0 13 * * 0"    # Sunday    ~9am ET
+    - cron: "0 16 * * 0"    # Sunday    ~12pm ET (inactives)
+    - cron: "0 13 * * 1"    # Monday    ~9am ET
 
 permissions:
   contents: write

@@ -113,11 +113,70 @@ def _fetch_csv(url, timeout=40, attempts=3):
                 time.sleep(1.5 * (i + 1))
     return []
 
+def _fetch_text(url, timeout=120, attempts=3):
+    """Return the raw decoded body of a URL (for large CSVs we stream, not
+    materialize as dict rows)."""
+    for i in range(attempts):
+        try:
+            req = urllib.request.Request(url, headers={**UA, "Accept-Encoding": "gzip, identity"})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                raw = r.read()
+                if r.headers.get("Content-Encoding") == "gzip":
+                    raw = gzip.GzipFile(fileobj=io.BytesIO(raw)).read()
+                return raw.decode("utf-8", "replace")
+        except Exception as e:
+            if i == attempts - 1:
+                print(f"    text fetch fail: {url[:66]}… → {type(e).__name__}")
+            else:
+                time.sleep(1.5 * (i + 1))
+    return ""
+
 def _num(x):
     try:
         return float(x)
     except Exception:
         return 0.0
+
+
+# ── nflverse: usage detail (snap share, red-zone opportunity) ──────────
+def load_snaps(season):
+    """player-name(lower) -> season average offensive snap share (0–100)."""
+    rows = _fetch_csv(f"{NFLV}/snap_counts/snap_counts_{season}.csv")
+    agg = {}
+    for r in rows:
+        key = (r.get("player") or "").strip().lower()
+        if not key:
+            continue
+        d = agg.setdefault(key, {"sum": 0.0, "n": 0})
+        d["sum"] += _num(r.get("offense_pct"))   # 0–1 per game
+        d["n"]   += 1
+    return {k: round(100 * v["sum"] / v["n"], 1) for k, v in agg.items() if v["n"]}
+
+def load_redzone(season):
+    """player_id -> red-zone opportunity counts (season), from play-by-play.
+    rz_* = inside the 20, rz10_* = inside the 10 (goal-line)."""
+    text = _fetch_text(f"{NFLV}/pbp/play_by_play_{season}.csv", timeout=180)
+    rz = {}
+    if not text:
+        print("    red-zone: play-by-play unavailable — skipping usage detail")
+        return rz
+    def slot(pid):
+        return rz.setdefault(pid, {"rz_car": 0, "rz10_car": 0, "rz_tgt": 0, "rz10_tgt": 0})
+    for row in csv.DictReader(io.StringIO(text)):
+        try:
+            y = float(row.get("yardline_100"))
+        except Exception:
+            continue
+        if y > 20:
+            continue
+        if row.get("rush_attempt") == "1" and row.get("rusher_player_id"):
+            d = slot(row["rusher_player_id"]); d["rz_car"] += 1
+            if y <= 10: d["rz10_car"] += 1
+        if row.get("pass_attempt") == "1" and row.get("receiver_player_id"):
+            d = slot(row["receiver_player_id"]); d["rz_tgt"] += 1
+            if y <= 10: d["rz10_tgt"] += 1
+    print(f"    red-zone: {len(rz)} players with inside-20 opportunity")
+    return rz
 
 
 # ── nflverse: player production (season + last-3 form) ─────────────────
@@ -143,10 +202,20 @@ def load_players(season):
         g = int(_num(r.get("games")) or 0)
         if not pid or g <= 0:
             continue
-        recent = wk_by_player.get(pid, [])[:3]
+        allw = wk_by_player.get(pid, [])
+        recent = allw[:3]
         rg = len(recent) or 1
         def l3(field):
             return round(sum(_num(w.get(field)) for w in recent) / rg, 2)
+        # per-game log (actuals, most-recent first) for hit-rate / consistency
+        log = [{
+            "wk":       int(_num(w.get("week")) or 0),
+            "opp":      w.get("opponent_team"),
+            "pass_yds": round(_num(w.get("passing_yards")), 1),
+            "rush_yds": round(_num(w.get("rushing_yards")), 1),
+            "rec_yds":  round(_num(w.get("receiving_yards")), 1),
+            "rec":      round(_num(w.get("receptions")), 1),
+        } for w in allw[:6]]
         players[pid] = {
             "id": pid,
             "name": r.get("player_display_name") or r.get("player_name"),
@@ -162,11 +231,18 @@ def load_players(season):
             "targets":  pg(r, "targets", g),
             "carries":  pg(r, "carries", g),
             "att":      pg(r, "attempts", g),
+            # touchdown production (for Anytime TD)
+            "rush_td":  pg(r, "rushing_tds", g),
+            "rec_td":   pg(r, "receiving_tds", g),
+            "td_total": int(_num(r.get("rushing_tds")) + _num(r.get("receiving_tds"))),
             # last-3 per-game
             "pass_yds_l3": l3("passing_yards"),
             "rush_yds_l3": l3("rushing_yards"),
             "rec_yds_l3":  l3("receiving_yards"),
             "rec_l3":      l3("receptions"),
+            "rush_td_l3":  l3("rushing_tds"),
+            "rec_td_l3":   l3("receiving_tds"),
+            "log": log,
         }
     return players, week
 
@@ -182,7 +258,8 @@ def compute_team_defense(week_rows):
     def slot(team):
         return agg.setdefault(team, {"weeks": set(), "pass_yds": 0.0,
             "rush_yds_RB": 0.0, "rec_yds_WR": 0.0, "rec_yds_TE": 0.0,
-            "rec_yds_RB": 0.0, "rec_WR": 0.0, "rec_TE": 0.0, "rec_RB": 0.0})
+            "rec_yds_RB": 0.0, "rec_WR": 0.0, "rec_TE": 0.0, "rec_RB": 0.0,
+            "rush_td_RB": 0.0, "rec_td_WR": 0.0, "rec_td_TE": 0.0, "rec_td_RB": 0.0})
     for r in week_rows:
         opp = r.get("opponent_team")
         if not opp:
@@ -196,18 +273,114 @@ def compute_team_defense(week_rows):
             s["rush_yds_RB"] += _num(r.get("rushing_yards"))
             s["rec_yds_RB"]  += _num(r.get("receiving_yards"))
             s["rec_RB"]      += _num(r.get("receptions"))
+            s["rush_td_RB"]  += _num(r.get("rushing_tds"))
+            s["rec_td_RB"]   += _num(r.get("receiving_tds"))
         elif pos == "WR":
             s["rec_yds_WR"] += _num(r.get("receiving_yards"))
             s["rec_WR"]     += _num(r.get("receptions"))
+            s["rec_td_WR"]  += _num(r.get("receiving_tds"))
         elif pos == "TE":
             s["rec_yds_TE"] += _num(r.get("receiving_yards"))
             s["rec_TE"]     += _num(r.get("receptions"))
+            s["rec_td_TE"]  += _num(r.get("receiving_tds"))
     out = {}
     for team, s in agg.items():
         g = len(s["weeks"]) or 1
         out[team] = {k: round(v / g, 2) for k, v in s.items() if k != "weeks"}
         out[team]["games"] = g
     return out
+
+
+# ── weather (outdoor games only) ───────────────────────────────────────
+# Home team -> stadium coords + roof. "dome" covers fixed domes, fixed-canopy
+# (SoFi) and retractable roofs (assumed closed in bad weather) — all treated
+# as controlled, so no weather is fetched or applied. "out" = open-air.
+OPEN_METEO = "https://api.open-meteo.com/v1/forecast"
+STADIUMS = {
+    "ARI": (33.5276, -112.2626, "dome"), "ATL": (33.7554, -84.4009, "dome"),
+    "BAL": (39.2780, -76.6227, "out"),   "BUF": (42.7738, -78.7870, "out"),
+    "CAR": (35.2258, -80.8528, "out"),   "CHI": (41.8623, -87.6167, "out"),
+    "CIN": (39.0954, -84.5160, "out"),   "CLE": (41.5061, -81.6995, "out"),
+    "DAL": (32.7473, -97.0945, "dome"),  "DEN": (39.7439, -105.0201, "out"),
+    "DET": (42.3400, -83.0456, "dome"),  "GB":  (44.5013, -88.0622, "out"),
+    "HOU": (29.6847, -95.4107, "dome"),  "IND": (39.7601, -86.1639, "dome"),
+    "JAX": (30.3240, -81.6373, "out"),   "KC":  (39.0489, -94.4839, "out"),
+    "LA":  (33.9535, -118.3392, "dome"), "LAC": (33.9535, -118.3392, "dome"),
+    "LV":  (36.0909, -115.1833, "dome"), "MIA": (25.9580, -80.2389, "out"),
+    "MIN": (44.9736, -93.2575, "dome"),  "NE":  (42.0909, -71.2643, "out"),
+    "NO":  (29.9511, -90.0812, "dome"),  "NYG": (40.8135, -74.0745, "out"),
+    "NYJ": (40.8135, -74.0745, "out"),   "PHI": (39.9008, -75.1675, "out"),
+    "PIT": (40.4468, -80.0158, "out"),   "SEA": (47.5952, -122.3316, "out"),
+    "SF":  (37.4030, -121.9700, "out"),  "TB":  (27.9759, -82.5033, "out"),
+    "TEN": (36.1665, -86.7713, "out"),   "WAS": (38.9076, -76.8645, "out"),
+}
+
+def _wx_impact(wind, precip, pop):
+    """Pass/rush multipliers from forecast. Wind hurts throwing most; heavy
+    precip trims passing and nudges rushing up. Deliberately mild — game
+    script is the bigger lever."""
+    pm, rm = 1.0, 1.0
+    w = wind or 0
+    if   w >= 25: pm *= 0.90
+    elif w >= 18: pm *= 0.94
+    elif w >= 13: pm *= 0.975
+    wet = (precip or 0) >= 0.05 or (pop or 0) >= 60
+    if wet:
+        pm *= 0.97
+        rm *= 1.02
+    return round(pm, 3), round(rm, 3)
+
+def get_weather(games):
+    """Attach a 'wx' block to each game: indoor games are marked controlled;
+    outdoor games get the forecast nearest kickoff."""
+    for g in games:
+        home = g.get("home_nflv")
+        info = STADIUMS.get(home)
+        start = g.get("start") or ""
+        if not info:
+            continue
+        lat, lon, roof = info
+        if roof != "out":
+            g["wx"] = {"indoor": True, "note": "Indoors (climate-controlled)"}
+            continue
+        try:
+            url = (f"{OPEN_METEO}?latitude={lat}&longitude={lon}"
+                   "&hourly=temperature_2m,precipitation,precipitation_probability,"
+                   "wind_speed_10m,wind_gusts_10m"
+                   "&temperature_unit=fahrenheit&wind_speed_unit=mph"
+                   "&precipitation_unit=inch&forecast_days=8")
+            data = _fetch_json(url, quiet=True)
+            h = (data or {}).get("hourly") or {}
+            times = h.get("time") or []
+            if not times:
+                continue
+            key = start[:13]                      # "YYYY-MM-DDTHH" (both UTC)
+            idx = next((i for i, t in enumerate(times) if t[:13] == key), None)
+            if idx is None:                       # fall back to nearest available
+                idx = min(range(len(times)), key=lambda i: abs(i - len(times)//2))
+            def at(field):
+                arr = h.get(field) or []
+                return arr[idx] if idx < len(arr) else None
+            wind = at("wind_speed_10m"); gust = at("wind_gusts_10m")
+            precip = at("precipitation"); pop = at("precipitation_probability")
+            temp = at("temperature_2m")
+            eff_wind = max(wind or 0, (gust or 0) * 0.7)   # gusts matter for throws
+            pm, rm = _wx_impact(eff_wind, precip, pop)
+            bits = []
+            if temp is not None: bits.append(f"{round(temp)}°F")
+            if wind is not None: bits.append(f"{round(wind)} mph wind" + (f" (g {round(gust)})" if gust else ""))
+            if pop:              bits.append(f"{round(pop)}% precip")
+            g["wx"] = {
+                "indoor": False, "temp": temp, "wind": wind, "gust": gust,
+                "precip": precip, "pop": pop, "pass_mult": pm, "rush_mult": rm,
+                "note": " · ".join(bits) or "Outdoors",
+                "rough": pm <= 0.95,
+            }
+        except Exception as e:
+            print(f"    weather fail {home}: {type(e).__name__}")
+    done = sum(1 for g in games if g.get("wx"))
+    print(f"    weather: {done}/{len(games)} games")
+    return games
 
 
 # ── ESPN live: games, odds, injuries ───────────────────────────────────
@@ -287,6 +460,24 @@ def build_nfl_data():
     team_defense = compute_team_defense(week_rows)
     print(f"    players: {len(players)} | team defense: {len(team_defense)} teams")
 
+    # usage detail: snap share + red-zone opportunity (enrichment — a failure
+    # here must not sink the pull)
+    try:
+        snaps = load_snaps(season)
+    except Exception as e:
+        print(f"    snap load error: {e}"); snaps = {}
+    try:
+        rz = load_redzone(season)
+    except Exception as e:
+        print(f"    red-zone load error: {e}"); rz = {}
+
+    # team target / carry totals (full roster) for usage share
+    team_tgt, team_car = {}, {}
+    for p in players.values():
+        t = p.get("team")
+        team_tgt[t] = team_tgt.get(t, 0.0) + (p.get("targets") or 0) * (p.get("g") or 0)
+        team_car[t] = team_car.get(t, 0.0) + (p.get("carries") or 0) * (p.get("g") or 0)
+
     games = get_games()
     print(f"    games this week: {len(games)}")
     inj = get_injuries()
@@ -302,6 +493,12 @@ def build_nfl_data():
                 g["total"] = tot
             time.sleep(0.1)
 
+    # outdoor-game weather (live layer, runner-only like ESPN)
+    try:
+        get_weather(games)
+    except Exception as e:
+        print(f"    weather load error: {e}")
+
     # which nflverse teams play this week, and each team's opponent + game script
     ctx = {}   # team(nflv) -> {opp, spread, total, home}
     for g in games:
@@ -312,8 +509,9 @@ def build_nfl_data():
         tot = g.get("total")
         try: tot = float(tot) if tot is not None else None
         except Exception: tot = None
-        if h: ctx[h] = {"opp": a, "spread": hs, "total": tot, "home": True}
-        if a: ctx[a] = {"opp": h, "spread": (-hs if hs is not None else None), "total": tot, "home": False}
+        wx = g.get("wx")
+        if h: ctx[h] = {"opp": a, "spread": hs, "total": tot, "home": True,  "wx": wx}
+        if a: ctx[a] = {"opp": h, "spread": (-hs if hs is not None else None), "total": tot, "home": False, "wx": wx}
 
     playing = set(ctx.keys())
     # build the active player pool: players on teams playing this week
@@ -329,8 +527,20 @@ def build_nfl_data():
         p2["spread"] = c.get("spread")
         p2["total"] = c.get("total")
         p2["home"] = c.get("home")
+        p2["wx"] = c.get("wx")
         p2["status"] = st.get("status")
         p2["status_detail"] = st.get("detail")
+        # usage detail
+        p2["snap_pct"] = snaps.get(nm)
+        rzd = rz.get(p.get("id"))
+        if rzd:
+            p2["rz_car"], p2["rz10_car"] = rzd["rz_car"], rzd["rz10_car"]
+            p2["rz_tgt"], p2["rz10_tgt"] = rzd["rz_tgt"], rzd["rz10_tgt"]
+        tt, ct = team_tgt.get(p["team"], 0), team_car.get(p["team"], 0)
+        p_tgt_tot = (p.get("targets") or 0) * (p.get("g") or 0)
+        p_car_tot = (p.get("carries") or 0) * (p.get("g") or 0)
+        p2["tgt_share"]   = round(100 * p_tgt_tot / tt, 1) if tt else None
+        p2["carry_share"] = round(100 * p_car_tot / ct, 1) if ct else None
         pool.append(p2)
         if PLAYER_CAP and len(pool) >= PLAYER_CAP:
             break

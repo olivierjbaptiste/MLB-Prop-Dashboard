@@ -321,6 +321,9 @@ tr:last-child td{border-bottom:none}
   <button class="nb"    id="bnf-rush_yds" onclick="goNFL('rush_yds')">&#127939; Rushing Yds</button>
   <button class="nb"    id="bnf-rec_yds"  onclick="goNFL('rec_yds')">&#128588; Receiving Yds</button>
   <button class="nb"    id="bnf-rec"      onclick="goNFL('rec')">&#129358; Receptions</button>
+  <button class="nb"    id="bnf-td"       onclick="goNFL('td')">&#127945; Anytime TD</button>
+  <button class="nb"    id="bnf-stacks"   onclick="goNFL('stacks')">&#128279; SGP Stacks</button>
+  <button class="nb"    id="bnf-matchup"  onclick="goNFL('matchup')">&#128202; Matchup</button>
 </div>
 
 <div class="main">
@@ -403,6 +406,21 @@ tr:last-child td{border-bottom:none}
   <div class="section-hdr"><h2>&#128588; NFL Receiving Yards</h2><span class="badge" id="nfl-rec_yds-count">0</span></div>
   <div class="section-sub">Projected receiving yards &mdash; target volume &times; opponent defense vs the position &times; game script.</div>
   <div class="picks-grid" id="nfl-rec_yds-body"></div>
+</div>
+<div id="tc-nfl-matchup" class="tc">
+  <div class="section-hdr"><h2>&#128202; Weekly Matchup</h2></div>
+  <div style="margin:-4px 0 14px"><select id="nfl-matchup-game" onchange="buildMatchup()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;max-width:100%"></select></div>
+  <div id="nfl-matchup-body"></div>
+</div>
+<div id="tc-nfl-stacks" class="tc">
+  <div class="section-hdr"><h2>&#128279; Same-Game Stacks</h2><span class="badge" id="nfl-stacks-count">0</span></div>
+  <p style="color:var(--muted);font-size:12px;margin:-4px 0 12px">Legs that move together in one game. A QB's passing output rises with his pass-catchers' receiving — strongest for the highest target share. The lead back stacks when the team is favored (running late) and fades as a big underdog. Sorted by implied team total.</p>
+  <div id="nfl-stacks-body"></div>
+</div>
+<div id="tc-nfl-td" class="tc">
+  <div class="section-hdr"><h2>&#127945; NFL Anytime TD</h2><span class="badge" id="nfl-td-count">0</span></div>
+  <p style="color:var(--muted);font-size:12px;margin:-4px 0 12px">Model hit probability a player scores a TD, with the fair odds it implies — ranked. Compare the fair odds to the book: shorter book odds than fair = value.</p>
+  <div class="picks-grid" id="nfl-td-body"></div>
 </div>
 <div id="tc-nfl-rec" class="tc">
   <div class="section-hdr"><h2>&#129358; NFL Receptions</h2><span class="badge" id="nfl-rec-count">0</span></div>
@@ -806,7 +824,7 @@ var NBA_GAMES   = NBA.games   || [];
 var NFL         = {{ nfl_data | safe }};
 var NFL_PLAYERS = NFL.players || [];
 var NFL_GAMES   = NFL.games   || [];
-var NFL_PROPS   = ['pass_yds','rush_yds','rec_yds','rec'];
+var NFL_PROPS   = ['pass_yds','rush_yds','rec_yds','rec','td','stacks','matchup'];
 
 // Shared player photo helper — circular headshot with a clean fallback.
 // Uses a fixed-size inline wrapper so rows never shift if an image is missing.
@@ -1501,7 +1519,12 @@ function goNFL(prop){
     if(nb) nb.className='nb'+(NFL_PROPS[i]===prop?' on':'');
   }
   var fb=document.getElementById('nfl-filterbar'); if(fb) fb.style.display='flex';
-  currentNFLProp=prop; buildNFL(prop);
+  currentNFLProp=prop;
+  var fb2=document.getElementById('nfl-filterbar'); if(fb2 && prop==='matchup') fb2.style.display='none';
+  if(prop==='td') buildNFLTD();
+  else if(prop==='stacks') buildStacks();
+  else if(prop==='matchup'){ populateMatchupGames(); buildMatchup(); }
+  else buildNFL(prop);
 }
 
 function setNFLConf(v,btn){
@@ -1509,7 +1532,7 @@ function setNFLConf(v,btn){
   var a=document.getElementById('nflf-all'), h=document.getElementById('nflf-high');
   if(a) a.classList.toggle('on', v==='all');
   if(h) h.classList.toggle('on', v==='high');
-  buildNFL(currentNFLProp);
+  if(currentNFLProp==='td') buildNFLTD(); else if(currentNFLProp==='stacks') buildStacks(); else buildNFL(currentNFLProp);
 }
 
 function populateNFLTeamFilter(){
@@ -1543,6 +1566,72 @@ function _nflMatchup(p,prop){
   if(m>=1.03) return ' <span class="nba-flag" style="background:rgba(34,197,94,0.12);color:var(--green);border:1px solid rgba(34,197,94,0.3)">SOFT D +'+pct+'%</span>';
   if(m<=0.97) return ' <span class="nba-flag" style="background:rgba(239,68,68,0.12);color:var(--red);border:1px solid rgba(239,68,68,0.3)">TOUGH D '+pct+'%</span>';
   return '';
+}
+
+function _nflVolume(p,prop){
+  // Volume boost from an injured teammate's vacated targets/carries.
+  var vb, why;
+  if(prop==='rush_yds'){ vb=p.vb_rush; why=p.vb_rush_why; }
+  else if(prop==='rec_yds'||prop==='rec'){ vb=p.vb_rec; why=p.vb_rec_why; }
+  if(vb==null || vb<=1.03) return '';
+  var pct=Math.round((vb-1)*100);
+  var t=why?(' — '+why+' out'):'';
+  return ' <span class="nba-flag" title="Projected volume up'+t+'" style="background:rgba(59,130,246,0.14);color:#60a5fa;border:1px solid rgba(59,130,246,0.35)">VOL +'+pct+'%</span>';
+}
+
+function _nflHitRate(p,prop){
+  var h=(p.hr||{})[prop]; if(!h) return '';
+  function pct(a){ return (a&&a[1])?Math.round(100*a[0]/a[1]):0; }
+  function col(a){ var pc=pct(a); return pc>=60?'var(--green)':(pc>=40?'var(--gold)':'var(--muted)'); }
+  var l5=h.l5||[0,0], szn=h.szn||[0,0], vs=h.vs;
+  var vsTxt = vs ? ('vs '+(h.vs_tier==='soft'?'soft':'tough')+' D '+vs[0]+'/'+vs[1]) : '';
+  var pills=(h.log||[]).map(function(g){
+    var bg=g.hit?'rgba(34,197,94,0.16)':'rgba(148,163,184,0.10)';
+    var cc=g.hit?'var(--green)':'var(--muted)';
+    return '<span title="Wk '+g.wk+' vs '+g.opp+(g.hit?' — over':' — under')+'" style="display:inline-block;min-width:26px;text-align:center;padding:2px 4px;border-radius:4px;background:'+bg+';color:'+cc+';font-size:9px;font-weight:700">'+g.v+'</span>';
+  }).join('');
+  return '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">'
+    +'<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:5px">'
+      +'<span>Hit rate @ '+h.line+'</span><span>'+vsTxt+'</span>'
+    +'</div>'
+    +'<div style="display:flex;gap:12px;font-size:10px;margin-bottom:6px">'
+      +'<span style="color:'+col(l5)+';font-weight:700">L5 '+l5[0]+'/'+l5[1]+'</span>'
+      +'<span style="color:'+col(szn)+';font-weight:700">Season '+szn[0]+'/'+szn[1]+'</span>'
+    +'</div>'
+    +'<div style="display:flex;gap:3px;flex-wrap:wrap">'+pills+'</div>'
+  +'</div>';
+}
+
+function _nflAvoid(p,prop){
+  var a=(p.avoid||{})[prop]; if(!a||a.length<2) return '';
+  return ' <span class="nba-flag" title="'+a.join(' · ')+'" style="background:rgba(239,68,68,0.16);color:var(--red);border:1px solid rgba(239,68,68,0.4);font-weight:800">&#9888; AVOID</span>';
+}
+
+function _nflTeamTotal(p){
+  if(p.team_total==null) return '';
+  return ' <span class="badge-gray" title="Implied team total from the Vegas line">IMP '+p.team_total+'</span>';
+}
+
+function _nflWeather(p){
+  var w=p.wx; if(!w||w.indoor) return '';
+  if(!w.note) return '';
+  var rough=w.rough;
+  var bg=rough?'rgba(239,68,68,0.12)':'rgba(148,163,184,0.10)';
+  var cc=rough?'var(--red)':'var(--muted)';
+  return ' <span class="nba-flag" title="'+w.note+'" style="background:'+bg+';color:'+cc+';border:1px solid '+(rough?'rgba(239,68,68,0.3)':'var(--border)')+'">&#127788; '+w.note+'</span>';
+}
+
+function _nflUsage(p,prop){
+  var chips=[];
+  function chip(lbl,val){ return '<span style="display:inline-block;padding:2px 7px;border-radius:5px;background:var(--surface2);border:1px solid var(--border);font-size:10px;font-weight:700;margin:3px 4px 0 0">'+lbl+' <span style="color:var(--muted);font-weight:600">'+val+'</span></span>'; }
+  var isRush=(prop==='rush_yds'), isRec=(prop==='rec_yds'||prop==='rec'), isTD=(prop==='td');
+  if(p.snap_pct!=null) chips.push(chip('Snap',p.snap_pct+'%'));
+  if((isRush||isTD) && p.carry_share) chips.push(chip('Carry',p.carry_share+'%'));
+  if((isRush||isTD) && p.rz_car) chips.push(chip('RZ car',p.rz_car+(p.rz10_car?(' ('+p.rz10_car+' in-10)'):'')));
+  if((isRec||isTD) && p.tgt_share) chips.push(chip('Tgt',p.tgt_share+'%'));
+  if((isRec||isTD) && p.rz_tgt) chips.push(chip('RZ tgt',p.rz_tgt+(p.rz10_tgt?(' ('+p.rz10_tgt+' in-10)'):'')));
+  if(!chips.length) return '';
+  return '<div style="margin-top:8px;display:flex;flex-wrap:wrap">'+chips.join('')+'</div>';
 }
 
 function buildNFL(prop){
@@ -1579,7 +1668,7 @@ function buildNFL(prop){
         +'<div style="min-width:0">'
           +'<div class="pick-name">'+nflPhoto(p.headshot,28)+p.name+'</div>'
           +'<div style="font-size:11px;color:var(--muted);margin-top:3px">'
-            +'<span class="badge-gray">'+(p.team||'')+'</span>'+(p.opp?' vs '+p.opp:'')+' &middot; '+(p.pos||'')+' '+_nbaConfPill(p.confidence)+flag+_nflMatchup(p,prop)
+            +'<span class="badge-gray">'+(p.team||'')+'</span>'+(p.opp?' vs '+p.opp:'')+' &middot; '+(p.pos||'')+' '+_nbaConfPill(p.confidence)+flag+_nflMatchup(p,prop)+_nflVolume(p,prop)+_nflTeamTotal(p)+_nflWeather(p)+_nflAvoid(p,prop)
           +'</div>'
         +'</div>'
         +'<div style="text-align:right;flex-shrink:0">'
@@ -1588,9 +1677,215 @@ function buildNFL(prop){
         +'</div>'
       +'</div>'
       +'<div class="pick-stats">'+stats+'</div>'
+      +_nflHitRate(p,prop)
+      +_nflUsage(p,prop)
       +'</div>';
   });
   body.innerHTML=cards;
+}
+
+function buildNFLTD(){
+  var q=((document.getElementById('nfl-search')||{}).value||'').trim().toLowerCase();
+  var teamF=(document.getElementById('nfl-team-filter')||{}).value||'all';
+  var rows=(NFL_PLAYERS||[]).filter(function(p){
+    if(!p.playable || !p.anytime_td) return false;
+    if(q && (p.name||'').toLowerCase().indexOf(q)===-1) return false;
+    if(teamF!=='all' && p.team!==teamF) return false;
+    if(nflConf==='high' && p.confidence!=='high') return false;
+    return true;
+  }).sort(function(a,b){ return b.anytime_td-a.anytime_td; });
+  var cnt=document.getElementById('nfl-td-count'); if(cnt) cnt.textContent=rows.length;
+  var fc=document.getElementById('nfl-filter-count'); if(fc) fc.textContent=(q||teamF!=='all'||nflConf!=='all')?(rows.length+' shown'):'';
+  var body=document.getElementById('nfl-td-body'); if(!body) return;
+  if(!rows.length){ body.innerHTML='<div style="color:var(--muted);font-size:12px;padding:24px;text-align:center">No projections yet — run the NFL Data Pull to refresh the snapshot.</div>'; return; }
+  var cards='';
+  rows.forEach(function(p){
+    var pct=p.anytime_td;
+    var vCol=pct>=55?'var(--green)':(pct>=35?'var(--gold)':'var(--muted)');
+    var odds=(p.td_odds!=null)?((p.td_odds>0?'+':'')+p.td_odds):'—';
+    var flag=(p.status_flag==='flag')?' <span class="nba-flag dtd">'+(p.status||'Q')+'</span>':'';
+    var sznTD=((p.rush_td||0)+(p.rec_td||0));
+    var stats=''
+      +'<div class="pick-stat"><div class="pick-stat-val">'+odds+'</div><div class="pick-stat-lbl">Fair Odds</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val">'+f(sznTD,2)+'</div><div class="pick-stat-lbl">TD/G</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val">'+(p.td_total!=null?p.td_total:'—')+'</div><div class="pick-stat-lbl">TDs</div></div>'
+      +'<div class="pick-stat"><div class="pick-stat-val">'+((p.total!=null)?p.total:'—')+'</div><div class="pick-stat-lbl">Total</div></div>';
+    cards+='<div class="pick-card">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px">'
+        +'<div style="min-width:0">'
+          +'<div class="pick-name">'+nflPhoto(p.headshot,28)+p.name+'</div>'
+          +'<div style="font-size:11px;color:var(--muted);margin-top:3px">'
+            +'<span class="badge-gray">'+(p.team||'')+'</span>'+(p.opp?' vs '+p.opp:'')+' &middot; '+(p.pos||'')+' '+_nbaConfPill(p.confidence)+flag+_nflTDMatch(p)+_nflVolume(p,(p.pos==='RB'||p.pos==='QB')?'rush_yds':'rec')+_nflTeamTotal(p)+_nflWeather(p)
+          +'</div>'
+        +'</div>'
+        +'<div style="text-align:right;flex-shrink:0">'
+          +'<div style="font-size:22px;font-weight:800;color:'+vCol+'">'+f(pct,1)+'%</div>'
+          +'<div style="font-size:9px;color:'+vCol+';text-transform:uppercase;letter-spacing:0.5px;font-weight:700">ANYTIME TD</div>'
+        +'</div>'
+      +'</div>'
+      +'<div class="pick-stats">'+stats+'</div>'
+      +_nflUsage(p,'td')
+      +'</div>';
+  });
+  body.innerHTML=cards;
+}
+
+function populateMatchupGames(){
+  var sel=document.getElementById('nfl-matchup-game'); if(!sel) return;
+  var games=(NFL&&NFL.games)||[];
+  if(!games.length){ sel.innerHTML='<option>No games</option>'; return; }
+  var cur=sel.value;
+  sel.innerHTML=games.map(function(g,i){
+    var lbl=(g.away_abb||g.away_nflv||'?')+' @ '+(g.home_abb||g.home_nflv||'?')+(g.status?('  —  '+g.status):'');
+    return '<option value="'+i+'">'+lbl+'</option>';
+  }).join('');
+  if(cur) sel.value=cur;
+}
+
+function _mkTeamPlayers(team){ return (NFL_PLAYERS||[]).filter(function(p){return p.team===team;}); }
+function _mkTop(arr,field){ var r=arr.filter(function(p){return p.playable&&p[field]!=null;}).sort(function(a,b){return b[field]-a[field];}); return r; }
+function _gradeCol(l){ return l==='Soft'?'var(--green)':(l==='Tough'?'var(--red)':'var(--muted)'); }
+
+function _mkDefGrades(opp){
+  var g=((NFL&&NFL.def_grades)||{})[opp]; if(!g) return '';
+  var rows=[['pass_yds','vs QB pass'],['rec_yds_WR','vs WR'],['rec_yds_TE','vs TE'],['rush_yds_RB','vs RB rush'],['rec_yds_RB','vs RB rec']];
+  var out=rows.map(function(r){
+    var d=g[r[0]]; if(!d) return '';
+    return '<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0">'
+      +'<span style="color:var(--muted)">'+r[1]+'</span>'
+      +'<span style="font-weight:700;color:'+_gradeCol(d.label)+'">'+d.label+' <span style="color:var(--muted);font-weight:600">('+d.rank+'/'+d.n+')</span></span></div>';
+  }).join('');
+  return '<div style="margin-top:10px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin-bottom:3px">Opponent defense</div>'+out+'</div>';
+}
+
+function _mkTeamCol(team,opp,imp,favTxt,wx){
+  var ps=_mkTeamPlayers(team);
+  function leg(label,p,field,unit){
+    if(!p) return '';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">'
+      +'<div style="min-width:0"><span style="color:var(--muted);font-size:10px">'+label+'</span><br><span style="font-weight:700">'+p.name+'</span> <span style="color:var(--muted);font-size:10px">'+(p.pos||'')+'</span></div>'
+      +'<div style="font-weight:800;text-align:right;white-space:nowrap">'+f(p[field],1)+' <span style="font-size:9px;color:var(--muted)">'+unit+'</span></div></div>';
+  }
+  var qb=_mkTop(ps,'proj_pass_yds')[0];
+  var recs=_mkTop(ps,'proj_rec_yds').slice(0,2);
+  var rush=_mkTop(ps,'proj_rush_yds')[0];
+  var td=_mkTop(ps,'anytime_td')[0];
+  var legs=leg('Passing',qb,'proj_pass_yds','YDS');
+  recs.forEach(function(r,i){ legs+=leg(i===0?'Receiving (WR1)':'Receiving',r,'proj_rec_yds','YDS'); });
+  legs+=leg('Rushing',rush,'proj_rush_yds','YDS');
+  if(td) legs+='<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">'
+      +'<div><span style="color:var(--muted);font-size:10px">Top TD</span><br><span style="font-weight:700">'+td.name+'</span> <span style="color:var(--muted);font-size:10px">'+(td.pos||'')+'</span></div>'
+      +'<div style="font-weight:800;text-align:right">'+f(td.anytime_td,1)+'% <span style="font-size:9px;color:var(--muted)">TD</span></div></div>';
+  // injuries
+  var inj=ps.filter(function(p){return p.status_flag==='out'||p.status_flag==='flag';})
+            .sort(function(a,b){return (a.status_flag==='out'?0:1)-(b.status_flag==='out'?0:1);});
+  var injHtml='';
+  if(inj.length){
+    injHtml='<div style="margin-top:10px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin-bottom:3px">Injuries</div>'
+      +inj.slice(0,6).map(function(p){
+        var c=p.status_flag==='out'?'var(--red)':'var(--gold)';
+        return '<div style="font-size:11px;padding:2px 0"><span style="font-weight:700">'+p.name+'</span> <span style="color:var(--muted)">'+(p.pos||'')+'</span> <span style="color:'+c+';font-weight:700">'+(p.status||'')+'</span></div>';
+      }).join('')+'</div>';
+  }
+  return '<div class="pick-card" style="flex:1;min-width:0">'
+    +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">'
+      +'<div style="font-size:16px;font-weight:800">'+team+'</div>'
+      +'<div style="font-size:11px;color:var(--muted)">'+favTxt+'</div></div>'
+    +'<div style="font-size:11px;color:var(--muted);margin-bottom:8px">Implied total <span style="color:var(--text);font-weight:700">'+(imp!=null?imp:'—')+'</span></div>'
+    +legs+_mkDefGrades(opp)+injHtml
+  +'</div>';
+}
+
+function buildMatchup(){
+  var body=document.getElementById('nfl-matchup-body'); if(!body) return;
+  var games=(NFL&&NFL.games)||[];
+  var sel=document.getElementById('nfl-matchup-game');
+  var g=games[parseInt((sel&&sel.value)||'0',10)];
+  if(!g){ body.innerHTML='<div style="color:var(--muted);font-size:12px;padding:24px;text-align:center">No games yet — run the NFL Data Pull to refresh the snapshot.</div>'; return; }
+  var home=g.home_nflv, away=g.away_nflv;
+  var tot=(g.total!=null)?Number(g.total):null;
+  var hs=(g.home_spread!=null)?Number(g.home_spread):null;
+  var homeImp=null, awayImp=null;
+  if(tot!=null&&hs!=null){ homeImp=Math.round((tot/2-hs/2)*10)/10; awayImp=Math.round((tot/2+hs/2)*10)/10; }
+  function favTxt(spread){ if(spread==null) return ''; return spread<0?('Favored '+spread):('Underdog +'+spread); }
+  var wx=g.wx;
+  var wxLine='';
+  if(wx){ wxLine=wx.indoor?'🏟️ Indoors':('🌦️ '+(wx.note||'')); }
+  var head='<div class="pick-card" style="margin-bottom:14px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
+      +'<div style="font-size:18px;font-weight:800">'+(g.away_abb||away)+' @ '+(g.home_abb||home)+'</div>'
+      +'<div style="font-size:12px;color:var(--muted)">'+(g.status||'')+'</div></div>'
+    +'<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:6px">'
+      +(tot!=null?'<span>O/U <span style="color:var(--text);font-weight:700">'+tot+'</span></span>':'')
+      +(hs!=null?'<span>Spread <span style="color:var(--text);font-weight:700">'+(g.home_abb||home)+' '+(hs>0?'+':'')+hs+'</span></span>':'')
+      +(wxLine?('<span>'+wxLine+'</span>'):'')
+    +'</div></div>';
+  var cols='<div style="display:flex;gap:14px;flex-wrap:wrap">'
+    +_mkTeamCol(away,home,awayImp,favTxt(hs!=null?-hs:null),wx)
+    +_mkTeamCol(home,away,homeImp,favTxt(hs),wx)
+  +'</div>';
+  body.innerHTML=head+cols;
+}
+
+function buildStacks(){
+  var q=((document.getElementById('nfl-search')||{}).value||'').trim().toLowerCase();
+  var teamF=(document.getElementById('nfl-team-filter')||{}).value||'all';
+  var panels=((NFL&&NFL.stacks)||[]).filter(function(s){
+    if(teamF!=='all' && s.team!==teamF) return false;
+    if(q){
+      var hay=((s.team||'')+' '+(s.opp||'')+' '+((s.qb&&s.qb.name)||'')+' '+(s.stack||[]).map(function(x){return x.name;}).join(' ')).toLowerCase();
+      if(hay.indexOf(q)===-1) return false;
+    }
+    return true;
+  });
+  var cnt=document.getElementById('nfl-stacks-count'); if(cnt) cnt.textContent=panels.length;
+  var fc=document.getElementById('nfl-filter-count'); if(fc) fc.textContent=(q||teamF!=='all')?(panels.length+' shown'):'';
+  var body=document.getElementById('nfl-stacks-body'); if(!body) return;
+  if(!panels.length){ body.innerHTML='<div style="color:var(--muted);font-size:12px;padding:24px;text-align:center">No stacks yet — run the NFL Data Pull to refresh the snapshot.</div>'; return; }
+  function sCol(s){ return s==='Strong'?'var(--green)':(s==='Moderate'?'var(--gold)':'var(--muted)'); }
+  var html='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">';
+  panels.forEach(function(s){
+    var legs='';
+    if(s.qb){
+      legs+='<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">'
+        +'<div><span style="font-weight:700">'+s.qb.name+'</span> <span style="color:var(--muted);font-size:10px">QB · anchor</span></div>'
+        +'<div style="font-weight:800;color:var(--green)">'+(s.qb.proj!=null?f(s.qb.proj,1):'—')+' <span style="font-size:9px;color:var(--muted)">PASS</span></div>'
+      +'</div>';
+    }
+    (s.stack||[]).forEach(function(c){
+      legs+='<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">'
+        +'<div style="min-width:0"><span style="font-weight:700">'+c.name+'</span> '
+          +'<span style="color:var(--muted);font-size:10px">'+c.pos+(c.tgt_share?(' · '+c.tgt_share+'% tgt'):'')+'</span><br>'
+          +'<span style="font-size:10px;font-weight:700;color:'+sCol(c.strength)+'">'+c.strength+' stack</span></div>'
+        +'<div style="font-weight:800;text-align:right">'+(c.proj!=null?f(c.proj,1):'—')+' <span style="font-size:9px;color:var(--muted)">REC</span></div>'
+      +'</div>';
+    });
+    if(s.rb){
+      var dCol=s.rb.dir==='stack'?'var(--green)':(s.rb.dir==='fade'?'var(--red)':'var(--muted)');
+      var dTxt=s.rb.dir==='stack'?'stacks (favored)':(s.rb.dir==='fade'?'fade (big dog)':'game-script dependent');
+      legs+='<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0">'
+        +'<div><span style="font-weight:700">'+s.rb.name+'</span> <span style="color:var(--muted);font-size:10px">RB'+(s.rb.carry_share?(' · '+s.rb.carry_share+'% car'):'')+'</span><br>'
+          +'<span style="font-size:10px;font-weight:700;color:'+dCol+'">'+dTxt+'</span></div>'
+        +'<div style="font-weight:800;text-align:right">'+(s.rb.proj!=null?f(s.rb.proj,1):'—')+' <span style="font-size:9px;color:var(--muted)">RUSH</span></div>'
+      +'</div>';
+    }
+    html+='<div class="pick-card">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+        +'<div style="font-weight:800"><span class="badge-gray">'+s.team+'</span>'+(s.opp?' vs '+s.opp:'')+'</div>'
+        +'<div style="font-size:10px;color:var(--muted)">'+(s.team_total!=null?('IMP '+s.team_total):'')+(s.total!=null?(' · O/U '+s.total):'')+'</div>'
+      +'</div>'+legs
+    +'</div>';
+  });
+  html+='</div>';
+  body.innerHTML=html;
+}
+
+function _nflTDMatch(p){
+  var m=p.td_mf; if(m==null) return '';
+  var pct=Math.round((m-1)*100);
+  if(m>=1.03) return ' <span class="nba-flag" style="background:rgba(34,197,94,0.12);color:var(--green);border:1px solid rgba(34,197,94,0.3)">SOFT TD D +'+pct+'%</span>';
+  if(m<=0.97) return ' <span class="nba-flag" style="background:rgba(239,68,68,0.12);color:var(--red);border:1px solid rgba(239,68,68,0.3)">TOUGH TD D '+pct+'%</span>';
+  return '';
 }
 
 function go(name){
