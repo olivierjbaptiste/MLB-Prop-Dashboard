@@ -24,7 +24,9 @@ import urllib.request
 import urllib.error
 from statistics import median
 
-ODDS_API_KEY = os.environ.get("ODDS_API_KEY", "")
+# Prefer ODDS_API_KEY2 (the NFL/NBA edges key), fall back to ODDS_API_KEY so
+# this works whichever secret name holds the Odds API key.
+ODDS_API_KEY = os.environ.get("ODDS_API_KEY2") or os.environ.get("ODDS_API_KEY", "")
 BASE = "https://api.the-odds-api.com/v4"
 
 SPORT = {"nfl": "americanfootball_nfl", "nba": "basketball_nba"}
