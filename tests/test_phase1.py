@@ -14,6 +14,10 @@ import math
 import datetime as dt
 import unittest
 
+# Import app.py for the stale-protection tests without triggering its live
+# MLB startup data pull.
+os.environ["DIAMOND_NO_STARTUP"] = "1"
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import nfl_model
@@ -155,6 +159,139 @@ class TestOddsMatching(unittest.TestCase):
         self.assertEqual(e["price"], posted)
         self.assertIn(e["book"], ("DraftKings", "FanDuel"))
         self.assertTrue(e.get("ts"))
+
+
+# ── P2.1  push + market blend must form ONE valid distribution ─────────
+class TestPushBlendDistribution(unittest.TestCase):
+    def _model_dist(self):
+        # integer line with real push mass
+        return nfl_model._ou_probs(74.0, 74.0, 12.0)   # (over, push, under)
+
+    def test_old_approach_overshoots_one(self):
+        # Document the bug: blending the two win-probs but keeping the RAW push
+        # leaves total mass > 1 on an integer line.
+        p_over, p_push, p_under = self._model_dist()
+        self.assertGreater(p_push, 0.0)
+        a = nfl_model.EDGE_ANCHOR
+        fair_over = 0.5
+        blended_over = a * p_over + (1 - a) * fair_over
+        blended_under = a * p_under + (1 - a) * (1 - fair_over)
+        old_total = blended_over + blended_under + p_push      # the pre-fix math
+        self.assertGreater(old_total, 1.0 + 1e-9)              # excess probability mass
+
+    def test_blend_ou_sums_to_one(self):
+        p_over, p_push, p_under = self._model_dist()
+        for fair in (0.5, 0.42, 0.6, None):
+            bo, bp, bu = nfl_model._blend_ou(p_over, p_push, p_under, fair, nfl_model.EDGE_ANCHOR)
+            self.assertAlmostEqual(bo + bp + bu, 1.0, places=9,
+                                   msg="blended over+push+under must sum to 1 (fair=%s)" % fair)
+            for v in (bo, bp, bu):
+                self.assertGreaterEqual(v, -1e-9)
+
+    def test_halfpoint_blend_has_no_push(self):
+        po, pp, pu = nfl_model._ou_probs(80.0, 75.5, 12.0)
+        bo, bp, bu = nfl_model._blend_ou(po, pp, pu, 0.5, nfl_model.EDGE_ANCHOR)
+        self.assertAlmostEqual(bp, 0.0)
+        self.assertAlmostEqual(bo + bu, 1.0, places=9)
+
+    def test_edge_ev_uses_valid_distribution(self):
+        # An edge's stored (prob, push) must leave a non-negative loss mass and
+        # EV must equal prob*(dec-1) - (1 - prob - push).
+        offer = {"book": "DK", "line": 74.0, "over_price": -110, "under_price": -110,
+                 "ts": "2026-10-11T01:00:00Z"}
+        ln = {"offers": [offer, dict(offer, book="FD")], "books": 2, "fair_over": 0.5}
+        players = [{"name": "RB One", "pos": "RB", "team": "DAL", "opp": "PHI",
+                    "playable": True, "proj_rush_yds": 74.0}]
+        nfl_model.compute_edges(players, {"rb one": {"rush_yds": ln}})
+        e = players[0].get("edge", {}).get("rush_yds")
+        self.assertIsNotNone(e)
+        prob, push = e["prob"], e["push"]
+        lose = 1 - prob - push
+        self.assertGreaterEqual(lose, -1e-9)
+        self.assertLessEqual(prob + push, 1.0 + 1e-9)
+        dec = nfl_model._dec(e["price"])
+        # EV matches the valid-distribution formula (tolerance covers the stored
+        # ev_pct being rounded to 1 dp vs prob/push rounded to 4 dp)
+        self.assertAlmostEqual(e["ev_pct"] / 100.0, prob * (dec - 1) - lose, delta=0.005)
+
+
+# ── P2.2  stale-snapshot protection ────────────────────────────────────
+import app   # noqa: E402
+
+def _fresh_snapshot():
+    import time as _t
+    return {"ts": _t.time(), "today": "2026-10-11",
+            "games": [{"status": "Sun 1:00 PM"}],
+            "players": [{"name": "x"}],
+            "edges": [{"name": "x", "ev_pct": 9.0}]}
+
+class TestStaleProtection(unittest.TestCase):
+    def test_unavailable_when_no_players(self):
+        st = app._data_status({"games": [], "players": []}, "nfl")
+        self.assertFalse(st["available"])
+        self.assertTrue(st["stale"])
+
+    def test_missing_timestamp_is_stale(self):
+        d = _fresh_snapshot(); d["ts"] = None
+        st = app._data_status(d, "nfl")
+        self.assertTrue(st["stale"])
+        self.assertIn("missing snapshot timestamp", st["reasons"])
+
+    def test_old_timestamp_is_stale(self):
+        import time as _t
+        d = _fresh_snapshot(); d["ts"] = _t.time() - 1000 * 3600   # ~41 days old
+        st = app._data_status(d, "nfl")
+        self.assertTrue(st["stale"])
+
+    def test_all_games_final_is_stale(self):
+        d = _fresh_snapshot()
+        d["games"] = [{"status": "Final"}, {"status": "Final/OT"}]
+        st = app._data_status(d, "nfl")
+        self.assertTrue(st["stale"])
+        self.assertEqual(st["upcoming"], 0)
+
+    def test_fresh_snapshot_is_ok(self):
+        st = app._data_status(_fresh_snapshot(), "nfl")
+        self.assertTrue(st["available"])
+        self.assertFalse(st["stale"])
+
+    def test_stale_withholds_edges(self):
+        d = _fresh_snapshot(); d["ts"] = None    # stale
+        st = app._data_status(d, "nfl")
+        app._guard_recommendations(d, st)
+        self.assertEqual(d["edges"], [])          # betting recs withheld
+        self.assertEqual(d.get("edges_withheld"), 1)
+
+    def test_fresh_keeps_edges(self):
+        d = _fresh_snapshot()
+        st = app._data_status(d, "nfl")
+        app._guard_recommendations(d, st)
+        self.assertEqual(len(d["edges"]), 1)
+        self.assertIsNone(d.get("edges_withheld"))
+
+
+# ── P2.3  tz fallback: exact DST transition hours ──────────────────────
+class TestTZFallbackTransitions(unittest.TestCase):
+    def setUp(self):
+        self.et = tzutil._USEastern()
+
+    def test_fall_back_2026(self):
+        # 1st Sunday of Nov 2026 = Nov 1; transition at 02:00 local
+        before = dt.datetime(2026, 11, 1, 1, 30)   # still EDT
+        after  = dt.datetime(2026, 11, 1, 2, 30)   # now EST
+        self.assertEqual(self.et.utcoffset(before), dt.timedelta(hours=-4))
+        self.assertEqual(self.et.utcoffset(after),  dt.timedelta(hours=-5))
+
+    def test_spring_forward_2026(self):
+        # 2nd Sunday of March 2026 = Mar 8; transition at 02:00 local
+        before = dt.datetime(2026, 3, 8, 1, 30)    # still EST
+        after  = dt.datetime(2026, 3, 8, 3, 30)    # now EDT
+        self.assertEqual(self.et.utcoffset(before), dt.timedelta(hours=-5))
+        self.assertEqual(self.et.utcoffset(after),  dt.timedelta(hours=-4))
+
+    def test_names(self):
+        self.assertEqual(self.et.tzname(dt.datetime(2026, 7, 1, 12)), "EDT")
+        self.assertEqual(self.et.tzname(dt.datetime(2026, 12, 1, 12)), "EST")
 
 
 if __name__ == "__main__":

@@ -34,6 +34,9 @@ def _data_status(d, sport):
     upcoming = sum(1 for g in games
                    if "final" not in str(g.get("status") or "").lower())
     stale = False
+    if ts is None:
+        stale = True
+        reasons.append("missing snapshot timestamp")
     if age_h is not None and age_h > _STALE_HOURS.get(sport, 24):
         stale = True
         reasons.append("snapshot is {}h old".format(age_h))
@@ -46,6 +49,18 @@ def _data_status(d, sport):
             "snapshot_date": d.get("today"),
             "today": tzutil.et_today().strftime("%Y-%m-%d"),
             "games": len(games), "upcoming": upcoming, "reasons": reasons}
+
+
+def _guard_recommendations(d, status):
+    """Stale or invalid data must not silently surface as *current* betting
+    recommendations. The edge board (actionable bets) is withheld when the
+    snapshot is stale or unavailable; projections stay visible but are labeled
+    stale in the UI, so historical work is never passed off as live."""
+    if not status.get("available", False) or status.get("stale"):
+        if d.get("edges"):
+            d["edges_withheld"] = len(d["edges"])
+        d["edges"] = []
+    return d
 
 app = Flask(__name__)
 
@@ -76,11 +91,13 @@ def refresh_data():
         traceback.print_exc()
 
 
-# Load data immediately on startup — not in background
-# This ensures data is ready when first request comes in
-print("Starting MLB HR Prop Dashboard...")
-refresh_data()
-print("Startup data load complete")
+# Load data immediately on startup — not in background, so data is ready when
+# the first request comes in. Skippable (DIAMOND_NO_STARTUP=1) so the module
+# can be imported for tests/tooling without triggering a live data pull.
+if os.environ.get("DIAMOND_NO_STARTUP") != "1":
+    print("Starting MLB HR Prop Dashboard...")
+    refresh_data()
+    print("Startup data load complete")
 
 
 def get_nba_data():
@@ -90,7 +107,9 @@ def get_nba_data():
         d = nba.read_snapshot() or {}
         if d.get("players"):
             nba_model.project_all(d)
-        d["data_status"] = _data_status(d, "nba")
+        status = _data_status(d, "nba")
+        d["data_status"] = status
+        _guard_recommendations(d, status)
         return d
     except Exception as e:
         print(f"NBA load error: {e}")
@@ -103,7 +122,9 @@ def get_nfl_data():
         d = nfl.read_snapshot() or {}
         if d.get("players"):
             nfl_model.project_all(d)
-        d["data_status"] = _data_status(d, "nfl")
+        status = _data_status(d, "nfl")
+        d["data_status"] = status
+        _guard_recommendations(d, status)
         return d
     except Exception as e:
         print(f"NFL load error: {e}")

@@ -1859,12 +1859,20 @@ function buildEdges(){
   var all=(NFL&&NFL.edges)||[];
   var cnt=document.getElementById('nfl-edges-count'); if(cnt) cnt.textContent=all.length;
   if(!all.length){
+    var st=(NFL&&NFL.data_status)||{};
+    var withheld=(NFL&&NFL.edges_withheld);
     var hasKey=(NFL&&NFL.odds_credits!=null);
-    body.innerHTML='<div class="pick-card" style="text-align:center;color:var(--muted);font-size:13px;padding:28px">'
-      +(hasKey
-        ? 'No edges in the current slate — the model and the market agree right now, or props aren’t posted yet.'
-        : '<b style="color:var(--text)">Edges need a live odds feed.</b><br><br>Add your Odds API key as a GitHub secret named <code>ODDS_API_KEY</code>, then run the NFL Data Pull. The board fills with projection-vs-book edges automatically.')
-      +'</div>';
+    var msg;
+    if(withheld){
+      msg='<b style="color:var(--gold)">&#9888; Edges hidden — data isn’t current.</b><br><br>'
+        +(st.reasons&&st.reasons.length?('('+st.reasons.join('; ')+')<br><br>'):'')
+        +'Betting recommendations are only shown on fresh data. Run the NFL Data Pull to refresh.';
+    } else if(hasKey){
+      msg='No edges in the current slate — the model and the market agree right now, or props aren’t posted yet.';
+    } else {
+      msg='<b style="color:var(--text)">Edges need a live odds feed.</b><br><br>Add your Odds API key as a GitHub secret, then run the NFL Data Pull. The board fills with projection-vs-book edges automatically.';
+    }
+    body.innerHTML='<div class="pick-card" style="text-align:center;color:var(--muted);font-size:13px;padding:28px">'+msg+'</div>';
     return;
   }
   var q=((document.getElementById('nfl-search')||{}).value||'').trim().toLowerCase();

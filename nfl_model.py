@@ -547,6 +547,26 @@ def _anchor(model_p, market_p):
         return model_p
     return EDGE_ANCHOR * model_p + (1 - EDGE_ANCHOR) * market_p
 
+def _blend_ou(p_over, p_push, p_under, fair_over, anchor):
+    """Blend the model's (over, push, under) distribution with the de-vigged
+    market into ONE distribution that sums to 1.0.
+
+    The market is a two-way price, so it carries no push mass; the model's push
+    therefore blends against a market push of 0 (→ anchor·p_push). Without this
+    the old code blended the two win-probabilities but kept the model's *raw*
+    push, leaving total mass = 1 + (1-anchor)·p_push > 1 on integer lines. With
+    no market price we fall back to the model distribution unchanged.
+    """
+    if fair_over is None:
+        return p_over, p_push, p_under
+    bo = anchor * p_over + (1 - anchor) * fair_over
+    bu = anchor * p_under + (1 - anchor) * (1 - fair_over)
+    bp = anchor * p_push                      # market push assumed 0
+    s = bo + bp + bu                          # == 1 algebraically; normalize for FP safety
+    if s > 0:
+        bo, bp, bu = bo / s, bp / s, bu / s
+    return bo, bp, bu
+
 def _ev(p_win, p_push, price):
     """Expected value per $1 stake. A push returns the stake (net 0); the
     remaining mass is a loss."""
@@ -588,20 +608,22 @@ def compute_edges(players, odds_lines):
                 sigma = max(1.0, _CV.get(prop, 0.4) * max(proj, line))
                 p_over, p_push, p_under = _ou_probs(proj, line, sigma)
                 fair_over = _devig2(o.get("over_price"), o.get("under_price"))
-                for side, win, px, mkt in (
-                        ("Over",  p_over,  o.get("over_price"),  fair_over),
-                        ("Under", p_under, o.get("under_price"),
+                # blend into ONE valid distribution (over + push + under == 1)
+                b_over, b_push, b_under = _blend_ou(p_over, p_push, p_under,
+                                                    fair_over, EDGE_ANCHOR)
+                for side, win, mprob, px, mkt in (
+                        ("Over",  b_over,  p_over,  o.get("over_price"),  fair_over),
+                        ("Under", b_under, p_under, o.get("under_price"),
                          (1 - fair_over) if fair_over is not None else None)):
                     if not _offer_ok(px):
                         continue
-                    prob = _anchor(win, mkt)
-                    ev = _ev(prob, p_push, px)
+                    ev = _ev(win, b_push, px)       # win & push from the same valid dist
                     if ev is None:
                         continue
                     if best is None or ev > best["_ev"]:
                         best = {"side": side, "book": o.get("book"), "line": line,
-                                "price": px, "prob": round(prob, 4),
-                                "model_prob": round(win, 4), "push": round(p_push, 4),
+                                "price": px, "prob": round(win, 4),
+                                "model_prob": round(mprob, 4), "push": round(b_push, 4),
                                 "fair": round(mkt, 4) if mkt is not None else None,
                                 "ts": o.get("ts"), "_ev": ev}
             if not best:
