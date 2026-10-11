@@ -116,6 +116,20 @@ def build_records(data, model_version, now=None):
             offer_ts = _parse_iso(e.get("ts"))
             offer_ok = bool(e) and (offer_ts is None or
                                     (now - offer_ts) <= timedelta(hours=STALE_OFFER_HOURS))
+            # Full v1 O/U distribution (fixed-CV normal — the production layer),
+            # stored so v1 and v2 can be graded on the identical event P(Over).
+            dist_block = {"p_over": None, "p_push": None, "p_under": None}
+            if offer_ok and prop in ("pass_yds", "rush_yds", "rec_yds", "rec"):
+                ln = e.get("line")
+                if ln is not None and proj:
+                    try:
+                        import nfl_model as _m
+                        sigma = max(1.0, _m._CV[prop] * proj)
+                        o, pu, u = _m._ou_probs(proj, ln, sigma)
+                        dist_block = {"p_over": round(o, 6), "p_push": round(pu, 6),
+                                      "p_under": round(u, 6)}
+                    except Exception:
+                        pass
             price_block = {
                 "book": e.get("book"), "side": e.get("side"), "line": e.get("line"),
                 "price": e.get("price"), "model_prob": e.get("prob"),
@@ -125,13 +139,17 @@ def build_records(data, model_version, now=None):
                 "model_prob": None, "ev_pct": None, "line_ts": None,
                 "offer_expired": bool(e and not offer_ok) or None,
             }
+            price_block.update(dist_block)
             rec = {
                 "captured_at": captured_at,
                 "data_as_of": data_as_of,
                 "snapshot_ts": snap_ts,
                 "model_version": model_version,
                 "season": data.get("season"),
+                "week": data.get("week") or g.get("week"),
                 "game_id": g.get("game_id"),
+                "event_id": g.get("game_id"),
+                "game_start": g.get("start"),
                 "game_date": g.get("start") or data.get("today"),
                 "team": p.get("team"), "opp": p.get("opp"), "home": p.get("home"),
                 "player_id": p.get("id"), "player": p.get("name"),
@@ -189,7 +207,9 @@ def build_v2_records(data, now=None, dist="empirical"):
             rec = {
                 "captured_at": captured_at, "data_as_of": data_as_of, "snapshot_ts": snap_ts,
                 "model_version": best["model_version"], "dist": dist,
-                "season": data.get("season"), "game_id": g.get("game_id"),
+                "season": data.get("season"), "week": data.get("week") or g.get("week"),
+                "game_id": g.get("game_id"), "event_id": g.get("game_id"),
+                "game_start": g.get("start"),
                 "game_date": g.get("start") or data.get("today"),
                 "team": p.get("team"), "opp": p.get("opp"), "home": p.get("home"),
                 "player_id": p.get("id"), "player": p.get("name"),

@@ -1,1 +1,268 @@
-{"ts": 1791723654.6749184, "season": 2026, "today": "2026-10-11", "games": [{"game_id": "401772510", "home_nflv": "DAL", "away_nflv": "PHI", "home_abb": "DAL", "away_abb": "PHI", "status": "Sun 1:00 PM EDT", "start": "2026-10-12T17:00Z", "home_spread": -3.0, "total": 49.5, "wx": {"indoor": true, "note": "Indoors (climate-controlled)"}}], "team_defense": {"PHI": {"pass_yds": 250, "rush_yds_RB": 110, "rec_yds_WR": 160, "rec_yds_TE": 55, "rec_yds_RB": 35, "rec_WR": 14, "rec_TE": 5, "rec_RB": 4, "rush_td_RB": 1.0, "rec_td_WR": 1.1, "rec_td_TE": 0.4, "rec_td_RB": 0.2, "games": 5}, "DAL": {"pass_yds": 240, "rush_yds_RB": 95, "rec_yds_WR": 150, "rec_yds_TE": 50, "rec_yds_RB": 30, "rec_WR": 13, "rec_TE": 5, "rec_RB": 4, "rush_td_RB": 0.9, "rec_td_WR": 1.0, "rec_td_TE": 0.3, "rec_td_RB": 0.2, "games": 5}}, "players": [{"id": "00-0036322", "name": "CeeDee Lamb", "pos": "WR", "team": "DAL", "opp": "PHI", "spread": -3.0, "total": 49.5, "g": 5, "status": "", "pass_yds": 0, "rush_yds": 0, "rec_yds": 92, "rec": 7, "targets": 11, "carries": 0, "att": 0, "pass_yds_l3": 0, "rush_yds_l3": 0, "rec_yds_l3": 88, "rec_l3": 7, "rush_td": 0, "rec_td": 0.4, "rush_td_l3": 0, "rec_td_l3": 0.3, "td_total": 2, "snap_pct": 88, "tgt_share": 28, "carry_share": 0, "rz_tgt": 4, "rz_car": 0, "rz10_tgt": 2, "rz10_car": 0, "headshot": "", "log": [{"wk": 5, "opp": "NYG", "rec_yds": 95, "rec": 8, "rush_yds": 0, "pass_yds": 0}]}, {"id": "00-0037111", "name": "Javonte W", "pos": "RB", "team": "DAL", "opp": "PHI", "spread": -3.0, "total": 49.5, "g": 5, "status": "", "pass_yds": 0, "rush_yds": 74, "rec_yds": 20, "rec": 3, "targets": 4, "carries": 16, "att": 0, "pass_yds_l3": 0, "rush_yds_l3": 78, "rec_yds_l3": 18, "rec_l3": 3, "rush_td": 0.8, "rec_td": 0.1, "rush_td_l3": 1.0, "rec_td_l3": 0, "td_total": 4, "snap_pct": 62, "tgt_share": 10, "carry_share": 62, "rz_tgt": 1, "rz_car": 12, "rz10_tgt": 0, "rz10_car": 8, "headshot": "", "log": [{"wk": 5, "opp": "NYG", "rec_yds": 22, "rec": 3, "rush_yds": 82, "pass_yds": 0}]}, {"id": "00-0035000", "name": "Dak P", "pos": "QB", "team": "DAL", "opp": "PHI", "spread": -3.0, "total": 49.5, "g": 5, "status": "", "pass_yds": 285, "rush_yds": 6, "rec_yds": 0, "rec": 0, "targets": 0, "carries": 3, "att": 34, "pass_yds_l3": 290, "rush_yds_l3": 5, "rec_yds_l3": 0, "rec_l3": 0, "rush_td": 0.2, "rec_td": 0, "rush_td_l3": 0.2, "rec_td_l3": 0, "td_total": 1, "snap_pct": 100, "tgt_share": 0, "carry_share": 12, "rz_tgt": 0, "rz_car": 2, "rz10_tgt": 0, "rz10_car": 1, "headshot": "", "log": [{"wk": 5, "opp": "NYG", "rec_yds": 0, "rec": 0, "rush_yds": 6, "pass_yds": 288}]}], "odds": {"ceedee lamb": {"rec_yds": {"consensus_line": 84.5, "fair_over": 0.5, "books": 2, "event_id": "401772510", "home": "Dallas Cowboys", "away": "Philadelphia Eagles", "offers": [{"book": "DraftKings", "line": 84.5, "over_price": -112, "under_price": -108, "ts": "2026-10-11T13:00:00Z"}, {"book": "FanDuel", "line": 83.5, "over_price": -105, "under_price": -115, "ts": "2026-10-11T13:05:00Z"}]}}, "javonte w": {"rush_yds": {"consensus_line": 62.5, "fair_over": 0.5, "books": 2, "event_id": "401772510", "home": "Dallas Cowboys", "away": "Philadelphia Eagles", "offers": [{"book": "DraftKings", "line": 62.5, "over_price": -115, "under_price": -105, "ts": "2026-10-11T13:00:00Z"}, {"book": "BetMGM", "line": 63.5, "over_price": -110, "under_price": -110, "ts": "2026-10-11T13:02:00Z"}]}}, "dak p": {"pass_yds": {"consensus_line": 268.5, "fair_over": 0.5, "books": 2, "event_id": "401772510", "home": "Dallas Cowboys", "away": "Philadelphia Eagles", "offers": [{"book": "DraftKings", "line": 268.5, "over_price": -110, "under_price": -110, "ts": "2026-10-11T13:00:00Z"}]}}}, "odds_credits": "19930", "injuries_count": 799}
+{
+ "ts": 1791723654.6749184,
+ "season": 2026,
+ "today": "2026-10-11",
+ "games": [
+  {
+   "game_id": "401772510",
+   "home_nflv": "DAL",
+   "away_nflv": "PHI",
+   "home_abb": "DAL",
+   "away_abb": "PHI",
+   "status": "Sun 1:00 PM EDT",
+   "start": "2026-10-12T17:00Z",
+   "home_spread": -3.0,
+   "total": 49.5,
+   "wx": {
+    "indoor": true,
+    "note": "Indoors (climate-controlled)"
+   },
+   "week": 6
+  }
+ ],
+ "team_defense": {
+  "PHI": {
+   "pass_yds": 250,
+   "rush_yds_RB": 110,
+   "rec_yds_WR": 160,
+   "rec_yds_TE": 55,
+   "rec_yds_RB": 35,
+   "rec_WR": 14,
+   "rec_TE": 5,
+   "rec_RB": 4,
+   "rush_td_RB": 1.0,
+   "rec_td_WR": 1.1,
+   "rec_td_TE": 0.4,
+   "rec_td_RB": 0.2,
+   "games": 5
+  },
+  "DAL": {
+   "pass_yds": 240,
+   "rush_yds_RB": 95,
+   "rec_yds_WR": 150,
+   "rec_yds_TE": 50,
+   "rec_yds_RB": 30,
+   "rec_WR": 13,
+   "rec_TE": 5,
+   "rec_RB": 4,
+   "rush_td_RB": 0.9,
+   "rec_td_WR": 1.0,
+   "rec_td_TE": 0.3,
+   "rec_td_RB": 0.2,
+   "games": 5
+  }
+ },
+ "players": [
+  {
+   "id": "00-0036322",
+   "name": "CeeDee Lamb",
+   "pos": "WR",
+   "team": "DAL",
+   "opp": "PHI",
+   "spread": -3.0,
+   "total": 49.5,
+   "g": 5,
+   "status": "",
+   "pass_yds": 0,
+   "rush_yds": 0,
+   "rec_yds": 92,
+   "rec": 7,
+   "targets": 11,
+   "carries": 0,
+   "att": 0,
+   "pass_yds_l3": 0,
+   "rush_yds_l3": 0,
+   "rec_yds_l3": 88,
+   "rec_l3": 7,
+   "rush_td": 0,
+   "rec_td": 0.4,
+   "rush_td_l3": 0,
+   "rec_td_l3": 0.3,
+   "td_total": 2,
+   "snap_pct": 88,
+   "tgt_share": 28,
+   "carry_share": 0,
+   "rz_tgt": 4,
+   "rz_car": 0,
+   "rz10_tgt": 2,
+   "rz10_car": 0,
+   "headshot": "",
+   "log": [
+    {
+     "wk": 5,
+     "opp": "NYG",
+     "rec_yds": 95,
+     "rec": 8,
+     "rush_yds": 0,
+     "pass_yds": 0
+    }
+   ]
+  },
+  {
+   "id": "00-0037111",
+   "name": "Javonte W",
+   "pos": "RB",
+   "team": "DAL",
+   "opp": "PHI",
+   "spread": -3.0,
+   "total": 49.5,
+   "g": 5,
+   "status": "",
+   "pass_yds": 0,
+   "rush_yds": 74,
+   "rec_yds": 20,
+   "rec": 3,
+   "targets": 4,
+   "carries": 16,
+   "att": 0,
+   "pass_yds_l3": 0,
+   "rush_yds_l3": 78,
+   "rec_yds_l3": 18,
+   "rec_l3": 3,
+   "rush_td": 0.8,
+   "rec_td": 0.1,
+   "rush_td_l3": 1.0,
+   "rec_td_l3": 0,
+   "td_total": 4,
+   "snap_pct": 62,
+   "tgt_share": 10,
+   "carry_share": 62,
+   "rz_tgt": 1,
+   "rz_car": 12,
+   "rz10_tgt": 0,
+   "rz10_car": 8,
+   "headshot": "",
+   "log": [
+    {
+     "wk": 5,
+     "opp": "NYG",
+     "rec_yds": 22,
+     "rec": 3,
+     "rush_yds": 82,
+     "pass_yds": 0
+    }
+   ]
+  },
+  {
+   "id": "00-0035000",
+   "name": "Dak P",
+   "pos": "QB",
+   "team": "DAL",
+   "opp": "PHI",
+   "spread": -3.0,
+   "total": 49.5,
+   "g": 5,
+   "status": "",
+   "pass_yds": 285,
+   "rush_yds": 6,
+   "rec_yds": 0,
+   "rec": 0,
+   "targets": 0,
+   "carries": 3,
+   "att": 34,
+   "pass_yds_l3": 290,
+   "rush_yds_l3": 5,
+   "rec_yds_l3": 0,
+   "rec_l3": 0,
+   "rush_td": 0.2,
+   "rec_td": 0,
+   "rush_td_l3": 0.2,
+   "rec_td_l3": 0,
+   "td_total": 1,
+   "snap_pct": 100,
+   "tgt_share": 0,
+   "carry_share": 12,
+   "rz_tgt": 0,
+   "rz_car": 2,
+   "rz10_tgt": 0,
+   "rz10_car": 1,
+   "headshot": "",
+   "log": [
+    {
+     "wk": 5,
+     "opp": "NYG",
+     "rec_yds": 0,
+     "rec": 0,
+     "rush_yds": 6,
+     "pass_yds": 288
+    }
+   ]
+  }
+ ],
+ "odds": {
+  "ceedee lamb": {
+   "rec_yds": {
+    "consensus_line": 84.5,
+    "fair_over": 0.5,
+    "books": 2,
+    "event_id": "401772510",
+    "home": "Dallas Cowboys",
+    "away": "Philadelphia Eagles",
+    "offers": [
+     {
+      "book": "DraftKings",
+      "line": 84.5,
+      "over_price": -112,
+      "under_price": -108,
+      "ts": "2026-10-11T13:00:00Z"
+     },
+     {
+      "book": "FanDuel",
+      "line": 83.5,
+      "over_price": -105,
+      "under_price": -115,
+      "ts": "2026-10-11T13:05:00Z"
+     }
+    ]
+   }
+  },
+  "javonte w": {
+   "rush_yds": {
+    "consensus_line": 62.5,
+    "fair_over": 0.5,
+    "books": 2,
+    "event_id": "401772510",
+    "home": "Dallas Cowboys",
+    "away": "Philadelphia Eagles",
+    "offers": [
+     {
+      "book": "DraftKings",
+      "line": 62.5,
+      "over_price": -115,
+      "under_price": -105,
+      "ts": "2026-10-11T13:00:00Z"
+     },
+     {
+      "book": "BetMGM",
+      "line": 63.5,
+      "over_price": -110,
+      "under_price": -110,
+      "ts": "2026-10-11T13:02:00Z"
+     }
+    ]
+   }
+  },
+  "dak p": {
+   "pass_yds": {
+    "consensus_line": 268.5,
+    "fair_over": 0.5,
+    "books": 2,
+    "event_id": "401772510",
+    "home": "Dallas Cowboys",
+    "away": "Philadelphia Eagles",
+    "offers": [
+     {
+      "book": "DraftKings",
+      "line": 268.5,
+      "over_price": -110,
+      "under_price": -110,
+      "ts": "2026-10-11T13:00:00Z"
+     }
+    ]
+   }
+  }
+ },
+ "odds_credits": "19930",
+ "injuries_count": 799,
+ "week": 6
+}

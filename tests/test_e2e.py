@@ -15,6 +15,7 @@ import nfl_model
 import model_v2
 import compare_models
 import record_predictions as rp
+import grade_shadow as gs
 
 FIX = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "nfl_snapshot_fixture.json")
 NOW = datetime(2026, 10, 11, 14, 0, tzinfo=timezone.utc)
@@ -67,6 +68,39 @@ class TestEndToEnd(unittest.TestCase):
             # re-append is idempotent (no misleading duplicate counts)
             again, _ = rp.append_records(v1 + v2, path)
             self.assertEqual(again, 0)
+
+    def test_full_pipeline_snapshot_to_grading(self):
+        # snapshot -> v1/v2 -> shadow log -> final stats -> grading -> report
+        d = _load(); nfl_model.project_all(d)
+        recs = rp.build_records(d, nfl_model.VERSION, NOW) + rp.build_v2_records(d, NOW)
+        with tempfile.TemporaryDirectory() as tdir:
+            path = os.path.join(tdir, "log.jsonl")
+            rp.append_records(recs, path)
+            actuals = {
+                ("00-0036322", 2026, 6): {"rec_yds": 95.0, "rec": 7.0, "rush_yds": 0.0, "pass_yds": 0.0},
+                ("00-0037111", 2026, 6): {"rush_yds": 70.0, "rec_yds": 0.0, "rec": 0.0, "pass_yds": 0.0},
+            }
+            rep = gs.grade(gs.load_log(path), actuals)
+            self.assertGreater(rep["eligible_observations"], 0)
+            for prop, b in rep["by_prop"].items():
+                self.assertEqual(b["v1"]["n_obs"], b["v2"]["n_obs"])   # identical eligible set
+
+    def test_grading_failure_preserves_log(self):
+        d = _load(); nfl_model.project_all(d)
+        recs = rp.build_records(d, nfl_model.VERSION, NOW) + rp.build_v2_records(d, NOW)
+        with tempfile.TemporaryDirectory() as tdir:
+            path = os.path.join(tdir, "log.jsonl")
+            rp.append_records(recs, path)
+            with open(path, "rb") as fh:
+                before = fh.read()
+
+            def _boom(_season):
+                raise RuntimeError("actuals source down")
+            with self.assertRaises(RuntimeError):
+                gs.run(path=path, out_dir=os.path.join(tdir, "grades"), fetch=_boom)
+            with open(path, "rb") as fh:
+                after = fh.read()
+            self.assertEqual(before, after)      # a grading failure never touches the log
 
     def test_nba_still_works(self):
         import nba_model

@@ -396,6 +396,7 @@ def get_games(date_obj=None):
     games = []
     if not data:
         return games
+    wk_num = ((data.get("week") or {}).get("number")) if isinstance(data, dict) else None
     for ev in data.get("events", []):
         try:
             comp = (ev.get("competitions") or [{}])[0]
@@ -411,6 +412,7 @@ def get_games(date_obj=None):
                 "away_nflv": _nflv_abb(at.get("abbreviation")),
                 "status":   ((ev.get("status") or {}).get("type") or {}).get("shortDetail"),
                 "start":    ev.get("date"),
+                "week":     (ev.get("week") or {}).get("number") or wk_num,
                 "home_spread": None, "total": None,
             }
             odds = comp.get("odds") or []
@@ -559,6 +561,7 @@ def build_nfl_data():
     return {
         "ts": time.time(),
         "season": season,
+        "week": next((g.get("week") for g in games if g.get("week")), None),
         "today": _et_today().strftime("%Y-%m-%d"),
         "games": games,
         "players": pool,

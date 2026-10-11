@@ -1,0 +1,25 @@
+# Private prospective prediction logs ? never committed
+predictions_log.jsonl
+predictions_log.jsonl.bak
+predictions_log*.jsonl
+predictions_log*.jsonl.bak
+*.jsonl.bak
+
+# Graded results output
+grades/
+grade_report*.json
+grade_report*.csv
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local secrets / env
+.env
+*.local
+
+# OneDrive/OS cruft
+Thumbs.db
+desktop.ini
+.DS_Store
