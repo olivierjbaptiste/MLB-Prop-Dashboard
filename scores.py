@@ -53,7 +53,7 @@ def scoreboard_url(league, date=None, week=None):
     if week and league == "nfl":
         params.append("week={}".format(int(week)))
     elif date:
-        params.append("dates={}".format(date))      # YYYYMMDD
+        params.append("dates={}".format(str(date).replace("-", "")))      # YYYYMMDD
     if params:
         url += "?" + "&".join(params)
     return url
@@ -111,7 +111,12 @@ def normalize(espn, league, requested_date=None):
     wk = (espn.get("week") or {})
     out["week"] = wk.get("number")
     season = (espn.get("season") or {}) or ((espn.get("leagues") or [{}])[0].get("season") or {})
-    out["season_type"] = _SEASON_TYPE.get(season.get("type"))
+    season_type = season.get("type")
+    if isinstance(season_type, dict):
+        season_type = season_type.get("type", season_type.get("id"))
+    if isinstance(season_type, str) and season_type.isdigit():
+        season_type = int(season_type)
+    out["season_type"] = _SEASON_TYPE.get(season_type)
     for ev in espn.get("events", []):
         try:
             comp = (ev.get("competitions") or [{}])[0]
