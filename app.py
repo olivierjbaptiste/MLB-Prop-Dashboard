@@ -6,7 +6,7 @@ import os
 import json
 import threading
 from datetime import datetime
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 import dashboard as db
 import nba
 import nba_model
@@ -118,6 +118,26 @@ def api_data():
     if not _data:
         refresh_data()
     return jsonify(_data or {})
+
+
+@app.route("/api/scores")
+def api_scores():
+    """Live scores for mlb | nba | nfl from ESPN's free scoreboard (cached).
+    Query: ?league=nba&date=YYYYMMDD  (NFL also accepts &week=N). Read-only;
+    does not touch predictions, odds, or the Best Edges engine."""
+    import scores
+    league = (request.args.get("league") or "nba").lower()
+    if league not in scores.LEAGUES:
+        return jsonify({"error": "league must be one of nba, nfl, mlb",
+                        "games": [], "stale": True}), 400
+    date = request.args.get("date")        # YYYYMMDD (optional; ESPN defaults to today)
+    week = request.args.get("week")        # NFL only
+    try:
+        return jsonify(scores.get_scores(league, date=date, week=week))
+    except Exception as e:
+        print(f"scores route error: {e}")
+        return jsonify({"error": "scores temporarily unavailable", "league": league,
+                        "games": [], "stale": True, "last_updated": None}), 200
 
 
 @app.route("/manifest.json")

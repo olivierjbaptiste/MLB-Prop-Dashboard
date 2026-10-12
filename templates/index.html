@@ -217,6 +217,43 @@ tr:last-child td{border-bottom:none}
   body{background:#fff;color:#000}
   .pick-card{border:1px solid #ccc;break-inside:avoid}
 }
+/* ── LIVE SCORES ───────────────────────────────────────────── */
+.sc-wrap{max-width:1100px;margin:0 auto}
+.sc-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.sc-lg{display:flex;gap:3px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:3px}
+.sc-lgbtn{background:transparent;border:0;color:var(--muted);font-weight:800;font-size:12px;padding:6px 14px;border-radius:5px;cursor:pointer;font-family:inherit}
+.sc-lgbtn.on{background:var(--green2);color:#000}
+.sc-datenav{display:flex;align-items:center;gap:6px}
+.sc-nav-btn{background:var(--surface2);border:1px solid var(--border);color:var(--white);width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:13px;font-family:inherit}
+.sc-nav-btn:hover{border-color:var(--green)}
+.sc-date{font-size:12px;font-weight:700;color:var(--white);min-width:140px;text-align:center}
+.sc-today,.sc-week{background:var(--surface2);border:1px solid var(--border);color:var(--white);font-size:11px;font-weight:700;padding:6px 10px;border-radius:6px;cursor:pointer;font-family:inherit}
+.sc-meta{margin-left:auto;font-size:10px;color:var(--muted);text-align:right;line-height:1.5}
+.sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.sc-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px}
+.sc-card.live{border-color:var(--green)}
+.sc-trow{display:flex;align-items:center;gap:10px;padding:5px 0}
+.sc-logo{width:26px;height:26px;object-fit:contain;flex:0 0 26px}
+.sc-logo.ph{display:flex;align-items:center;justify-content:center;background:var(--surface2);border-radius:50%;font-size:10px;font-weight:800;color:var(--muted)}
+.sc-tname{font-size:13px;font-weight:700;color:var(--white)}
+.sc-trec{font-size:10px;color:var(--muted);margin-left:5px;font-weight:600}
+.sc-pts{margin-left:auto;font-size:18px;font-weight:800;color:var(--white)}
+.sc-pts.dim{color:var(--muted);font-weight:700}
+.sc-pts.win{color:var(--green)}
+.sc-foot{display:flex;align-items:center;justify-content:space-between;margin-top:7px;padding-top:7px;border-top:1px solid var(--border)}
+.sc-badge{font-weight:800;letter-spacing:.3px;padding:2px 8px;border-radius:4px;font-size:10px}
+.sc-badge.live{background:var(--green);color:#000}
+.sc-badge.final{background:var(--surface2);color:var(--muted)}
+.sc-badge.sched{background:var(--surface2);color:var(--blue)}
+.sc-badge.post{background:var(--surface2);color:var(--gold)}
+.sc-when{color:var(--muted);font-size:11px;font-weight:700}
+.sc-comp{font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.5px;font-weight:800}
+.sc-empty,.sc-loading,.sc-error{text-align:center;color:var(--muted);padding:44px 10px;font-size:13px}
+.sc-error{color:var(--gold)}
+.sc-stalebar{background:rgba(234,179,8,.12);border:1px solid var(--gold);color:var(--gold);font-size:11px;font-weight:700;padding:6px 10px;border-radius:6px;margin-bottom:12px}
+.live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#000;margin-right:5px;animation:scpulse 1.3s infinite}
+@keyframes scpulse{0%,100%{opacity:1}50%{opacity:.25}}
+@media(max-width:600px){.sc-grid{grid-template-columns:1fr}.sc-meta{margin-left:0;text-align:left;width:100%}.sc-date{min-width:110px}}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
@@ -284,6 +321,7 @@ tr:last-child td{border-bottom:none}
 
 <!-- NAV (MLB) -->
 <div class="nav" id="nav-mlb">
+  <button class="nb"        id="btn-scores-mlb" onclick="openScores()">&#128250; Scores</button>
   <button class="nb on" id="btn-picks"      onclick="go('picks')">&#127919; Daily Picks</button>
   <button class="nb"    id="btn-target"     onclick="go('target')">&#128165; Attack</button>
   <button class="nb"    id="btn-lineups"    onclick="go('lineups')">&#128200; Lineups</button>
@@ -307,6 +345,7 @@ tr:last-child td{border-bottom:none}
 
 <!-- NAV (NBA) -->
 <div class="nav" id="nav-nba" style="display:none">
+  <button class="nb" id="bnb-scores" onclick="openScores()">&#128250; Scores</button>
   <button class="nb on" id="bnb-pts" onclick="goNBA('pts')">&#127936; Points</button>
   <button class="nb"    id="bnb-pra" onclick="goNBA('pra')">&#128293; PRA</button>
   <button class="nb"    id="bnb-reb" onclick="goNBA('reb')">&#128138; Rebounds</button>
@@ -317,6 +356,7 @@ tr:last-child td{border-bottom:none}
 
 <!-- NAV (NFL) -->
 <div class="nav" id="nav-nfl" style="display:none">
+  <button class="nb" id="bnf-scores" onclick="openScores()">&#128250; Scores</button>
   <button class="nb on" id="bnf-pass_yds" onclick="goNFL('pass_yds')">&#127944; Passing Yds</button>
   <button class="nb"    id="bnf-rush_yds" onclick="goNFL('rush_yds')">&#127939; Rushing Yds</button>
   <button class="nb"    id="bnf-rec_yds"  onclick="goNFL('rec_yds')">&#128588; Receiving Yds</button>
@@ -328,6 +368,31 @@ tr:last-child td{border-bottom:none}
 </div>
 
 <div class="main">
+
+<!-- ===================== LIVE SCORES ===================== -->
+<div id="tc-scores" class="tc">
+  <div class="sc-wrap">
+    <div class="section-hdr"><h2>&#128250; Live Scores</h2><span class="badge">NBA &middot; NFL &middot; MLB</span></div>
+    <div class="section-sub">Live, final, and upcoming games &mdash; scores from ESPN. Auto-refreshes while games are in progress.</div>
+    <div class="sc-controls">
+      <div class="sc-lg">
+        <button class="sc-lgbtn" id="sclg-nba" onclick="scoresSetLeague('nba')">&#127936; NBA</button>
+        <button class="sc-lgbtn" id="sclg-nfl" onclick="scoresSetLeague('nfl')">&#127944; NFL</button>
+        <button class="sc-lgbtn" id="sclg-mlb" onclick="scoresSetLeague('mlb')">&#9918; MLB</button>
+      </div>
+      <div class="sc-datenav" id="sc-datenav">
+        <button class="sc-nav-btn" onclick="scoresShiftDay(-1)" title="Previous day">&#9664;</button>
+        <span class="sc-date" id="sc-date">&mdash;</span>
+        <button class="sc-nav-btn" onclick="scoresShiftDay(1)" title="Next day">&#9654;</button>
+        <button class="sc-today" onclick="scoresToday()">Today</button>
+      </div>
+      <select class="sc-week" id="sc-week" style="display:none" onchange="scoresSetWeek(this.value)"></select>
+      <div class="sc-meta" id="sc-meta"></div>
+    </div>
+    <div id="sc-stale" class="sc-stalebar" style="display:none"></div>
+    <div id="sc-body"><div class="sc-loading">Loading scores&hellip;</div></div>
+  </div>
+</div>
 
 <!-- ===================== NBA BOARDS ===================== -->
 <div id="nba-filterbar" style="display:none;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
@@ -3297,6 +3362,99 @@ try { buildBatters(); } catch(e){ console.error('buildBatters error:', e); }
 try { buildPitchers();} catch(e){ console.error('buildPitchers error:', e); }
 try { buildModelRecord(); } catch(e){ console.error('buildModelRecord error:', e); }
 try { buildResults(); } catch(e){ console.error('buildResults error:', e); }
+// ── LIVE SCORES (ESPN proxy via /api/scores) ──────────────────────────
+var SC = { league:null, week:null, date:null, timer:null, inited:false };
+
+function _ymd(d){ return d.toLocaleDateString('en-CA',{timeZone:'America/New_York'}).replace(/-/g,''); }
+function _todayYMD(){ return _ymd(new Date()); }
+function _ymdToDate(y){ return new Date(parseInt(y.slice(0,4)),parseInt(y.slice(4,6))-1,parseInt(y.slice(6,8)),12,0,0); }
+function _dateLabel(y){ try{ return _ymdToDate(y).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); }catch(e){ return y; } }
+function _scTimeET(iso){ if(!iso) return 'TBD'; try{ var d=new Date(iso); if(isNaN(d.getTime())) return 'TBD';
+  return d.toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit'})+' ET'; }catch(e){ return 'TBD'; } }
+
+function openScores(){
+  var tcs=document.querySelectorAll('.tc'); for(var i=0;i<tcs.length;i++) tcs[i].className='tc';
+  var sc=document.getElementById('tc-scores'); if(sc) sc.className='tc on';
+  try{ document.querySelectorAll('.nav .nb').forEach(function(b){ b.classList.remove('on'); }); }catch(e){}
+  var id={mlb:'btn-scores-mlb',nba:'bnb-scores',nfl:'bnf-scores'}[SPORT]; var ab=document.getElementById(id); if(ab) ab.classList.add('on');
+  if(!SC.inited){ SC.inited=true; SC.league=(SPORT==='nba'||SPORT==='nfl'||SPORT==='mlb')?SPORT:'nba'; SC.date=_todayYMD(); }
+  _scSync(); scoresLoad();
+}
+function _scSync(){
+  ['nba','nfl','mlb'].forEach(function(l){ var b=document.getElementById('sclg-'+l); if(b) b.className='sc-lgbtn'+(l===SC.league?' on':''); });
+  var nfl=(SC.league==='nfl');
+  document.getElementById('sc-week').style.display    = nfl?'inline-block':'none';
+  document.getElementById('sc-datenav').style.display = nfl?'none':'flex';
+}
+function scoresSetLeague(l){ SC.league=l; SC.week=null; SC.date=_todayYMD(); _scSync(); scoresLoad(); }
+function scoresToday(){ SC.date=_todayYMD(); SC.week=null; _scSync(); scoresLoad(); }
+function scoresShiftDay(n){ var d=_ymdToDate(SC.date); d.setDate(d.getDate()+n); SC.date=_ymd(d); _scSync(); scoresLoad(); }
+function scoresSetWeek(w){ SC.week=w||null; scoresLoad(); }
+
+function _scQuery(){ var q='?league='+SC.league;
+  if(SC.league==='nfl'){ if(SC.week) q+='&week='+encodeURIComponent(SC.week); }   // no week => current week
+  else { q+='&date='+SC.date; } return q; }
+
+function scoresLoad(){
+  if(SC.timer){ clearInterval(SC.timer); SC.timer=null; }
+  var body=document.getElementById('sc-body');
+  document.getElementById('sc-date').textContent=_dateLabel(SC.date);
+  if(body && !body.querySelector('.sc-grid')) body.innerHTML='<div class="sc-loading">Loading scores&hellip;</div>';
+  fetch('/api/scores'+_scQuery()).then(function(r){return r.json();}).then(scoresRender)
+    .catch(function(){ var b=document.getElementById('sc-body'); if(b && !b.querySelector('.sc-grid')) b.innerHTML='<div class="sc-error">&#9888; Couldn\'t load scores — check connection and retry.</div>'; });
+}
+function scoresPoll(){ fetch('/api/scores'+_scQuery()).then(function(r){return r.json();}).then(scoresRender).catch(function(){}); }
+
+function _scLogo(t){ if(t.logo) return '<img class="sc-logo" src="'+t.logo+'" alt="" onerror="this.style.visibility=\'hidden\'">';
+  return '<span class="sc-logo ph">'+((t.abbr||'?').slice(0,3))+'</span>'; }
+function _scTeamRow(t,win){
+  var pts=(t.score==null)?'<span class="sc-pts dim">&ndash;</span>':('<span class="sc-pts'+(win?' win':'')+'">'+t.score+'</span>');
+  var rec=t.record?('<span class="sc-trec">'+t.record+'</span>'):'';
+  return '<div class="sc-trow">'+_scLogo(t)+'<span class="sc-tname">'+(t.abbr||t.name||'')+'</span>'+rec+pts+'</div>'; }
+function _scBadge(g){
+  if(g.state==='live')   return '<span class="sc-badge live"><span class="live-dot"></span>LIVE</span>';
+  if(g.state==='final')  return '<span class="sc-badge final">FINAL</span>';
+  if(g.state==='postponed') return '<span class="sc-badge post">PPD</span>';
+  if(g.state==='canceled')  return '<span class="sc-badge post">CANC</span>';
+  if(g.state==='suspended') return '<span class="sc-badge post">SUSP</span>';
+  return '<span class="sc-badge sched">SCHED</span>'; }
+function _scWhen(g){
+  if(g.state==='live'){ var p=g.detail||(((g.period?('P'+g.period):'')+' '+(g.clock||'')).trim()); return '<span class="sc-when">'+(p||'In progress')+'</span>'; }
+  if(g.state==='final') return '<span class="sc-when">'+(g.detail||'Final')+'</span>';
+  if(g.state==='postponed'||g.state==='canceled'||g.state==='suspended') return '<span class="sc-when">'+(g.detail||'')+'</span>';
+  return '<span class="sc-when">'+_scTimeET(g.start_utc)+'</span>'; }
+
+function scoresRender(d){
+  var body=document.getElementById('sc-body'), stale=document.getElementById('sc-stale'), meta=document.getElementById('sc-meta');
+  if(SC.league==='nfl') _scPopWeek((d&&d.week));
+  if(d && d.stale){ stale.style.display='block'; stale.innerHTML='&#9888; '+(d.error||'Showing last update')+(d.last_updated?(' — last updated '+_scTimeET(d.last_updated)):''); }
+  else stale.style.display='none';
+  var games=(d&&d.games)||[];
+  if(d && d.error && games.length===0){ body.innerHTML='<div class="sc-error">&#9888; '+d.error+'</div>'; meta.textContent=''; return; }
+  if(games.length===0){ body.innerHTML='<div class="sc-empty">&#128197; No games'+((SC.league==='nfl'&&SC.week)?(' for week '+SC.week):' on this date')+'.</div>'; }
+  else{
+    var ord={live:0,scheduled:1,postponed:2,suspended:2,canceled:3,final:4};
+    games.sort(function(a,b){ return (ord[a.state]==null?9:ord[a.state])-(ord[b.state]==null?9:ord[b.state]); });
+    var html='<div class="sc-grid">';
+    for(var i=0;i<games.length;i++){ var g=games[i];
+      var comp=(g.competition && g.competition!=='regular')?('<div style="margin-top:5px"><span class="sc-comp">'+g.competition+'</span></div>'):'';
+      html+='<div class="sc-card'+(g.state==='live'?' live':'')+'">'
+        +_scTeamRow(g.away,(g.state==='final'&&g.away.winner))
+        +_scTeamRow(g.home,(g.state==='final'&&g.home.winner))
+        +'<div class="sc-foot">'+_scBadge(g)+_scWhen(g)+'</div>'+comp+'</div>';
+    }
+    body.innerHTML=html+'</div>';
+  }
+  var live=games.filter(function(g){return g.state==='live';}).length;
+  meta.innerHTML='Source: ESPN &middot; '+games.length+' game'+(games.length===1?'':'s')+(live?(' &middot; '+live+' live'):'')
+    +(d&&d.last_updated?('<br>Updated '+_scTimeET(d.last_updated)):'');
+  if(live>0){ SC.timer=setInterval(function(){
+    var vis=document.getElementById('tc-scores'); if(!vis||vis.className.indexOf('on')<0){ clearInterval(SC.timer); SC.timer=null; return; }
+    scoresPoll(); }, 25000); }
+}
+function _scPopWeek(cur){ var sel=document.getElementById('sc-week'); if(!sel) return;
+  if(sel.options.length===0){ var h='<option value="">Current week</option>'; for(var w=1;w<=18;w++) h+='<option value="'+w+'">Week '+w+'</option>'; sel.innerHTML=h; }
+  sel.value = SC.week ? SC.week : ''; }
 </script>
 </body>
 </html>
