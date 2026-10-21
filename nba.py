@@ -26,10 +26,50 @@ import gzip
 import time
 import urllib.request
 import urllib.error
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, tzinfo
 
-# ── time (Eastern), mirrors dashboard.py ──────────────────────────────
-ET = timezone(timedelta(hours=-4))
+# ── time (Eastern) ────────────────────────────────────────────────────
+# America/New_York shifts EDT(-4)/EST(-5) across the NBA season (the DST change
+# falls mid-season), so a flat offset would roll the date wrong around midnight.
+# Prefer the IANA tz database (present on Linux/Render, and on Windows when the
+# `tzdata` package is installed). If it's genuinely unavailable, fall back to a
+# tzinfo that still implements the US Eastern DST rule — never a flat offset.
+class _USEasternDST(tzinfo):
+    """US Eastern with DST rules: EDT (UTC-4) from the 2nd Sunday of March to the
+    1st Sunday of November, EST (UTC-5) otherwise. A dependency-free safety net."""
+    _EDT = timedelta(hours=-4)
+    _EST = timedelta(hours=-5)
+
+    @staticmethod
+    def _nth_sunday(year, month, n):
+        d = datetime(year, month, 1)
+        first_sun = 1 + (6 - d.weekday()) % 7      # Monday=0 … Sunday=6
+        return datetime(year, month, first_sun + 7 * (n - 1))
+
+    def _is_dst(self, dt):
+        y = dt.year
+        start = self._nth_sunday(y, 3, 2).replace(hour=2)   # 2nd Sun Mar 02:00
+        end = self._nth_sunday(y, 11, 1).replace(hour=2)    # 1st Sun Nov 02:00
+        naive = dt.replace(tzinfo=None)
+        return start <= naive < end
+
+    def utcoffset(self, dt):
+        return self._EDT if (dt and self._is_dst(dt)) else self._EST
+
+    def dst(self, dt):
+        return timedelta(hours=1) if (dt and self._is_dst(dt)) else timedelta(0)
+
+    def tzname(self, dt):
+        return "EDT" if (dt and self._is_dst(dt)) else "EST"
+
+
+try:
+    from zoneinfo import ZoneInfo
+    ET = ZoneInfo("America/New_York")
+    # ZoneInfo can import yet raise at use time if no tz data is present; verify.
+    datetime.now(ET).utcoffset()
+except Exception:                                   # pragma: no cover
+    ET = _USEasternDST()
 def _et_now():   return datetime.now(ET)
 def _et_today(): return _et_now().date()
 
@@ -140,12 +180,45 @@ def _num(x):
         return None
 
 
+# ESPN scoreboard season.type integers → our labels (same mapping scores.py uses).
+_SCOREBOARD_SEASON_TYPE = {1: "preseason", 2: "regular", 3: "postseason", 4: "offseason"}
+
+
+def _game_season_type(ev):
+    """Season type for a scoreboard event, handled safely.
+    ESPN puts it at event.season.type (int). Unknown/missing -> 'unknown'."""
+    season = ev.get("season")
+    if not isinstance(season, dict):
+        return "unknown"
+    t = season.get("type")
+    if t is None:
+        return "unknown"
+    try:
+        return _SCOREBOARD_SEASON_TYPE.get(int(t), "unknown")
+    except (TypeError, ValueError):
+        return "unknown"
+
+
+# Whether the most recent get_games() actually reached the ESPN scoreboard.
+# Lets build_nba_data distinguish a genuine off-day (fetch ok, zero games) from
+# a failed fetch (both otherwise look like an empty game list).
+_last_schedule_fetched = False
+
+
 # ── 1. games (scoreboard) ─────────────────────────────────────────────
 def get_games(date_obj=None):
+    global _last_schedule_fetched
     d = date_obj or _et_today()
     data = _fetch_json(f"{ESPN}/scoreboard?dates={d.strftime('%Y%m%d')}")
+    # A fetch only counts as a successful schedule read if the response is a dict
+    # that actually carries an `events` list. ESPN returning {} (or any payload
+    # without a valid events list) is a MALFORMED response, not an off-day — it
+    # must mark schedule_fetched False so the UI reports a source error rather than
+    # masquerading as "no games today". A genuine off-day is {"events": []}.
+    valid_schedule = isinstance(data, dict) and isinstance(data.get("events"), list)
+    _last_schedule_fetched = valid_schedule
     games = []
-    if not data:
+    if not valid_schedule:
         return games
     for ev in data.get("events", []):
         try:
@@ -164,7 +237,15 @@ def get_games(date_obj=None):
                 "home_name": ht.get("displayName"),
                 "away_name": at.get("displayName"),
                 "status":    st.get("shortDetail") or st.get("state"),
+                # Authoritative lifecycle from ESPN: state is pre|in|post, and
+                # status_name is e.g. STATUS_SCHEDULED / STATUS_IN_PROGRESS /
+                # STATUS_FINAL / STATUS_POSTPONED. The UI uses these (not fuzzy
+                # status-text matching) to decide what has started.
+                "state":       (st.get("state") or "").lower(),
+                "status_name": (st.get("name") or "").upper(),
+                "completed":   bool(st.get("completed")),
                 "start":     ev.get("date"),
+                "season_type": _game_season_type(ev),
             })
         except Exception:
             continue
@@ -246,12 +327,59 @@ def get_team_roster(team_id):
 
 
 # ── 5. per-player season averages + last-5 form (from gamelog) ────────
-def get_player_log(athlete_id):
-    """Return dict of season averages + last-5 form, or None."""
-    data = _fetch_json(f"{ESPN_COMMON}/athletes/{athlete_id}/gamelog")
-    if not data:
+# ── season-aware game-log parsing ─────────────────────────────────────
+# Averages must come from REGULAR-season games of ONE season only — never a
+# mix of preseason, playoffs, or multiple seasons (which previously inflated
+# games-played past 82 and polluted per-game averages). We also track how many
+# games the player has in the CURRENT season separately, so the model can tell
+# a projection backed by current-season evidence apart from one resting on last
+# season's baseline.
+MIN_BASELINE_GP = 3   # a season needs at least this many REG games to be the baseline
+
+
+def _season_type_from_display(display):
+    """ESPN seasonType displayName -> REG | POST | PRE | OTHER."""
+    d = (display or "").lower()
+    if "regular" in d:
+        return "REG"
+    if "post" in d or "playoff" in d:
+        return "POST"
+    if "pre" in d:
+        return "PRE"
+    return "OTHER"
+
+
+def _season_from_display(display, fallback=None):
+    """'2025-26 Regular Season' -> 2026 (NBA end-year)."""
+    m = re.search(r"(\d{4})-(\d{2})", display or "")
+    if m:
+        return int(m.group(1)) + 1
+    m = re.search(r"(\d{4})", display or "")
+    return int(m.group(1)) if m else fallback
+
+
+def _season_from_date(date_str):
+    """'2026-10-21' -> 2027 (NBA end-year). An NBA season starting in Oct belongs
+    to the next calendar year; months Jan-Jun belong to the current year."""
+    m = re.match(r"(\d{4})-(\d{2})", date_str or "")
+    if not m:
         return None
-    names  = [str(n).lower() for n in (data.get("names")  or [])]
+    y, mo = int(m.group(1)), int(m.group(2))
+    return y + 1 if mo >= 7 else y
+
+
+def _gamelog_games(data, default_season=None):
+    """Per-game rows from an ESPN athlete gamelog: one row per event (de-duped
+    across categories), each tagged with season + season_type. DNP rows are kept
+    here; _summarize_reg filters on minutes.
+
+    Season is identified from the seasonType label ('2025-26 …'); when the label
+    omits the year (ESPN sometimes returns a bare 'Regular Season'), we fall back
+    to `default_season` (the season the caller requested) and then to the game's
+    own date — so a game is never dropped for an unidentified season."""
+    if not data:
+        return []
+    names = [str(n).lower() for n in (data.get("names") or [])]
     labels = [str(l).upper() for l in (data.get("labels") or [])]
 
     def idx(name_opts, label_opts):
@@ -263,46 +391,155 @@ def get_player_log(athlete_id):
                 return labels.index(l)
         return None
 
-    i_min = idx(["minutes"],                         ["MIN"])
-    i_pts = idx(["points"],                           ["PTS"])
-    i_reb = idx(["rebounds", "totalrebounds"],        ["REB"])
-    i_ast = idx(["assists"],                          ["AST"])
-    i_tpm = idx(["threepointfieldgoalsmade",
-                 "threepointfieldgoals"],             ["3PT"])
-
-    # collect every game's stat row across all seasonTypes/categories
-    rows = []
+    I = {"min": idx(["minutes"], ["MIN"]),
+         "pts": idx(["points"], ["PTS"]),
+         "reb": idx(["rebounds", "totalrebounds"], ["REB"]),
+         "ast": idx(["assists"], ["AST"]),
+         "tpm": idx(["threepointfieldgoalsmade", "threepointfieldgoals"], ["3PT"])}
+    meta = data.get("events") or {}
+    out, seen = [], set()
     for stype in (data.get("seasonTypes") or []):
+        st = _season_type_from_display(stype.get("displayName"))
+        # Explicit year in the label is the strongest signal; but it may be absent
+        # (bare 'Regular Season'). We DON'T jump to default_season here — the game's
+        # own date is more reliable and prevents a last-season game returned for a
+        # new-season request (ignored ?season=) from being mislabeled as current.
+        hdr_season = _season_from_display(stype.get("displayName"))
         for cat in (stype.get("categories") or []):
             for ev in (cat.get("events") or []):
+                eid = ev.get("eventId") or ev.get("id")
                 stats = ev.get("stats")
-                if isinstance(stats, list) and stats:
-                    rows.append(stats)
+                if not isinstance(stats, list) or not stats:
+                    continue
+                m = meta.get(str(eid), {}) if eid else {}
+                date = (m.get("gameDate") or m.get("date") or "")[:10]
+                # A season is VERIFIED only when the response itself establishes it —
+                # an explicit year in the label or the game's own date. default_season
+                # is the REQUESTED query year; ESPN may ignore ?season= and return a
+                # different season's log, so default_season is an unverified last
+                # resort: it keeps a game usable as a historical baseline but must
+                # never, on its own, count as current-season evidence.
+                vseason = hdr_season if hdr_season is not None else _season_from_date(date)
+                season = vseason if vseason is not None else default_season
+                key = eid if eid else (season, st, date)
+                if key in seen:                  # same game under >1 category
+                    continue
+                seen.add(key)
 
-    if not rows:
-        return {"gp": 0, "ppg": None, "rpg": None, "apg": None,
-                "tpm": None, "mpg": None, "_nolog": True}
+                def cell(k, stats=stats):
+                    i = I[k]
+                    return _num(stats[i]) if (i is not None and i < len(stats)) else None
+                out.append({
+                    "eid": eid, "season": season, "season_verified": vseason is not None,
+                    "season_type": st, "date": date,
+                    "min": cell("min"), "pts": cell("pts"), "reb": cell("reb"),
+                    "ast": cell("ast"), "tpm": cell("tpm"),
+                })
+    return out
 
-    def col_avg(i, rowset):
-        if i is None:
-            return None
-        vals = [_num(r[i]) for r in rowset if i < len(r)]
-        vals = [v for v in vals if v is not None]
+
+def _summarize_reg(games, current_season=None, min_baseline_gp=MIN_BASELINE_GP):
+    """Season averages + last-5 form from REGULAR-season, played games of a single
+    baseline season. Also reports current-season games played, kept separate so a
+    projection resting on last season's numbers is never mistaken for one backed
+    by current-season evidence. Pure; no network.
+
+    Returns gp/ppg/… for the baseline season, plus:
+      baseline_season  — the season the averages come from (NBA end-year), or None
+      cur_gp           — REG games the player has in `current_season` (0 on opening night)
+    """
+    reg = [g for g in games if g.get("season_type") == "REG"
+           and g.get("min") is not None and g["min"] > 0]
+    # Current-season evidence requires a VERIFIED season (label year or game date).
+    # A game whose season is only the requested query year is NOT proof the player
+    # has played in the current season, so it must not raise cur_gp (which drives
+    # the HIGH / "current" confidence tier). Rows without the flag (none exist in
+    # this codebase; _gamelog_games always sets it) are treated as verified.
+    cur_gp = sum(1 for g in reg
+                 if current_season is not None
+                 and g.get("season") == current_season
+                 and g.get("season_verified", True))
+    empty = {"gp": 0, "ppg": None, "rpg": None, "apg": None, "tpm": None,
+             "mpg": None, "ppg_l5": None, "rpg_l5": None, "apg_l5": None,
+             "min_l5": None, "baseline_season": None, "cur_gp": cur_gp, "_nolog": True}
+    if not reg:
+        return empty
+
+    by_season = {}
+    for g in reg:
+        if g.get("season") is not None:
+            by_season.setdefault(g["season"], []).append(g)
+    if not by_season:
+        return empty
+    # Baseline = most recent season with a real sample; fall back to the most
+    # recent season present if none clears the bar. This keeps last season's
+    # stable numbers until the new season has enough games to stand on its own.
+    eligible = sorted([s for s, gs in by_season.items() if len(gs) >= min_baseline_gp],
+                      reverse=True)
+    baseline_season = eligible[0] if eligible else max(by_season)
+    base = sorted(by_season[baseline_season],
+                  key=lambda g: g.get("date") or "", reverse=True)
+    # If the baseline we landed on is the CURRENT season but nothing in it is
+    # verified, we can't honestly label these as current-season numbers. Keep the
+    # games for a historical projection, but report no specific season so the UI
+    # shows a neutral "last-season baseline" instead of claiming current-season
+    # evidence we don't actually have.
+    baseline_verified = any(g.get("season_verified", True) for g in by_season[baseline_season])
+    reported_baseline = (None if (current_season is not None
+                                  and baseline_season == current_season
+                                  and not baseline_verified)
+                         else baseline_season)
+
+    def avg(k, rows):
+        vals = [g[k] for g in rows if g.get(k) is not None]
         return round(sum(vals) / len(vals), 1) if vals else None
 
-    last5 = rows[:5]   # ESPN lists most-recent first
+    last5 = base[:5]
     return {
-        "gp":  len(rows),
-        "ppg": col_avg(i_pts, rows),
-        "rpg": col_avg(i_reb, rows),
-        "apg": col_avg(i_ast, rows),
-        "tpm": col_avg(i_tpm, rows),
-        "mpg": col_avg(i_min, rows),
-        "ppg_l5": col_avg(i_pts, last5),
-        "rpg_l5": col_avg(i_reb, last5),
-        "apg_l5": col_avg(i_ast, last5),
-        "min_l5": col_avg(i_min, last5),
+        "gp": len(base),
+        "ppg": avg("pts", base), "rpg": avg("reb", base), "apg": avg("ast", base),
+        "tpm": avg("tpm", base), "mpg": avg("min", base),
+        "ppg_l5": avg("pts", last5), "rpg_l5": avg("reb", last5),
+        "apg_l5": avg("ast", last5), "min_l5": avg("min", last5),
+        "baseline_season": reported_baseline,
+        "cur_gp": cur_gp,
     }
+
+
+def get_player_log(athlete_id):
+    """Season averages + last-5 form (REG, played games) + a separate current-season
+    game count. Explicitly requests the current and prior seasons, because the
+    default gamelog endpoint returns only the current season — which is EMPTY on
+    opening night, so without the prior-season request an opening-night player would
+    have zero games and no projection. None only if every fetch fails."""
+    seasons = _season_candidates()          # [current_end, prior_end], e.g. [2027, 2026]
+    base_url = f"{ESPN_COMMON}/athletes/{athlete_id}/gamelog"
+
+    def _merge(dst, seen, rows):
+        """Add rows not already present. If ESPN ignores ?season= and returns the
+        same log for both requests, the same games arrive twice — dedupe by event
+        id (falling back to season+type+date) so game counts aren't doubled."""
+        for g in rows:
+            k = g.get("eid") or (g.get("season"), g.get("season_type"), g.get("date"))
+            if k in seen:
+                continue
+            seen.add(k)
+            dst.append(g)
+
+    games, seen, got_any = [], set(), False
+    for yr in seasons:
+        data = _fetch_json(f"{base_url}?season={yr}")
+        if data:
+            got_any = True
+            _merge(games, seen, _gamelog_games(data, default_season=yr))
+    if not got_any:
+        # season parameter unsupported, or every season fetch failed — fall back to
+        # the default endpoint once (season inferred from labels/dates).
+        data = _fetch_json(base_url)
+        if not data:
+            return None
+        _merge(games, seen, _gamelog_games(data))
+    return _summarize_reg(games, current_season=seasons[0])
 
 
 # ── 6. team defense (opponent stats per team) ────────────────────────
@@ -522,7 +759,8 @@ def build_nba_data():
                 "status_detail": status.get("detail"),
                 **{k: log.get(k) for k in
                    ("gp","ppg","rpg","apg","tpm","mpg",
-                    "ppg_l5","rpg_l5","apg_l5","min_l5")},
+                    "ppg_l5","rpg_l5","apg_l5","min_l5",
+                    "cur_gp","baseline_season")},
             })
         if PLAYER_CAP and fetched >= PLAYER_CAP:
             print(f"    (player cap {PLAYER_CAP} reached — raise NBA_PLAYER_CAP for full slate)")
@@ -537,6 +775,9 @@ def build_nba_data():
         "players": players,
         "team_defense": team_defense,
         "injuries_count": len(inj_id) + len(inj_name),
+        # True = schedule source was reached (so zero games means a real off-day);
+        # False = the scoreboard fetch failed (empty board is a data problem).
+        "schedule_fetched": _last_schedule_fetched,
     }
 
 

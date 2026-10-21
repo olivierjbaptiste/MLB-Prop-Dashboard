@@ -3,9 +3,10 @@ app.py - Flask web server for MLB HR Prop Dashboard
 """
 
 import os
+import re
 import json
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Flask, render_template, jsonify, request
 import dashboard as db
 import nba
@@ -42,24 +43,206 @@ def refresh_data():
         traceback.print_exc()
 
 
-# Load data immediately on startup — not in background
-# This ensures data is ready when first request comes in
-print("Starting MLB HR Prop Dashboard...")
-refresh_data()
-print("Startup data load complete")
+# Load data immediately on startup — not in background, so data is ready when the
+# first request comes in. Skippable (DIAMOND_NO_STARTUP=1) so the module can be
+# imported for tests/tooling without triggering a live data pull. In production
+# the variable is unset, so startup runs exactly as before.
+if os.environ.get("DIAMOND_NO_STARTUP") != "1":
+    print("Starting MLB HR Prop Dashboard...")
+    refresh_data()
+    print("Startup data load complete")
+
+
+def _parse_iso(s):
+    if not s or not isinstance(s, str):
+        return None
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+# A game is "not happening as scheduled" (shown, but never as a pregame pick).
+# Checked on BOTH the explicit status_name and the human status text, so a
+# postponement is caught even when status_name is missing.
+_NOT_HAPPENING = ("POSTPON", "CANCEL", "SUSPEND", "DELAY")
+_NOT_HAPPENING_TEXT = re.compile(r"\b(postponed|cancell?ed|suspended|delayed|ppd)\b", re.I)
+# Anchored status-text patterns — only a LAST resort when ESPN gives us neither an
+# explicit state nor a usable tip time. Word-bounded so "ot" never matches "Not
+# Started" and "final" never matches a substring of something else.
+_STATUS_LIVE_RE = re.compile(r"\b(final|halftime|overtime|end of|in\s*progress|live)\b", re.I)
+_STATUS_PERIOD_RE = re.compile(r"\b([1-4](st|nd|rd|th)|[1-4]?\s*ot)\b", re.I)
+
+MAX_SNAPSHOT_AGE_H = 30   # a healthy daily snapshot is well under this
+CLOCK_SKEW_H = 2          # tolerate small clock skew; reject timestamps further in the future
+
+
+def _not_happening(g):
+    name = str(g.get("status_name") or "").upper()
+    if any(w in name for w in _NOT_HAPPENING):
+        return True
+    return bool(_NOT_HAPPENING_TEXT.search(str(g.get("status") or "")))
+
+
+def _game_tipped(g, now):
+    """True once a game has STARTED or FINISHED (so its players are no longer
+    pregame). Order matters:
+      1. Postponed / canceled / suspended / delayed  -> NOT tipped (never started).
+      2. ESPN's explicit state 'in'/'post' or completed -> tipped (authoritative).
+      3. Scheduled tip time has passed (covers the exact-tipoff boundary and a
+         lagging 'pre' state) -> tipped.
+      4. A future tip time -> NOT tipped.
+      5. No usable time: anchored status-text patterns (never bare substrings)."""
+    if _not_happening(g):
+        return False
+    state = str(g.get("state") or "").lower()
+    if state in ("in", "post") or bool(g.get("completed")):
+        return True
+    start = _parse_iso(g.get("start"))
+    if start is not None:
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        return now >= start          # exact boundary counts as started
+    status = str(g.get("status") or "")
+    return bool(_STATUS_LIVE_RE.search(status) or _STATUS_PERIOD_RE.search(status))
+
+
+def _game_block_reason(g, now):
+    """Why a game's players must NOT appear as active pregame picks, or None if the
+    game is a clean upcoming game."""
+    if _not_happening(g):
+        blob = (str(g.get("status_name") or "") + " " + str(g.get("status") or "")).upper()
+        if "POSTPON" in blob or "PPD" in blob:
+            return "postponed"
+        if "CANCEL" in blob:
+            return "canceled"
+        if "SUSPEND" in blob:
+            return "suspended"
+        return "delayed"
+    if _game_tipped(g, now):
+        return "started"
+    return None
+
+
+def _et_today_str():
+    try:
+        return nba._et_today().strftime("%Y-%m-%d")
+    except Exception:
+        return None
+
+
+def _nba_status(d, now=None):
+    """Honest data state for the NBA board. Validates that the snapshot is TODAY's
+    and recent before calling it current, distinguishes a real off-day from a
+    failed/partial/stale refresh, and never silently presents old data as a live
+    pregame slate."""
+    now = now or datetime.now(timezone.utc)
+    players = d.get("players") or []
+    games = d.get("games") or []
+    snap_date = d.get("today")
+    et_today = _et_today_str()
+    sched = d.get("schedule_fetched")
+
+    # Timestamp: numeric, positive, and not implausibly in the future (clock skew).
+    ts = d.get("ts")
+    ts_num = ts if isinstance(ts, (int, float)) and not isinstance(ts, bool) else None
+    age_h = (now.timestamp() - ts_num) / 3600.0 if (ts_num and ts_num > 0) else None
+    ts_valid = (age_h is not None) and (age_h >= -CLOCK_SKEW_H)
+    meta_missing = (not snap_date) or (not ts_valid)
+
+    if players:
+        # A populated snapshot is only "ok" if its metadata proves it's today's,
+        # recent, and backed by a successful schedule fetch.
+        if meta_missing:
+            return {"state": "stale", "today": snap_date,
+                    "reason": "Snapshot metadata is missing or invalid — can't confirm "
+                              "this is today's slate, so projections may be out of date."}
+        if et_today and snap_date != et_today:
+            return {"state": "stale", "today": snap_date, "snapshot_date": snap_date,
+                    "reason": "Showing the " + snap_date + " slate — today's ("
+                              + et_today + ") data hasn't refreshed yet. These are not "
+                              "current pregame picks."}
+        if age_h is not None and age_h > MAX_SNAPSHOT_AGE_H:
+            return {"state": "stale", "today": snap_date,
+                    "reason": "Snapshot is " + str(round(age_h)) + "h old — it may not "
+                              "reflect the latest lineups."}
+        if sched is False:
+            return {"state": "stale", "today": snap_date,
+                    "reason": "The schedule refresh failed on the last run, so this "
+                              "slate may be incomplete or out of date."}
+        tipped = sum(1 for g in games if _game_tipped(g, now))
+        return {"state": "ok", "games": len(games), "tipped_games": tipped,
+                "today": snap_date}
+
+    # ── empty snapshot ──────────────────────────────────────────────────
+    if not d:
+        return {"state": "unavailable", "reason": "NBA data isn't loaded yet."}
+    if games and not players:
+        return {"state": "incomplete",
+                "reason": "Games are scheduled today, but player data didn't load — "
+                          "projections are unavailable."}
+    if sched is False:
+        return {"state": "source_error",
+                "reason": "Couldn't reach the NBA schedule source — data is "
+                          "temporarily unavailable."}
+    if sched is True and not games:
+        # A confirmed off-day — but ONLY if the metadata confirms it is for today.
+        if meta_missing:
+            return {"state": "stale", "today": snap_date,
+                    "reason": "Can't confirm today's schedule — the snapshot's date or "
+                              "timestamp is missing or invalid."}
+        if et_today and snap_date != et_today:
+            return {"state": "stale", "today": snap_date,
+                    "reason": "Last data is from " + snap_date + "; today's schedule "
+                              "hasn't been checked yet."}
+        # Enforce the same max-age bound as a populated snapshot: a today-dated but
+        # hours-old empty snapshot can't be trusted to prove today is an off-day.
+        if age_h is not None and age_h > MAX_SNAPSHOT_AGE_H:
+            return {"state": "stale", "today": snap_date,
+                    "reason": "The last schedule check was " + str(round(age_h))
+                              + "h ago — today's slate hasn't been confirmed recently."}
+        return {"state": "no_games", "reason": "No NBA games are scheduled today."}
+    return {"state": "empty", "reason": "No NBA games to show right now."}
 
 
 def get_nba_data():
     """Read the committed NBA snapshot and attach projections. Pure/local —
-    never hits the network at request time (the GitHub Action refreshes it)."""
+    never hits the network at request time (the GitHub Action refreshes it).
+    Also flags per-player whether that player's game has already started, and
+    attaches an honest data-status for the UI."""
     try:
         d = nba.read_snapshot() or {}
+        now = datetime.now(timezone.utc)
         if d.get("players"):
             nba_model.project_all(d)
+            by_team = {}
+            for g in d.get("games", []):
+                for k in (g.get("home_id"), g.get("away_id")):
+                    if k is not None:
+                        by_team[str(k)] = g
+            for p in d["players"]:
+                g = by_team.get(str(p.get("team_id")))
+                if g:
+                    p["game_start"] = g.get("start")
+                    p["game_status"] = g.get("status")
+                    p["game_state"] = g.get("state")
+                    p["game_season_type"] = g.get("season_type")
+                    reason = _game_block_reason(g, now)
+                    p["block_reason"] = reason               # None | started | postponed | ...
+                    p["tipped"] = (reason == "started")
+                    p["pregame_ok"] = (reason is None)
+                else:
+                    # A playable player we can't tie to a scheduled game is not a
+                    # verified pregame opportunity — exclude it with a reason.
+                    p["block_reason"] = "unmatched"
+                    p["tipped"] = False
+                    p["pregame_ok"] = False
+        d["data_status"] = _nba_status(d, now)
         return d
     except Exception as e:
         print(f"NBA load error: {e}")
-        return {}
+        return {"data_status": {"state": "error",
+                                "reason": "NBA data is temporarily unavailable."}}
 
 
 def get_nfl_data():
