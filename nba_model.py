@@ -35,6 +35,7 @@ W_L5           = 0.40   # weight on last-5 recent-form rate
 MIN_GP_FOR_L5  = 3      # need this many games before trusting last-5 at all
 BENCH_MIN      = 12.0   # under this projected minutes => low-confidence/bench
 STARTER_MIN    = 28.0   # at/above this => starter-grade confidence
+EARLY_SEASON_GP = 5     # current-season games needed before full confidence tiers apply
 
 OUT_WORDS      = ("out", "suspend", "inactive", "not with team")  # => won't play
 FLAG_WORDS     = ("day-to-day", "game time", "game-time", "questionable",
@@ -176,11 +177,19 @@ def project_player(p, data):
     if bucket == "out":
         proj_min = proj_pts = proj_reb = proj_ast = proj_tpm = proj_pra = 0.0
 
-    # confidence
+    # confidence — gated on CURRENT-season evidence, not last season's résumé.
+    # A player with zero 2026-27 games cannot be "high" just because he played a
+    # full 2025-26: the projection is a historical baseline until the new season
+    # supplies real games.
+    cur_gp = p.get("cur_gp") or 0
     if bucket == "out":
         conf = "out"
+    elif cur_gp == 0:
+        conf = "low"            # no current-season evidence yet (e.g. opening night)
+    elif cur_gp < EARLY_SEASON_GP:
+        conf = "med" if proj_min >= BENCH_MIN else "low"   # thin current sample → cap at med
     elif gp < 5:
-        conf = "low"            # tiny current-season sample (e.g. preseason)
+        conf = "low"
     elif proj_min < BENCH_MIN:
         conf = "low"
     elif proj_min >= STARTER_MIN and gp >= 20:
@@ -197,6 +206,11 @@ def project_player(p, data):
     p["proj_tpm"] = round(proj_tpm, 1)
     p["proj_pra"] = round(proj_pra, 1)
     p["confidence"] = conf
+    # how well-supported the projection is, for honest UI labeling
+    p["cur_gp"] = cur_gp
+    p["evidence"] = ("historical" if cur_gp == 0
+                     else "thin" if cur_gp < EARLY_SEASON_GP
+                     else "current")
     p["playable"] = (bucket != "out")
     p["status_flag"] = bucket   # 'ok' | 'flag' | 'out'
     return p

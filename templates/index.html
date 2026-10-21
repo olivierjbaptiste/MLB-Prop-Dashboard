@@ -1367,7 +1367,16 @@ function setSport(s){
     goNBA('pts');
     try{
       var fr=document.getElementById('nba-freshness');
-      if(fr) fr.textContent = NBA_GAMES.length + ' games on today’s slate';
+      var ds=(NBA&&NBA.data_status)||{};
+      if(fr){
+        if(ds.state && ds.state!=='ok'){
+          fr.textContent = ds.reason || '';
+        } else {
+          var tip = ds.tipped_games||0;
+          fr.textContent = NBA_GAMES.length + ' games on today’s slate'
+            + (tip ? ' · '+tip+' already started (hidden from pregame boards)' : '');
+        }
+      }
     }catch(e){}
   }
   else if(s==='nfl'){
@@ -1518,6 +1527,23 @@ function _nbaConfPill(c){
   return '<span class="conf-pill '+cls+'">'+String(c||'').toUpperCase()+'</span>';
 }
 
+// Whether a projection rests on last season's baseline or on current-season
+// games — shown so a historical-baseline number is never mistaken for one
+// backed by 2026-27 evidence.
+function _nbaEvidence(p){
+  var ev=p.evidence, cur=(p.cur_gp!=null?p.cur_gp:null);
+  if(ev==='historical' || cur===0){
+    var base=p.baseline_season? ((p.baseline_season-1)+'-'+String(p.baseline_season).slice(2)) : 'last-season';
+    return ' <span class="nba-flag" title="No 2026-27 games yet — projection uses the '+base+' baseline" '
+      +'style="background:rgba(155,149,184,0.15);color:var(--muted);border:1px solid var(--muted)">'+base+' baseline</span>';
+  }
+  if(ev==='thin' && cur!=null){
+    return ' <span class="nba-flag" title="Only '+cur+' game(s) this season — early-season projection" '
+      +'style="background:rgba(234,179,8,0.12);color:var(--gold);border:1px solid var(--gold)">'+cur+' GP this szn</span>';
+  }
+  return '';
+}
+
 // Matchup badge: green when the opponent is soft vs this stat, red when tough.
 function _nbaMatchup(p, cfg){
   if(!cfg.mf) return '';
@@ -1533,8 +1559,23 @@ function buildNBA(prop){
   var cfg = NBA_CFG[prop]; if(!cfg) return;
   var q = ((document.getElementById('nba-search')||{}).value||'').trim().toLowerCase();
   var teamF = (document.getElementById('nba-team-filter')||{}).value||'all';
+  // Players not in a clean upcoming game — already started/finished, postponed/off,
+  // or not matchable to a scheduled game — are NOT pregame picks. Exclude them and
+  // say why. (pregame_ok is set server-side; if absent, default to showing.)
+  function _blocked(p){ return p.pregame_ok===false; }
+  var blk={started:0,postponed:0,canceled:0,suspended:0,delayed:0,unmatched:0,other:0};
+  (NBA_PLAYERS||[]).forEach(function(p){
+    if(p.playable && p[cfg.field]!=null && _blocked(p)){
+      var r=p.block_reason||'other'; if(blk[r]==null) r='other'; blk[r]++;
+    }
+  });
+  var hiddenTotal=0; for(var kk in blk) hiddenTotal+=blk[kk];
   var rows = (NBA_PLAYERS||[]).filter(function(p){
+      // No verified historical baseline: 0.0 is a missing-data placeholder,
+      // not a real pregame estimate. Never render it as a projection card.
+      if (!(Number(p.gp) > 0)) return false;
       if(!p.playable || p[cfg.field]==null) return false;
+      if(_blocked(p)) return false;                    // started/postponed/unmatched → not pregame
       if(q && (p.name||'').toLowerCase().indexOf(q)===-1) return false;
       if(teamF!=='all' && p.team!==teamF) return false;
       if(nbaConf==='high' && p.confidence!=='high') return false;
@@ -1544,11 +1585,44 @@ function buildNBA(prop){
   var fc=document.getElementById('nba-filter-count');
   if(fc) fc.textContent = (q||teamF!=='all'||nbaConf!=='all') ? (rows.length+' shown') : '';
   var body=document.getElementById('nba-'+prop+'-body'); if(!body) return;
-  if(!rows.length){
-    body.innerHTML='<div style="color:var(--muted);font-size:12px;padding:24px;text-align:center">No projections yet — players appear once the day’s slate and stats post. Run the NBA Data Pull to refresh the snapshot.</div>';
+  var ds=(NBA&&NBA.data_status)||{};
+  // FAIL CLOSED: when the data isn't a current, usable slate, do NOT render any
+  // projection cards — show only the explanation, so stale/incomplete data can
+  // never be presented as current pregame recommendations. (Live Scores is a
+  // separate feature and keeps working regardless.)
+  var BAD_STATES=['stale','source_error','incomplete','unavailable','error'];
+  if(ds.state && BAD_STATES.indexOf(ds.state)>-1){
+    var cnt0=document.getElementById('nba-'+prop+'-count'); if(cnt0) cnt0.textContent='0';
+    body.innerHTML='<div style="color:var(--red);font-size:12px;font-weight:700;padding:14px 16px;'
+      +'border:1px solid var(--red);border-radius:8px;background:rgba(239,68,68,0.08);text-align:center">'
+      +'&#9888; '+(ds.reason||'NBA projections are unavailable right now.')
+      +'<div style="font-weight:400;color:var(--muted);margin-top:6px;font-size:11px">'
+      +'Projections are hidden until current data is confirmed. Live Scores remains available.</div></div>';
     return;
   }
-  var cards='';
+  var staleBanner='';
+  function _hiddenNote(){
+    if(hiddenTotal<=0) return '';
+    var parts=[];
+    if(blk.started) parts.push(blk.started+' already started');
+    var off=blk.postponed+blk.canceled+blk.suspended+blk.delayed;
+    if(off) parts.push(off+' postponed/off');
+    if(blk.unmatched) parts.push(blk.unmatched+" not matched to a game");
+    if(blk.other) parts.push(blk.other+' unavailable');
+    return '<div style="color:var(--gold);font-size:11px;padding:8px 12px;margin-bottom:10px;'
+      +'border:1px solid var(--gold);border-radius:8px;background:rgba(234,179,8,0.08)">&#9201; '
+      +hiddenTotal+' player'+(hiddenTotal>1?'s':'')+' hidden from pregame boards ('
+      +parts.join(', ')+'). See Live Scores for in-progress games.</div>';
+  }
+  if(!rows.length){
+    var msg = (ds.reason) ? ds.reason
+      : 'No projections yet — players appear once the day’s slate and stats post.';
+    body.innerHTML=staleBanner
+      +'<div style="color:var(--muted);font-size:12px;padding:24px;text-align:center">'+msg
+      +(hiddenTotal>0?(' ('+hiddenTotal+' hidden — started/postponed/unmatched.)'):'')+'</div>';
+    return;
+  }
+  var cards=staleBanner+_hiddenNote();
   rows.forEach(function(p){
     var v=p[cfg.field]!=null?p[cfg.field]:0;
     var vCol = p.confidence==='high'?'var(--green)':(p.confidence==='low'?'var(--muted)':'var(--gold)');
@@ -1564,7 +1638,7 @@ function buildNBA(prop){
         +'<div style="min-width:0">'
           +'<div class="pick-name">'+nbaPhoto(p.name,p.id,28)+p.name+'</div>'
           +'<div style="font-size:11px;color:var(--muted);margin-top:3px">'
-            +'<span class="badge-gray">'+(p.team||'')+'</span>'+(p.opp?' vs '+p.opp:'')+' &middot; '+(p.pos||'')+' '+_nbaConfPill(p.confidence)+flag+_nbaMatchup(p,cfg)
+            +'<span class="badge-gray">'+(p.team||'')+'</span>'+(p.opp?' vs '+p.opp:'')+' &middot; '+(p.pos||'')+' '+_nbaConfPill(p.confidence)+_nbaEvidence(p)+flag+_nbaMatchup(p,cfg)
           +'</div>'
         +'</div>'
         +'<div style="text-align:right;flex-shrink:0">'
